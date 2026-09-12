@@ -1,3 +1,5 @@
+import { AppError } from "@hack4justice/shared";
+
 export type Agency = "DGI" | "RNE" | "APII";
 export type Role = "business_member" | "dgi_officer" | "rne_officer" | "apii_officer" | "rule_maintainer";
 
@@ -26,9 +28,11 @@ export interface DependencyScope {
   readonly consumerAgencies: readonly Agency[];
 }
 
-export class AccessError extends Error {
-  constructor(public readonly status: 401 | 403 | 404 | 409 | 422 | 503, public readonly code: string) {
-    super(code);
+export class AccessError extends AppError {
+  override readonly name = "AccessError";
+
+  constructor(status: 400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 500 | 501 | 503, code: string) {
+    super({ status, code });
   }
 }
 

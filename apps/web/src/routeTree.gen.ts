@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as Char123LocaleChar125RouteRouteImport } from './routes/{-$locale}/route'
 import { Route as Char123LocaleChar125IndexRouteImport } from './routes/{-$locale}/index'
 import { Route as Char123LocaleChar125AboutRouteImport } from './routes/{-$locale}/about'
+import { Route as Char123LocaleChar125DesignSystemRouteImport } from './routes/{-$locale}/design-system'
 import { Route as Char123LocaleChar125LoginRouteImport } from './routes/{-$locale}/login'
 
 const Char123LocaleChar125RouteRoute =
@@ -32,6 +33,12 @@ const Char123LocaleChar125AboutRoute =
     path: '/about',
     getParentRoute: () => Char123LocaleChar125RouteRoute,
   } as any)
+const Char123LocaleChar125DesignSystemRoute =
+  Char123LocaleChar125DesignSystemRouteImport.update({
+    id: '/design-system',
+    path: '/design-system',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
 const Char123LocaleChar125LoginRoute =
   Char123LocaleChar125LoginRouteImport.update({
     id: '/login',
@@ -42,11 +49,13 @@ const Char123LocaleChar125LoginRoute =
 export interface FileRoutesByFullPath {
   '/{-$locale}': typeof Char123LocaleChar125RouteRouteWithChildren
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
+  '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
   '/{-$locale}/': typeof Char123LocaleChar125IndexRoute
 }
 export interface FileRoutesByTo {
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
+  '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
   '/{-$locale}': typeof Char123LocaleChar125IndexRoute
 }
@@ -54,19 +63,29 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/{-$locale}': typeof Char123LocaleChar125RouteRouteWithChildren
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
+  '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
   '/{-$locale}/': typeof Char123LocaleChar125IndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/{-$locale}' | '/{-$locale}/about' | '/{-$locale}/login' | '/{-$locale}/'
+    | '/{-$locale}'
+    | '/{-$locale}/about'
+    | '/{-$locale}/design-system'
+    | '/{-$locale}/login'
+    | '/{-$locale}/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/{-$locale}/about' | '/{-$locale}/login' | '/{-$locale}'
+  to:
+    | '/{-$locale}/about'
+    | '/{-$locale}/design-system'
+    | '/{-$locale}/login'
+    | '/{-$locale}'
   id:
     | '__root__'
     | '/{-$locale}'
     | '/{-$locale}/about'
+    | '/{-$locale}/design-system'
     | '/{-$locale}/login'
     | '/{-$locale}/'
   fileRoutesById: FileRoutesById
@@ -98,6 +117,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char123LocaleChar125AboutRouteImport
       parentRoute: typeof Char123LocaleChar125RouteRoute
     }
+    '/{-$locale}/design-system': {
+      id: '/{-$locale}/design-system'
+      path: '/design-system'
+      fullPath: '/{-$locale}/design-system'
+      preLoaderRoute: typeof Char123LocaleChar125DesignSystemRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
     '/{-$locale}/login': {
       id: '/{-$locale}/login'
       path: '/login'
@@ -110,6 +136,7 @@ declare module '@tanstack/react-router' {
 
 interface Char123LocaleChar125RouteRouteChildren {
   Char123LocaleChar125AboutRoute: typeof Char123LocaleChar125AboutRoute
+  Char123LocaleChar125DesignSystemRoute: typeof Char123LocaleChar125DesignSystemRoute
   Char123LocaleChar125LoginRoute: typeof Char123LocaleChar125LoginRoute
   Char123LocaleChar125IndexRoute: typeof Char123LocaleChar125IndexRoute
 }
@@ -117,6 +144,8 @@ interface Char123LocaleChar125RouteRouteChildren {
 const Char123LocaleChar125RouteRouteChildren: Char123LocaleChar125RouteRouteChildren =
   {
     Char123LocaleChar125AboutRoute: Char123LocaleChar125AboutRoute,
+    Char123LocaleChar125DesignSystemRoute:
+      Char123LocaleChar125DesignSystemRoute,
     Char123LocaleChar125LoginRoute: Char123LocaleChar125LoginRoute,
     Char123LocaleChar125IndexRoute: Char123LocaleChar125IndexRoute,
   }

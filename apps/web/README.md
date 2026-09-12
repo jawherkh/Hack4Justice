@@ -11,12 +11,12 @@ Routes live under `src/routes/{-$locale}`; TanStack Router regenerates
 `src/routeTree.gen.ts` automatically.
 
 The Elysia API client is exported from `src/lib/api.ts` (`api`), with types
-flowing from `@hack4justice/api`. Set `VITE_API_URL` to point at a non-local API.
+flowing from `@hack4justice/api`. `VITE_API_URL` (root `.env`) points it at a non-local API.
 
 ## i18n
 
-Locale is an optional path prefix (`/{-$locale}`): `/` is English (default,
-no prefix), `/fr` French, `/ar` Arabic (RTL). Unknown prefixes 404.
+Locale is an optional path prefix (`/{-$locale}`): `/` is French (default,
+no prefix), `/en` English, `/ar` Arabic (RTL). Unknown prefixes 404.
 
 - `src/i18n/locales.ts` — supported locales, default, direction helpers.
 - `src/i18n/messages/*.json` — translations; `en.json` defines the key set, other

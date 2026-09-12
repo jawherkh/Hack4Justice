@@ -20,6 +20,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./constants/*": "./src/constants/*.ts",
-    "./validators/*": "./src/validators/*.ts"
+    "./validators/*": "./src/validators/*.ts",
+    "./errors/*": "./src/errors/*.ts"
   }
 }

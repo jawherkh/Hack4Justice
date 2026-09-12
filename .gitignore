@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 .env
 .env.*
+!.env.example
 *.[mM][dD]
 ![rR][eE][aA][dD][mM][eE].[mM][dD]
 [dD][oO][cC][sS]/
@@ -16,3 +17,4 @@ dist/
 .turbo/
 .env*.local
 .DS_Store
+.local-data/

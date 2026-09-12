@@ -3,20 +3,32 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "bun": ">=1.4.2"
+  },
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
     "start": "bun dist/index.js",
     "check-types": "tsc --noEmit",
     "lint": "echo \"lint not configured yet\" && exit 0",
-    "test": "bun test"
+    "test": "bun test",
+    "test:storage": "bun scripts/test-storage.ts",
+    "db:init": "bun scripts/init-storage.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",
     "@elysiajs/openapi": "^1.4.16",
+    "@hack4justice/auth": "workspace:*",
+    "@hack4justice/db": "workspace:*",
+    "@hack4justice/logger": "workspace:*",
     "@hack4justice/shared": "workspace:*",
+    "@hack4justice/storage": "workspace:*",
     "@t3-oss/env-core": "^0.13.11",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
     "elysia": "^1.4.30",
+    "postgres": "3.4.9",
     "zod": "^4.6.2"
   },
   "devDependencies": {
