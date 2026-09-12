@@ -1,0 +1,17 @@
+[
+  {
+    "code": "DGI",
+    "name": "DGI synthetic demo",
+    "integration": "simulated"
+  },
+  {
+    "code": "RNE",
+    "name": "RNE synthetic demo",
+    "integration": "simulated"
+  },
+  {
+    "code": "APII",
+    "name": "APII synthetic demo",
+    "integration": "simulated"
+  }
+]

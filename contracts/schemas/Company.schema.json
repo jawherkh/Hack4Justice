@@ -1,0 +1,108 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "name": {
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "member_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Member Ids",
+      "type": "array"
+    },
+    "legal_form": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Legal Form"
+    },
+    "tax_regime": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tax Regime"
+    },
+    "matricule_fiscal": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Matricule Fiscal"
+    },
+    "headcount": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Headcount"
+    },
+    "governorate": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Governorate"
+    },
+    "preferred_language": {
+      "default": "fr",
+      "enum": [
+        "ar-TN",
+        "fr",
+        "en"
+      ],
+      "title": "Preferred Language",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "name",
+    "member_ids"
+  ],
+  "title": "Company",
+  "type": "object"
+}
