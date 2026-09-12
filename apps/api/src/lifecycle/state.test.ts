@@ -80,7 +80,13 @@ describe("dossier transitions", () => {
       decision: { action: "accept" as const, reason: "One reason", targetNodeIds: [], evidenceIds: [] } };
     const first = repository.dispatchCommand(command);
     expect(repository.dispatchCommand({ ...command, decision: { ...command.decision } })).toEqual(first);
-    expect(() => repository.dispatchCommand({ ...command, decision: { ...command.decision, reason: "Changed reason" } })).toThrow("idempotency_conflict");
+    let failure: unknown;
+    try {
+      repository.dispatchCommand({ ...command, decision: { ...command.decision, reason: "Changed reason" } });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toMatchObject({ code: "idempotency_conflict" });
   });
   test("business callers cannot forge decisions or service prerequisite observations", async () => {
     const app = new Elysia().use(createAccessRoutes(createDemoDossierRepository(), createDemoIdentity(true, "test")));

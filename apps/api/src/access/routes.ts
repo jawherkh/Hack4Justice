@@ -49,14 +49,6 @@ function found<T>(value: T | undefined): T {
 
 export function createAccessRoutes(repository: AsyncAccessRepository, resolvePrincipal: ResolvePrincipal) {
   return new Elysia({ name: "scoped-resources" })
-    .onError(({ error, set, code }) => {
-      if (error instanceof AccessError) {
-        set.status = error.status;
-        return { error: { code: error.code } };
-      }
-      set.status = code === "NOT_FOUND" ? 404 : code === "VALIDATION" || code === "PARSE" ? 422 : 500;
-      return { error: { code: set.status === 404 ? "not_found" : set.status === 422 ? "validation_error" : "internal_error" } };
-    })
     .resolve(async ({ request }) => ({ principal: await resolvePrincipal(request) }))
     .get("/me", ({ principal }) => ({ id: principal.id, roles: principal.roles, companyIds: principal.companyIds }))
     .get("/procedures", async ({ principal }) => {
@@ -216,11 +208,10 @@ export function createAccessRoutes(repository: AsyncAccessRepository, resolvePri
       if (!repository.lifecycleEvents) throw new AccessError(503, "workflow_not_configured");
       return repository.lifecycleEvents(dossier.id, after.data);
     })
-    .post("/dossiers/:dossierId/decisions", async ({ params, principal, set }) => {
+    .post("/dossiers/:dossierId/decisions", async ({ params, principal }) => {
       const dossier = found(await repository.dossier(params.dossierId));
       requireAccess(canReview(principal, dossier));
-      set.status = 501;
-      return { error: { code: "workflow_not_configured" } };
+      throw new AccessError(501, "workflow_not_configured");
     }, { body: decisionBody })
     .get("/dependencies/:dependencyId", async ({ params, principal }) => {
       const dependency = found(await repository.dependency(params.dependencyId));

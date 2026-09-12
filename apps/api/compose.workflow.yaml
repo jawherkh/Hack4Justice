@@ -1,7 +1,20 @@
 services:
+  # Named volumes are created as root-owned by Docker. Prepare the volume once
+  # so the Temporal image can keep running as its non-root `temporal` user.
+  temporal-init:
+    image: temporalio/temporal:1.8.3
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["chown -R 1000:1000 /data"]
+    volumes:
+      - temporal-data:/data
+
   temporal:
     image: temporalio/temporal:1.8.3
     command: server start-dev --ip 0.0.0.0 --db-filename /data/temporal.db
+    depends_on:
+      temporal-init:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:7233:7233"
       - "127.0.0.1:8233:8233"

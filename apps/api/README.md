@@ -16,9 +16,8 @@ docker compose -f apps/api/compose.workflow.yaml up -d
 pnpm --filter @hack4justice/api worker
 ```
 
-The worker reads environment variables from its process. To load the root
-environment file explicitly, run `node --env-file=../../.env --import tsx
-src/lifecycle/worker.ts` from `apps/api`. `TEMPORAL_ADDRESS` defaults to
+The worker loads the repository-root `.env` automatically; deployment-provided
+environment variables take precedence. `TEMPORAL_ADDRESS` defaults to
 `127.0.0.1:7233`, `TEMPORAL_NAMESPACE` to `default`, and `TEMPORAL_TASK_QUEUE`
 to `dossier-lifecycle`. The local Temporal UI is at `http://localhost:8233`.
 The compose service is a development server with a persistent volume, not a
@@ -242,3 +241,90 @@ Storage tests create and remove unique schemas and temporary file directories;
 they do not modify the preview's `h4j_api` data. `test:storage` requires an
 explicit test database URL. Plain `test` runs the in-memory tests and skips the
 database suite when that URL is absent.
+
+## Document workspaces
+
+Generated documents are prepared in a container that can reach one directory and nothing
+else. Each dossier run gets its own directory on the host, mounted into the container at
+`/work`.
+
+The container runs as the API process's non-root UID when available, falling back to the
+nobody UID where it is not, with every Linux capability dropped, no privilege escalation,
+no network access, a read-only image filesystem, and limits on memory, CPU, process count
+and wall-clock time. Using the API UID keeps the private bind mount writable without making
+it readable by other host users; deployments should run the API as a non-root user. The
+host's container socket is never mounted, and no host path other than the run's own directory
+is exposed, so one run cannot read another dossier's files or reach the host.
+
+Paths supplied by callers are resolved against the run directory and refused if they land
+outside it. Every component of a path is checked, not only the last, so a parent directory
+swapped for a link cannot redirect a read or a write, and on Linux the opened descriptor is
+confirmed to point inside the directory before any content moves. Anything that is not a
+plain file is refused before it is opened, so a pipe left where an artifact is expected
+cannot make the reader wait for a writer that never arrives.
+
+Reads and writes are capped per file and per workspace, and command output beyond its limit
+is dropped and flagged rather than buffered without bound.
+
+The per-file limit is enforced by the kernel. The workspace total is enforced by measuring
+the directory while a run executes and stopping a run that passes it, which bounds disk use
+but is not a precise quota: a run writing at full disk speed can overshoot by whatever it
+manages between two measurements. Put the workspace on a filesystem created with a fixed
+size when untrusted runs share a disk with anything that matters.
+
+Cleanup and retention:
+
+- A container is removed as soon as its command finishes, and a run that passes the time
+  limit is force-removed, so nothing is left behind.
+- A run directory outlives its container on purpose, so artifacts can still be exported
+  after the command ends. Removing it is an explicit call.
+- Remove a run directory once its artifacts are stored as dossier documents, or when the
+  dossier closes. Nothing expires on its own.
+
+The live isolation checks run against a local container daemon only when
+`SANDBOX_DOCKER_TESTS=1` is set; the rest of the suite runs without one.
+## Uploads (PDF upload + text extraction)
+
+Requires the local stack: `docker compose up -d db minio minio-init tika`.
+Files go to S3-compatible storage (MinIO locally, `@hack4justice/storage`) and
+text is extracted by Apache Tika with Tesseract OCR for scanned pages.
+
+All routes need a Better Auth session cookie.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `POST` | `/api/v1/uploads` | multipart `file` (PDF, max 25 MB), optional `languages` (Tesseract codes, default `fra+eng`). Returns the upload with extracted `text`. |
+| `GET` | `/api/v1/uploads` | List own uploads. |
+| `GET` | `/api/v1/uploads/:id` | Own upload plus a 15-minute presigned `downloadUrl`. |
+| `DELETE` | `/api/v1/uploads/:id` | Remove from storage and database. |
+
+```bash
+curl -b cookies.txt -F file=@dossier.pdf -F languages=fra+ara http://localhost:3001/api/v1/uploads
+```
+
+Extraction runs synchronously in the request today. Move it to a queue once
+files get large or volume grows. (`/api/v1/documents/*` belongs to the access
+module and refers to dossier evidence, a different concept.)
+
+## Errors and localisation
+
+Every error response has one shape, produced by the global handler in `src/errors.ts`:
+
+```json
+{ "error": { "status": 404, "code": "upload_not_found", "message": "Fichier introuvable", "details": {} } }
+```
+
+Throw `AppError` (from `@hack4justice/shared`) anywhere in a request:
+
+```ts
+throw new AppError({ status: 404, code: "upload_not_found" });
+throw new AppError({ status: 413, code: "file_too_large", params: { maxSize: "25 MB" }, details: { size } });
+```
+
+`code` doubles as the translation key. Messages live in `src/i18n/messages/{fr,en,ar}.json`;
+the language comes from the `locale` cookie set by the web app, then `Accept-Language`,
+then French. Unknown codes fall back to a humanised code. Route handlers get `t()` and
+`locale` in context via the `i18n` plugin (`src/i18n/plugin.ts`).
+
+Logging uses `@hack4justice/logger` (pino). One line per request; set `LOG_LEVEL`
+(`info` default, `debug` for local work). Pretty output when `NODE_ENV=development`.

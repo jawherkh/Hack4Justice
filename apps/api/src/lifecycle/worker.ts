@@ -1,10 +1,14 @@
 import { fileURLToPath } from "node:url";
 import { setTimeout } from "node:timers/promises";
+import { config } from "dotenv";
 import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { PersistentRepository } from "../dossiers/persistent";
 import { FileStore } from "../dossiers/files";
 import { COMMAND_SIGNAL, DEFAULT_TASK_QUEUE, WORKFLOW_TYPE } from "./contracts";
+
+// Match the API's root .env loading while allowing deployment-provided variables to win.
+config({ path: fileURLToPath(new URL("../../../../.env", import.meta.url)), quiet: true });
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("Set DATABASE_URL before starting the worker");

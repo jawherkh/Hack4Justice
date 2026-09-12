@@ -6,7 +6,7 @@ Drizzle ORM + Postgres (postgres.js driver). Source-only workspace package.
 
 ```bash
 docker compose up -d db              # local Postgres 17 on :5432
-cp .env.example .env                 # repo root, provides DATABASE_URL
+cp .env.example .env                 # repo root; the only env file
 pnpm --filter @hack4justice/db db:migrate
 ```
 
