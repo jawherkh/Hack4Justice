@@ -2,6 +2,7 @@ import { cors } from "@elysiajs/cors";
 import { openapi } from "@elysiajs/openapi";
 import { Elysia } from "elysia";
 
+import { auth } from "./auth";
 import { env } from "./env";
 import { v1 } from "./v1/index";
 
@@ -11,11 +12,15 @@ const app = new Elysia()
   .use(
     cors({
       origin: env.WEB_ORIGIN,
+      credentials: true,
+      allowedHeaders: ["Content-Type", "Authorization"],
     }),
   )
   .use(openapi())
   // Unversioned: load balancers / uptime checks.
   .get("/health", () => ({ ok: true }))
+  // Better Auth: /api/auth/*
+  .mount(auth.handler)
   .use(v1)
   .listen({ port: PORT, hostname: env.DEMO_ACCESS_ENABLED ? "127.0.0.1" : "0.0.0.0" });
 
