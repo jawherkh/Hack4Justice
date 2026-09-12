@@ -14,9 +14,12 @@ const onWindows = process.platform === "win32";
 const readFlags: string | number = onWindows
   ? "r"
   : constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
+// Opening for a write must not truncate. If the path were redirected outside the workspace
+// after it was checked, truncating on open would empty that file before the check below
+// could refuse it. The file is emptied only once the descriptor is known to be inside.
 const writeFlags: string | number = onWindows
-  ? "w"
-  : constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0);
+  ? "r+"
+  : constants.O_WRONLY | constants.O_CREAT | (constants.O_NOFOLLOW ?? 0);
 
 export class SandboxPathError extends Error {
   readonly code = "invalid_path";
@@ -107,7 +110,9 @@ export class Workspace {
     // Each component is checked, because refusing a link only at the end still allows a
     // parent directory to be swapped for one.
     let walked = this.root;
-    for (const part of relativePath.split(/[\/]+/)) {
+    // Both separators, so a path written with backslashes is still checked one part at a
+    // time rather than arriving as a single component with its parents unexamined.
+    for (const part of relativePath.split(/[\\/]+/)) {
       if (part === "" || part === ".") continue;
       if (part === "..") throw new SandboxPathError("path escapes the workspace");
       walked = join(walked, part);
@@ -185,9 +190,21 @@ export class Workspace {
     }
     await mkdir(dirname(target), { recursive: true });
     await this.assertRegularFile(target);
+    // "r+" needs the file to exist, so an absent one is created empty first. The exclusive
+    // flag means this never overwrites an existing file, including one outside the
+    // workspace that a link might point at.
+    if (onWindows) {
+      try {
+        const created = await open(target, "wx");
+        await created.close();
+      } catch {
+        // already present
+      }
+    }
     const handle = await open(target, writeFlags as never);
     try {
       await this.assertHandleInside(handle);
+      await handle.truncate(0);
       await handle.writeFile(bytes);
     } finally {
       await handle.close();
@@ -236,7 +253,8 @@ export class Workspace {
       for (const entry of await readdir(directory, { withFileTypes: true })) {
         const child = join(directory, entry.name);
         if (entry.isDirectory()) await walk(child);
-        else if (entry.isFile()) total += (await stat(child)).size;
+        // lstat, so a link to a large file outside cannot distort the measurement.
+        else if (entry.isFile()) total += (await lstat(child)).size;
       }
     };
     await walk(this.root);

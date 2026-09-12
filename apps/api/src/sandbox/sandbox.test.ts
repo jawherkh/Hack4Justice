@@ -83,6 +83,36 @@ describe("workspace containment", () => {
     expect(new TextDecoder().decode(await readFile(join(outside, "final.txt")))).toBe("outside content");
   });
 
+  test("a refused write leaves an existing file outside the workspace intact", async () => {
+    const space = await workspace("dossier4d");
+    const outside = join(base, "must-survive.txt");
+    await writeFile(outside, "valuable contents");
+    try {
+      await symlink(outside, join(space.root, "decoy.txt"));
+    } catch {
+      return; // creating links can require a privilege the test runner lacks
+    }
+
+    expect(space.writeFile("decoy.txt", "x")).rejects.toBeInstanceOf(SandboxPathError);
+    // Opening for a write must not empty the target before the path is refused.
+    expect(new TextDecoder().decode(await readFile(outside))).toBe("valuable contents");
+  });
+
+  test("a path written with backslashes is still checked one part at a time", async () => {
+    const space = await workspace("dossier4e");
+    const outside = join(base, "backslash-parent");
+    await mkdir(outside, { recursive: true });
+    await writeFile(join(outside, "inner.txt"), "outside content");
+    try {
+      await symlink(outside, join(space.root, "parent"), "dir");
+    } catch {
+      return;
+    }
+
+    expect(space.resolvePath("parent\\inner.txt")).rejects.toBeInstanceOf(SandboxPathError);
+    expect(space.readFile("parent\\inner.txt")).rejects.toBeInstanceOf(SandboxPathError);
+  });
+
   test("one dossier cannot reach another dossier's files by path", async () => {
     const first = await workspace("dossieralpha", "runa");
     const second = await workspace("dossierbeta", "runb");
