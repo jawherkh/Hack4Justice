@@ -4,11 +4,16 @@ import { Elysia } from "elysia";
 
 import { auth } from "./auth";
 import { env } from "./env";
+import { errorHandler } from "./errors";
+import { logger } from "./logger";
+import { requestLogger } from "./logging";
 import { v1 } from "./v1/index";
 
 const PORT = env.PORT;
 
 const app = new Elysia()
+  .use(errorHandler)
+  .use(requestLogger)
   .use(
     cors({
       origin: env.WEB_ORIGIN,
@@ -19,12 +24,12 @@ const app = new Elysia()
   .use(openapi())
   // Unversioned: load balancers / uptime checks.
   .get("/health", () => ({ ok: true }))
-  // Better Auth: /api/auth/*
-  .mount(auth.handler)
+  // Better Auth. Explicit route rather than `.mount(auth.handler)`, which
+  // would also swallow every unmatched path and bypass the 404 handler.
+  .all("/api/auth/*", ({ request }) => auth.handler(request), { detail: { hide: true } })
   .use(v1)
   .listen({ port: PORT, hostname: env.DEMO_ACCESS_ENABLED ? "127.0.0.1" : "0.0.0.0", maxRequestBodySize: 21 * 1024 * 1024 });
 
-console.log(`API listening on http://localhost:${PORT}`);
-console.log(`Docs at http://localhost:${PORT}/openapi`);
+logger.info({ port: PORT, docs: `http://localhost:${PORT}/openapi` }, "API listening");
 
 export type App = typeof app;

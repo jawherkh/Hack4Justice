@@ -11,7 +11,7 @@ Routes live under `src/routes/{-$locale}`; TanStack Router regenerates
 `src/routeTree.gen.ts` automatically.
 
 The Elysia API client is exported from `src/lib/api.ts` (`api`), with types
-flowing from `@hack4justice/api`. Set `VITE_API_URL` to point at a non-local API.
+flowing from `@hack4justice/api`. `VITE_API_URL` (root `.env`) points it at a non-local API.
 
 ## i18n
 
