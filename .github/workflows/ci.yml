@@ -1,0 +1,251 @@
+name: CI – Environment Validation
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main", "develop"]
+
+env:
+  NODE_VERSION: "20.14.0"
+  PYTHON_VERSION: "3.11.9"
+
+jobs:
+  # ── TypeScript: lint & type-check ────────────────────────────
+  ts-lint-typecheck:
+    name: "TS – Lint & Type-check"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: Backend/package-lock.json
+
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm run lint
+
+  # ── TypeScript: unit tests ────────────────────────────────────
+  ts-test:
+    name: "TS – Unit Tests"
+    runs-on: ubuntu-latest
+    needs: ts-lint-typecheck
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: Backend/package-lock.json
+
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run test
+
+  # ── Python: lint & type-check ─────────────────────────────────
+  py-lint-typecheck:
+    name: "Python – Lint & Type-check"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: pip install uv==0.2.37
+
+      - name: Install dependencies (with dev extras)
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check agent
+
+      - name: Type-check (mypy)
+        run: mypy agent
+
+  # ── Python: unit tests ────────────────────────────────────────
+  py-test:
+    name: "Python – Unit Tests"
+    runs-on: ubuntu-latest
+    needs: py-lint-typecheck
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: pip install uv==0.2.37
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - run: pytest
+
+  # ── Integration health-check (all services) ───────────────────
+  integration:
+    name: "Integration – Health Check"
+    runs-on: ubuntu-latest
+    needs: [ts-lint-typecheck, py-lint-typecheck]
+
+    services:
+      postgres:
+        image: postgres:16.3-alpine
+        env:
+          POSTGRES_USER: h4j
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: h4j_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U h4j -d h4j_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      neo4j:
+        image: neo4j:5.20.0-community
+        env:
+          NEO4J_AUTH: neo4j/ci_password
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p ci_password 'RETURN 1'"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 6
+
+      minio:
+        image: minio/minio:RELEASE.2024-05-10T01-41-38Z
+        env:
+          MINIO_ROOT_USER: h4jadmin
+          MINIO_ROOT_PASSWORD: ci_password
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "mc ready local"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      temporal:
+        image: temporalio/auto-setup:1.24.2
+        env:
+          DB: postgresql
+          DB_PORT: 5432
+          POSTGRES_USER: h4j
+          POSTGRES_PWD: ci_password
+          POSTGRES_SEEDS: localhost
+        ports:
+          - 7233:7233
+        options: >-
+          --health-cmd "tctl --address localhost:7233 cluster health"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── TS API setup ───────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: Backend/package-lock.json
+
+      - name: Install TS dependencies
+        working-directory: Backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: Backend
+        run: npx prisma generate
+
+      - name: Run DB migrations
+        working-directory: Backend
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://h4j:ci_password@localhost:5432/h4j_ci
+
+      - name: Seed database
+        working-directory: Backend
+        run: npm run db:seed
+        env:
+          DATABASE_URL: postgresql://h4j:ci_password@localhost:5432/h4j_ci
+
+      - name: Init storage buckets
+        working-directory: Backend
+        run: npm run storage:init
+        env:
+          MINIO_ENDPOINT: localhost
+          MINIO_PORT: "9000"
+          MINIO_USE_SSL: "false"
+          MINIO_ROOT_USER: h4jadmin
+          MINIO_ROOT_PASSWORD: ci_password
+
+      - name: TS API health check
+        working-directory: Backend
+        run: npm run health
+        env:
+          DATABASE_URL: postgresql://h4j:ci_password@localhost:5432/h4j_ci
+          MINIO_ENDPOINT: localhost
+          MINIO_PORT: "9000"
+          MINIO_USE_SSL: "false"
+          MINIO_ROOT_USER: h4jadmin
+          MINIO_ROOT_PASSWORD: ci_password
+          TEMPORAL_ADDRESS: localhost:7233
+
+      # ── Python agent setup ─────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        run: pip install uv==0.2.37
+
+      - name: Install Python dependencies
+        working-directory: agent
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run graph migrations
+        working-directory: agent
+        run: python -m agent.scripts.graph_migrate
+        env:
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: ci_password
+
+      - name: Python agent health check
+        working-directory: agent
+        run: python -m agent.scripts.health_check
+        env:
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: ci_password
+          MINIO_ENDPOINT: localhost
+          MINIO_PORT: "9000"
+          MINIO_USE_SSL: "false"
+          MINIO_ROOT_USER: h4jadmin
+          MINIO_ROOT_PASSWORD: ci_password
