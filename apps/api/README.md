@@ -157,6 +157,47 @@ they do not modify the preview's `h4j_api` data. `test:storage` requires an
 explicit test database URL. Plain `test` runs the in-memory tests and skips the
 database suite when that URL is absent.
 
+## Document workspaces
+
+Generated documents are prepared in a container that can reach one directory and nothing
+else. Each dossier run gets its own directory on the host, mounted into the container at
+`/work`.
+
+The container runs as the API process's non-root UID when available, falling back to the
+nobody UID where it is not, with every Linux capability dropped, no privilege escalation,
+no network access, a read-only image filesystem, and limits on memory, CPU, process count
+and wall-clock time. Using the API UID keeps the private bind mount writable without making
+it readable by other host users; deployments should run the API as a non-root user. The
+host's container socket is never mounted, and no host path other than the run's own directory
+is exposed, so one run cannot read another dossier's files or reach the host.
+
+Paths supplied by callers are resolved against the run directory and refused if they land
+outside it. Every component of a path is checked, not only the last, so a parent directory
+swapped for a link cannot redirect a read or a write, and on Linux the opened descriptor is
+confirmed to point inside the directory before any content moves. Anything that is not a
+plain file is refused before it is opened, so a pipe left where an artifact is expected
+cannot make the reader wait for a writer that never arrives.
+
+Reads and writes are capped per file and per workspace, and command output beyond its limit
+is dropped and flagged rather than buffered without bound.
+
+The per-file limit is enforced by the kernel. The workspace total is enforced by measuring
+the directory while a run executes and stopping a run that passes it, which bounds disk use
+but is not a precise quota: a run writing at full disk speed can overshoot by whatever it
+manages between two measurements. Put the workspace on a filesystem created with a fixed
+size when untrusted runs share a disk with anything that matters.
+
+Cleanup and retention:
+
+- A container is removed as soon as its command finishes, and a run that passes the time
+  limit is force-removed, so nothing is left behind.
+- A run directory outlives its container on purpose, so artifacts can still be exported
+  after the command ends. Removing it is an explicit call.
+- Remove a run directory once its artifacts are stored as dossier documents, or when the
+  dossier closes. Nothing expires on its own.
+
+The live isolation checks run against a local container daemon only when
+`SANDBOX_DOCKER_TESTS=1` is set; the rest of the suite runs without one.
 ## Uploads (PDF upload + text extraction)
 
 Requires the local stack: `docker compose up -d db minio minio-init tika`.
