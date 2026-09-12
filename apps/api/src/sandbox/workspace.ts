@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, mkdir, open, readdir, realpath, rm, stat } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readdir, realpath, rm } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 
 // Refusing to follow a link on open closes the gap between checking a path and using it:
@@ -38,6 +38,33 @@ function assertSegment(value: string, label: string) {
 
 function isInside(root: string, target: string) {
   return target === root || target.startsWith(root + sep);
+}
+
+function isPortableAbsolutePath(value: string) {
+  return isAbsolute(value) || /^[a-z]:[\\/]/i.test(value) || value.startsWith("\\\\") || value.startsWith("//");
+}
+
+async function ensurePrivateDirectory(path: string): Promise<void> {
+  try {
+    await mkdir(path, { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+
+  const info = await lstat(path);
+  if (info.isSymbolicLink() || !info.isDirectory()) {
+    throw new SandboxPathError("workspace directory must be a real directory");
+  }
+  await chmod(path, 0o700);
+}
+
+async function ensurePrivatePath(root: string, target: string): Promise<void> {
+  let current = root;
+  for (const part of target.slice(root.length).split(sep)) {
+    if (!part) continue;
+    current = join(current, part);
+    await ensurePrivateDirectory(current);
+  }
 }
 
 export interface WorkspaceLimits {
@@ -85,10 +112,15 @@ export class Workspace {
     assertSegment(dossierId, "dossierId");
     assertSegment(runId, "runId");
     const base = await realpath(baseDir);
-    const root = join(base, dossierId, runId);
-    await mkdir(root, { recursive: true });
-    // The realpath is stored so a link anywhere in the base directory cannot widen the root.
-    return new Workspace(dossierId, runId, await realpath(root), limits);
+    const dossierRoot = join(base, dossierId);
+    const root = join(dossierRoot, runId);
+    // Do not allow an existing dossier or run directory to be a link. mkdir({ recursive:
+    // true }) follows such a link, which would make the realpath below point outside base.
+    await ensurePrivateDirectory(dossierRoot);
+    await ensurePrivateDirectory(root);
+    const realRoot = await realpath(root);
+    if (!isInside(base, realRoot)) throw new SandboxPathError("workspace escapes its base directory");
+    return new Workspace(dossierId, runId, realRoot, limits);
   }
 
   /**
@@ -101,7 +133,7 @@ export class Workspace {
     if (typeof relativePath !== "string" || relativePath.length === 0) {
       throw new SandboxPathError("path is required");
     }
-    if (isAbsolute(relativePath)) throw new SandboxPathError("path must be relative");
+    if (isPortableAbsolutePath(relativePath)) throw new SandboxPathError("path must be relative");
     if (relativePath.includes("\0")) throw new SandboxPathError("path must not contain a null byte");
 
     const target = resolve(this.root, relativePath);
@@ -188,20 +220,20 @@ export class Workspace {
     if (used + bytes.byteLength > this.limits.totalBytes) {
       throw new SandboxLimitError("workspace exceeds its total size limit");
     }
-    await mkdir(dirname(target), { recursive: true });
+    await ensurePrivatePath(this.root, dirname(target));
     await this.assertRegularFile(target);
     // "r+" needs the file to exist, so an absent one is created empty first. The exclusive
     // flag means this never overwrites an existing file, including one outside the
     // workspace that a link might point at.
     if (onWindows) {
       try {
-        const created = await open(target, "wx");
+        const created = await open(target, "wx", 0o600);
         await created.close();
       } catch {
         // already present
       }
     }
-    const handle = await open(target, writeFlags as never);
+    const handle = await open(target, writeFlags as never, 0o600);
     try {
       await this.assertHandleInside(handle);
       await handle.truncate(0);

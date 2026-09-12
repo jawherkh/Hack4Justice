@@ -163,11 +163,13 @@ Generated documents are prepared in a container that can reach one directory and
 else. Each dossier run gets its own directory on the host, mounted into the container at
 `/work`.
 
-The container runs as a non-root user with every Linux capability dropped, no privilege
-escalation, no network access, a read-only image filesystem, and limits on memory, CPU,
-process count and wall-clock time. The host's container socket is never mounted, and no
-host path other than the run's own directory is exposed, so one run cannot read another
-dossier's files or reach the host.
+The container runs as the API process's non-root UID when available, falling back to the
+nobody UID where it is not, with every Linux capability dropped, no privilege escalation,
+no network access, a read-only image filesystem, and limits on memory, CPU, process count
+and wall-clock time. Using the API UID keeps the private bind mount writable without making
+it readable by other host users; deployments should run the API as a non-root user. The
+host's container socket is never mounted, and no host path other than the run's own directory
+is exposed, so one run cannot read another dossier's files or reach the host.
 
 Paths supplied by callers are resolved against the run directory and refused if they land
 outside it. Every component of a path is checked, not only the last, so a parent directory

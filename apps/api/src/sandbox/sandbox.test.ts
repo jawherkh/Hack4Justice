@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { buildRunArguments, DockerRunner, defaultRunLimits } from "./runner";
+import { appendOutputChunk, buildRunArguments, defaultContainerUser, DockerRunner, defaultRunLimits } from "./runner";
 import { SandboxLimitError, SandboxPathError, Workspace } from "./workspace";
 
 let base: string;
@@ -37,6 +37,33 @@ describe("workspace containment", () => {
     const space = await workspace("dossier3");
     expect(space.resolvePath("/etc/passwd")).rejects.toBeInstanceOf(SandboxPathError);
     expect(space.resolvePath("C:/Windows/win.ini")).rejects.toBeInstanceOf(SandboxPathError);
+  });
+
+  test("refuses a pre-existing run root that is a symbolic link", async () => {
+    const outside = await mkdtemp(join(tmpdir(), "h4j-sandbox-outside-"));
+    const parent = join(base, "dossier-root-link");
+    await mkdir(parent, { recursive: true });
+    try {
+      await symlink(outside, join(parent, "run-root-link"), "dir");
+    } catch {
+      await rm(outside, { recursive: true, force: true });
+      return; // creating links can require a privilege the test runner lacks
+    }
+
+    await expect(Workspace.create(base, "dossier-root-link", "run-root-link"))
+      .rejects.toBeInstanceOf(SandboxPathError);
+    await rm(outside, { recursive: true, force: true });
+  });
+
+  test("keeps workspace directories and files private to the API user", async () => {
+    const space = await workspace("dossier-private", "run-private");
+    await space.writeFile("nested/deep/secret.txt", "secret");
+
+    expect((await stat(join(base, "dossier-private"))).mode & 0o777).toBe(0o700);
+    expect((await stat(space.root)).mode & 0o777).toBe(0o700);
+    expect((await stat(join(space.root, "nested"))).mode & 0o777).toBe(0o700);
+    expect((await stat(join(space.root, "nested/deep"))).mode & 0o777).toBe(0o700);
+    expect((await stat(join(space.root, "nested/deep/secret.txt"))).mode & 0o777).toBe(0o600);
   });
 
   test("refuses a path that leaves through a symbolic link", async () => {
@@ -173,12 +200,12 @@ describe("container restrictions", () => {
     const joined = args.join(" ");
 
     expect(joined).toContain("--network none");
-    expect(joined).toContain("--user 65534:65534");
+    expect(joined).toContain(`--user ${defaultContainerUser}`);
     expect(joined).toContain("--cap-drop ALL");
     expect(joined).toContain("--security-opt no-new-privileges");
     expect(joined).toContain("--read-only");
     expect(joined).toContain("--pids-limit 128");
-    expect(joined).toContain("--ulimit fsize=33554432:33554432");
+    expect(joined).toContain("--ulimit fsize=10485760:10485760");
     expect(joined).toContain("--ulimit nofile=256:256");
     expect(joined).toContain("--memory 512m");
     expect(joined).toContain("--memory-swap 512m");
@@ -192,9 +219,28 @@ describe("container restrictions", () => {
     expect(mounts).toEqual([`${space.root}:/work:rw`]);
   });
 
+  test("does not let the container file limit exceed the workspace file limit", async () => {
+    const space = await Workspace.create(base, "dossier-limit", "run-limit", {
+      fileBytes: 1024,
+      totalBytes: 2048,
+    });
+    const args = buildRunArguments(space, ["echo", "hello"], "alpine:3.20", defaultRunLimits, "h4j-limit");
+
+    expect(args).toContain("--ulimit");
+    expect(args).toContain("fsize=1024:1024");
+  });
+
   test("an empty command is refused", async () => {
     const space = await workspace("dossier10");
     expect(() => buildRunArguments(space, [], "alpine:3.20", defaultRunLimits, "h4j-test")).toThrow();
+  });
+
+  test("counts captured output in UTF-8 bytes", () => {
+    const output = { stdout: "", stderr: "", bytes: 0, truncated: false };
+    appendOutputChunk(output, "stdout", new TextEncoder().encode("€€"), 4);
+
+    expect(output.truncated).toBe(true);
+    expect(Buffer.byteLength(output.stdout, "utf8")).toBeLessThanOrEqual(4);
   });
 });
 
@@ -230,7 +276,7 @@ live("container isolation against a real daemon", () => {
   test("the process is not root", async () => {
     const space = await Workspace.create(base, "live3", `run${randomUUID().slice(0, 8)}`);
     const result = await runner.run(space, ["id", "-u"]);
-    expect(result.stdout.trim()).toBe("65534");
+    expect(result.stdout.trim()).toBe(defaultContainerUser.split(":")[0]);
   }, 120_000);
 
   test("outbound network access is blocked", async () => {

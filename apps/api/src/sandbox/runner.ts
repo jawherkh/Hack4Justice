@@ -30,6 +30,13 @@ export const defaultRunLimits: RunLimits = {
   openFiles: 256,
 };
 
+const hostUid = typeof process.getuid === "function" ? process.getuid() : undefined;
+const hostGid = typeof process.getgid === "function" ? process.getgid() : undefined;
+/** Use the API UID when it is non-root so it can access the private bind mount. */
+export const defaultContainerUser = hostUid !== undefined && hostUid > 0
+  ? `${hostUid}:${hostGid ?? hostUid}`
+  : "65534:65534";
+
 export interface RunResult {
   exitCode: number | null;
   stdout: string;
@@ -60,6 +67,43 @@ export class SandboxRunError extends Error {
 
 const workdir = "/work";
 
+export interface CapturedOutput {
+  stdout: string;
+  stderr: string;
+  bytes: number;
+  truncated: boolean;
+}
+
+export function appendOutputChunk(
+  output: CapturedOutput,
+  stream: "stdout" | "stderr",
+  chunk: Uint8Array,
+  limitBytes: number,
+): void {
+  const room = limitBytes - output.bytes;
+  if (room <= 0) {
+    output.truncated = true;
+    return;
+  }
+
+  const text = Buffer.from(chunk).toString("utf8");
+  if (Buffer.byteLength(text, "utf8") <= room) {
+    output[stream] += text;
+    output.bytes += Buffer.byteLength(text, "utf8");
+    return;
+  }
+
+  // Trim by characters after decoding so the returned string remains valid UTF-8 while
+  // keeping its encoded size within the byte limit.
+  let prefix = text;
+  while (prefix.length > 0 && Buffer.byteLength(prefix, "utf8") > room) {
+    prefix = prefix.slice(0, -1);
+  }
+  output[stream] += prefix;
+  output.bytes += Buffer.byteLength(prefix, "utf8");
+  output.truncated = true;
+}
+
 /**
  * Builds the container arguments for one run.
  *
@@ -77,12 +121,13 @@ export function buildRunArguments(
   containerName: string,
 ): string[] {
   if (command.length === 0) throw new SandboxRunError("a command is required");
+  const fileBytes = Math.min(limits.fileBytes, workspace.limits.fileBytes);
   return [
     "run",
     "--rm",
     "--name", containerName,
     "--network", "none",
-    "--user", "65534:65534",
+    "--user", defaultContainerUser,
     "--cap-drop", "ALL",
     "--security-opt", "no-new-privileges",
     "--read-only",
@@ -90,7 +135,7 @@ export function buildRunArguments(
     "--pids-limit", String(limits.pids),
     // The workspace is a host directory, so the file size limit is what stops a run from
     // filling the host disk. The open file limit bounds descriptor use.
-    "--ulimit", `fsize=${limits.fileBytes}:${limits.fileBytes}`,
+    "--ulimit", `fsize=${fileBytes}:${fileBytes}`,
     "--ulimit", `nofile=${limits.openFiles}:${limits.openFiles}`,
     "--memory", `${limits.memoryMb}m`,
     // Matching swap to memory stops the limit being sidestepped by swapping.
@@ -122,31 +167,18 @@ export class DockerRunner {
 
     return await new Promise<RunResult>((settle) => {
       const child = spawn(this.dockerBinary, args, { stdio: ["ignore", "pipe", "pipe"] });
-      let stdout = "";
-      let stderr = "";
-      let truncated = false;
+      const output: CapturedOutput = { stdout: "", stderr: "", bytes: 0, truncated: false };
       let timedOut = false;
       let limitExceeded = false;
       let finished = false;
 
-      const collect = (stream: NodeJS.ReadableStream, append: (chunk: string) => void) => {
+      const collect = (stream: NodeJS.ReadableStream, channel: "stdout" | "stderr") => {
         stream.on("data", (chunk: Buffer) => {
-          const room = this.limits.outputBytes - (stdout.length + stderr.length);
-          if (room <= 0) {
-            truncated = true;
-            return;
-          }
-          const text = chunk.toString("utf8");
-          if (text.length > room) {
-            truncated = true;
-            append(text.slice(0, room));
-          } else {
-            append(text);
-          }
+          appendOutputChunk(output, channel, chunk, this.limits.outputBytes);
         });
       };
-      collect(child.stdout, (text) => { stdout += text; });
-      collect(child.stderr, (text) => { stderr += text; });
+      collect(child.stdout, "stdout");
+      collect(child.stderr, "stderr");
 
       const stop = () => {
         spawn(this.dockerBinary, ["rm", "--force", name], { stdio: "ignore" });
@@ -174,11 +206,12 @@ export class DockerRunner {
         finished = true;
         clearTimeout(timer);
         clearInterval(watcher);
-        settle({ exitCode, stdout, stderr, truncated, timedOut, limitExceeded, durationMs: Date.now() - startedAt });
+        settle({ exitCode, stdout: output.stdout, stderr: output.stderr, truncated: output.truncated,
+          timedOut, limitExceeded, durationMs: Date.now() - startedAt });
       };
 
       child.on("error", (error) => {
-        stderr += `\n${error.message}`;
+        appendOutputChunk(output, "stderr", Buffer.from(`\n${error.message}`), this.limits.outputBytes);
         done(null);
       });
       child.on("close", (code) => done(code));
