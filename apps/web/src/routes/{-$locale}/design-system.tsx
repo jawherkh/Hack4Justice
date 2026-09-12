@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, notFound } from '@tanstack/react-router'
 import { ArrowRight, Check, Mail, Plus, Search } from 'lucide-react'
 import {
   Avatar,
@@ -31,6 +31,10 @@ import { OverlaysShowcase } from '#/components/showcase/overlays'
 import { Row, Section } from '#/components/showcase/primitives'
 
 export const Route = createFileRoute('/{-$locale}/design-system')({
+  // Internal reference page: development builds only.
+  beforeLoad: () => {
+    if (!import.meta.env.DEV) throw notFound()
+  },
   head: () => ({ meta: [{ title: 'Design system · Hack4Justice' }] }),
   component: DesignSystem,
 })
