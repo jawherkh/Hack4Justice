@@ -2,7 +2,6 @@ import { upload, type NewUpload, type Upload } from "@hack4justice/db";
 import { AppError, UploadStatus } from "@hack4justice/shared";
 import { and, desc, eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
-import { nanoid } from "nanoid";
 
 import { authGuard } from "../../auth";
 import { db } from "../../db";
@@ -14,7 +13,7 @@ const PDF_CONTENT_TYPE = "application/pdf";
 const PDF_MAGIC = "%PDF-";
 const MAX_PDF_SIZE = "25m";
 
-const idParam = t.Object({ id: t.String({ pattern: "^[A-Za-z0-9_-]{21}$" }) });
+const idParam = t.Object({ id: t.String({ format: "uuid" }) });
 
 export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] })
   .use(i18n)
@@ -26,7 +25,7 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
       const bytes = new Uint8Array(await body.file.arrayBuffer());
       if (!isPdf(bytes)) throw new AppError({ status: 415, code: "invalid_pdf" });
 
-      const id = nanoid();
+      const id = crypto.randomUUID();
       const storageKey = `users/${user.id}/uploads/${id}.pdf`;
 
       await storage.put({
