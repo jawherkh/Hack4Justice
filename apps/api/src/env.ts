@@ -7,6 +7,8 @@ export const env = createEnv({
     WEB_ORIGIN: z.string().default("http://localhost:3000"),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     DEMO_ACCESS_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+    DATABASE_URL: z.string().optional(),
+    DOCUMENT_STORAGE_DIR: z.string().default(".local-data/documents"),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

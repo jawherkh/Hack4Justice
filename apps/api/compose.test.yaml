@@ -1,0 +1,13 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      - "127.0.0.1:55439:5432"
+    environment:
+      POSTGRES_DB: hack4justice_test
+      POSTGRES_HOST_AUTH_METHOD: trust
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hack4justice_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
