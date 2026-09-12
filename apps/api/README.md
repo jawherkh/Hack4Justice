@@ -67,8 +67,8 @@ memberships from server storage on each request.
 
 ## Persistent local preview
 
-Use Bun 1.4.2 or newer. Set `DATABASE_URL` to opt into PostgreSQL storage;
-without it the existing in-memory preview remains available. Storage setup is
+Use Bun 1.4.2 or newer. The API requires `DATABASE_URL` for PostgreSQL storage
+and a private `BETTER_AUTH_SECRET` of at least 32 characters. Storage setup is
 explicit and does not use Supabase credentials automatically.
 
 From the repository root, start a disposable database and initialize synthetic
@@ -140,8 +140,8 @@ actor and works for both JSON and multipart uploads with database storage.
 `GET /api/v1/documents/:documentId/content` returns the original bytes as an
 attachment after the same company, agency or document-grant checks as metadata
 access. It is never a public storage URL. Existing synthetic documents remain
-downloadable as text. OCR, workflow delivery and live event streaming remain
-separate integrations.
+downloadable as text. Document extraction uses the same stored originals;
+workflow delivery and live event streaming remain separate integrations.
 
 ## Verification
 
@@ -156,3 +156,100 @@ Storage tests create and remove unique schemas and temporary file directories;
 they do not modify the preview's `h4j_api` data. `test:storage` requires an
 explicit test database URL. Plain `test` runs the in-memory tests and skips the
 database suite when that URL is absent.
+## Document extraction
+
+The extraction module uses `deepseek-flash` for scanned pages and structured
+field proposals. Native PDF text is read locally with `pdfinfo` and `pdftotext`;
+only pages without sufficient usable text are rendered with `pdftoppm` and
+sent as images. Native text is sent to the model for classification and field
+proposals, but the stored text remains exactly what the local parser returned.
+Images are transcribed in their original language without requested translation
+or wording changes. Extraction results always require human judgment before
+being used as confirmed business facts.
+
+Install the Poppler command-line tools (`poppler-utils` on Debian/Ubuntu) and
+make `pdfinfo`, `pdftotext` and `pdftoppm` available on PATH. Verification uses
+Bun 1.4.2. Configure `DEEPSEEK_API_KEY` privately; `DEEPSEEK_OCR_MODEL` defaults
+to `deepseek-flash`. Requests use the provider's
+[JSON output](https://api-docs.deepseek.com/guides/json_mode/) with
+[thinking disabled](https://api-docs.deepseek.com/guides/thinking_mode/).
+Invalid structured responses are retried once; provider errors and truncated
+responses remain visible as missing or uncertain results rather than invented
+text. Provider response bodies and credentials are never returned in errors.
+
+Each proposed fact carries its original document checksum/version, page and
+verbatim quote. A proposal without a matching quote in the extracted text is
+discarded. Dates are parsed only from explicit ISO or day/month/year numeric
+forms, and identifiers retain leading zeros. Scores are model estimates,
+explicitly labeled `model_self_reported`; native text has no fabricated score.
+An `extracted` state means data was obtained, not independently verified.
+
+### Review endpoints
+
+All paths are under `/api/v1` and use the existing identity and company/agency
+permissions. Only company members may initiate extraction or submit corrections.
+Officers and holders of explicit document grants can read authorized reports.
+
+| Method and path | Behavior |
+| --- | --- |
+| `POST /documents/:documentId/extractions` | Extract the exact original document version |
+| `GET /documents/:documentId/extractions/:extractionId` | Read a report, correction history and effective facts |
+| `POST /documents/:documentId/extractions/:extractionId/corrections` | Append a user correction with a reason |
+| `POST /dossiers/:dossierId/extraction-comparisons` | Return potential inconsistencies with both evidence references |
+
+Extraction request example:
+
+```json
+{"expectedDocumentVersion":1,"idempotencyKey":"extract-example","expectedFields":["company_name","tax_id"]}
+```
+
+`expectedFields` identifies the fields the caller wants extracted; it does not
+declare legal requirements. Supported fields are `company_name`, `tax_id`,
+`registry_id`, `address`, `legal_form`, `document_date` and `headcount`.
+Use a new idempotency key to retry a completed uncertain result. Repeating a
+key reuses its saved report; changing its requested fields returns 409.
+
+Correction request example:
+
+```json
+{"expectedRevision":1,"idempotencyKey":"correct-example","field":"tax_id","page":1,"quote":"Matricule fiscal: 1234567/A/M/000","value":"1234568/A/M/000","reason":"Checked the original image"}
+```
+
+Corrections preserve the original page text and model proposals, recording the
+server-resolved actor, reason and timestamp in a new report revision. A null
+value rejects a proposed field. Effective facts identify user corrections
+separately. Consumers must track the report revision when evaluating derived
+findings; corrections do not silently update company facts or legal decisions.
+Concurrent corrections cannot overwrite a revision. Replaced document versions
+remain readable with `stale: true` and cannot be corrected or compared as current.
+
+Comparisons accept `{"extractionIds":["<first-report-id>","<second-report-id>"]}`.
+Only current documents in the same dossier can be compared. Differences produce
+`potential_inconsistency` entries with each document version, page, quote and
+proposal/correction basis. They do not automatically determine which value is
+correct, and an empty comparison list is not proof of consistency when fields
+are missing.
+
+Reports and correction revisions live under `EXTRACTION_STORAGE_DIR`, defaulting
+to `.local-data/extractions` relative to the API working directory. Keep this
+private directory on persistent storage. Revisions are published atomically
+using filesystem hard links; multiple API instances must share a filesystem
+that supports them. Request deduplication is local to one process while an
+extraction is running, so separate instances may repeat a provider call before
+the first result is saved. At most two distinct extractions run concurrently
+per API process.
+
+Extraction uses the PostgreSQL repository and reads the stored PDF/image
+originals through `readContent(documentId)`. The injectable in-memory repository
+supplies only UTF-8 text originals. Other storage backends can inject an
+`OriginalReader`. An unavailable
+original produces `state: "missing"`
+with `original_unavailable`; metadata or previously extracted text is never
+passed off as the original PDF. `ExtractionEngine.extract` is also an injectable
+worker entry point; scheduling durable activities is a separate integration.
+
+Limits: 20 MiB per input, 20 PDF pages, bounded subprocess/provider timeouts and
+a three-minute API extraction deadline. Native-page selection uses a text
+quality heuristic and may miss scanned content under a substantial digital
+text layer; review mixed pages against the original. Scan transcription and
+document classification remain model proposals.
