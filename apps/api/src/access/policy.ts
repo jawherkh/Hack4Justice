@@ -27,7 +27,7 @@ export interface DependencyScope {
 }
 
 export class AccessError extends Error {
-  constructor(public readonly status: 401 | 403 | 404 | 409 | 422 | 503, public readonly code: string) {
+  constructor(public readonly status: 400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 500 | 503, public readonly code: string) {
     super(code);
   }
 }

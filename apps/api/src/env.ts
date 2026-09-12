@@ -10,6 +10,7 @@ export const env = createEnv({
     DATABASE_URL: z.string().url(),
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.string().url().default("http://localhost:3001"),
+    DOCUMENT_STORAGE_DIR: z.string().default(".local-data/documents"),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

@@ -221,6 +221,7 @@ export interface UploadDocumentInput {
   readonly replacesDocumentId?: string;
   readonly expectedVersion: number;
   readonly uploadedBy: string;
+  readonly binary?: { readonly bytes: Uint8Array; readonly storageRef: string; readonly sha256: string };
 }
 
 export interface ConfirmedFactsInput {
@@ -301,7 +302,22 @@ function assertVersion(actual: number, expected: number): void {
   if (actual !== expected) throw new AccessError(409, "version_conflict");
 }
 
-class InMemoryDossierRepository implements AccessRepository {
+export interface RepositorySnapshot {
+  readonly format: 1;
+  readonly sequence: number;
+  readonly dossiers: DossierRecord[];
+  readonly documents: DocumentRecord[];
+  readonly nodes: NodeRecord[];
+  readonly findings: FindingRecord[];
+  readonly decisions: DecisionRecord[];
+  readonly sources: SourceRecord[];
+  readonly dependencies: DependencyRecord[];
+  readonly procedures: ProcedureVersionRecord[];
+  readonly commands: [string, { fingerprint: string; acknowledgement: LifecycleCommandAcknowledgement }][];
+  readonly grants: readonly DocumentGrant[];
+}
+
+export class InMemoryDossierRepository implements AccessRepository {
   private readonly dossierRows = new Map<string, DossierRecord>();
   private readonly documentRows = new Map<string, DocumentRecord>();
   private readonly nodeRows = new Map<string, NodeRecord>();
@@ -314,6 +330,31 @@ class InMemoryDossierRepository implements AccessRepository {
   private sequence = 0;
 
   public constructor(private readonly documentGrants: readonly DocumentGrant[] = []) {}
+
+  public snapshot(): RepositorySnapshot {
+    return clone({ format: 1, sequence: this.sequence, dossiers: [...this.dossierRows.values()],
+      documents: [...this.documentRows.values()], nodes: [...this.nodeRows.values()],
+      findings: [...this.findingRows.values()], decisions: [...this.decisionRows.values()],
+      sources: [...this.sourceRows.values()], dependencies: [...this.dependencyRows.values()],
+      procedures: [...this.procedureRows.values()], commands: [...this.commandRows.entries()], grants: this.documentGrants });
+  }
+
+  public static restore(snapshot: RepositorySnapshot): InMemoryDossierRepository {
+    if (snapshot.format !== 1) throw new Error("Unsupported repository format");
+    const copy = clone(snapshot);
+    const repository = new InMemoryDossierRepository(copy.grants);
+    repository.sequence = copy.sequence;
+    for (const row of copy.dossiers) repository.dossierRows.set(row.id, row);
+    for (const row of copy.documents) repository.documentRows.set(row.id, row);
+    for (const row of copy.nodes) repository.nodeRows.set(row.id, row);
+    for (const row of copy.findings) repository.findingRows.set(row.id, row);
+    for (const row of copy.decisions) repository.decisionRows.set(row.id, row);
+    for (const row of copy.sources) repository.sourceRows.set(row.id, row);
+    for (const row of copy.dependencies) repository.dependencyRows.set(row.id, row);
+    for (const row of copy.procedures) repository.procedureRows.set(row.id, row);
+    for (const [key, row] of copy.commands) repository.commandRows.set(key, row);
+    return repository;
+  }
 
   public dossiers(): readonly DossierRecord[] {
     return [...this.dossierRows.values()].map(clone);
@@ -472,6 +513,9 @@ class InMemoryDossierRepository implements AccessRepository {
       if (replaces.dossierId !== dossier.id || replaces.nodeId !== node.id) {
         throw new AccessError(404, "not_found");
       }
+      if ([...this.documentRows.values()].some((document) => document.replacesId === input.replacesDocumentId)) {
+        throw new AccessError(409, "document_already_replaced");
+      }
     }
 
     const documentId = `document-${dossier.id}-${++this.sequence}`;
@@ -486,10 +530,10 @@ class InMemoryDossierRepository implements AccessRepository {
       version: replaces ? replaces.version + 1 : 1,
       ...(replaces ? { replacesId: replaces.id } : {}),
       requirementIds,
-      storageRef: `memory://${dossier.id}/${documentId}/${input.filename}`,
-      sha256: checksum(input.content),
+      storageRef: input.binary?.storageRef ?? `memory://${dossier.id}/${documentId}/${input.filename}`,
+      sha256: input.binary?.sha256 ?? checksum(input.content),
       mimeType: input.mimeType,
-      sizeBytes: new TextEncoder().encode(input.content).byteLength,
+      sizeBytes: input.binary?.bytes.byteLength ?? new TextEncoder().encode(input.content).byteLength,
       uploadedBy: input.uploadedBy,
       uploadedAt: timestamp(),
       reviewStatus: "unreviewed",
@@ -662,7 +706,7 @@ const procedureNodes: readonly ProcedureNodeDefinition[] = ALL_NODE_TYPES.map((t
               : ["view", "execute_external"],
 }));
 
-export function createDemoDossierRepository(grants: readonly DocumentGrant[] = []): AccessRepository {
+export function createDemoDossierRepository(grants: readonly DocumentGrant[] = []): InMemoryDossierRepository {
   const repository = new InMemoryDossierRepository(grants);
   const agencies: readonly Agency[] = ["DGI", "RNE", "APII"];
 
