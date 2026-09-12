@@ -87,7 +87,7 @@ state. They continue into a new run after 100 processed references when the queu
 is empty, limiting history growth. Use the cancellation command to cancel a
 dossier; force-terminating Temporal is an operational action, not a business decision.
 
-Offline regression tests run with `bun test src/lifecycle/state.test.ts`.
+Offline regression tests run with `pnpm --filter @hack4justice/api exec vitest run src/lifecycle/state.test.ts`.
 
 The access module provides server-side company membership and agency permission
 checks with an injectable identity resolver and resource repository. Business
