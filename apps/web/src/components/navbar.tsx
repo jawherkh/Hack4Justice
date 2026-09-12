@@ -1,9 +1,8 @@
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate, useRouteContext, useRouter } from '@tanstack/react-router'
 import { Button } from '@hack4justice/ui/components/button'
-import { Skeleton } from '@hack4justice/ui/components/skeleton'
 import { LanguageSwitcher } from '#/components/language-switcher'
 import { toLocaleParam, useI18n } from '#/i18n'
-import { signOut, useSession } from '#/lib/auth'
+import { signOut } from '#/lib/auth'
 
 const navLinkClass =
   'text-sm text-muted-foreground transition-colors hover:text-foreground data-[status=active]:text-foreground data-[status=active]:font-medium'
@@ -50,10 +49,9 @@ function SessionActions() {
   const { locale, t } = useI18n()
   const params = { locale: toLocaleParam(locale) }
   const navigate = useNavigate()
-  const { data: session, isPending } = useSession()
-
-  // Session resolves on the client; keep the slot's width stable meanwhile.
-  if (isPending) return <Skeleton className="h-8 w-36" />
+  const router = useRouter()
+  // Resolved server-side in the locale layout's beforeLoad, so SSR already knows.
+  const { session } = useRouteContext({ from: '/{-$locale}' })
 
   if (session) {
     return (
@@ -63,6 +61,7 @@ function SessionActions() {
           variant="outline"
           onClick={async () => {
             await signOut()
+            await router.invalidate()
             await navigate({ to: '/{-$locale}', params })
           }}
         >

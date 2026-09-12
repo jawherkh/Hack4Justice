@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useForm } from '@tanstack/react-form'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate, useRouter } from '@tanstack/react-router'
 import { Button } from '@hack4justice/ui/components/button'
 import {
   Card,
@@ -55,9 +55,15 @@ const FIELDS: TextField[] = [
   },
 ]
 
-export function SignupForm({ className, ...props }: React.ComponentProps<'div'>) {
+interface SignupFormProps extends React.ComponentProps<'div'> {
+  /** Where to go after a successful sign-up. Must be a same-origin path. */
+  redirectTo: string
+}
+
+export function SignupForm({ redirectTo, className, ...props }: SignupFormProps) {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
+  const router = useRouter()
   const [serverError, setServerError] = React.useState<string | null>(null)
 
   const form = useForm({
@@ -70,7 +76,8 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
         setServerError(t(authErrorKey(result.error.code)))
         return
       }
-      await navigate({ to: '/{-$locale}', params: { locale: toLocaleParam(locale) } })
+      await router.invalidate()
+      await navigate({ href: redirectTo })
     },
   })
 
@@ -131,7 +138,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<'div'>)
                 </form.Subscribe>
                 <FieldDescription className="text-center">
                   {t('auth.register.hasAccount')}{' '}
-                  <Link to="/{-$locale}/login" params={{ locale: toLocaleParam(locale) }}>
+                  <Link to="/{-$locale}/login" params={{ locale: toLocaleParam(locale) }} search={{ redirect: redirectTo }}>
                     {t('auth.register.signIn')}
                   </Link>
                 </FieldDescription>

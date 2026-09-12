@@ -1,6 +1,7 @@
 import { Link, Outlet, createFileRoute, notFound } from '@tanstack/react-router'
 import { Footer } from '#/components/footer'
 import { Navbar } from '#/components/navbar'
+import { getSession } from '#/lib/session'
 import {
   DEFAULT_LOCALE,
   I18nProvider,
@@ -10,13 +11,14 @@ import {
 } from '#/i18n'
 
 export const Route = createFileRoute('/{-$locale}')({
-  beforeLoad: ({ params }) => {
+  beforeLoad: async ({ params }) => {
     // No prefix means default locale. Any prefix must be a known locale,
     // otherwise `/whatever` would silently render as the default language.
     if (params.locale !== undefined && !isLocale(params.locale)) {
       throw notFound()
     }
-    return { locale: resolveLocale(params.locale) }
+    const session = await getSession()
+    return { locale: resolveLocale(params.locale), session }
   },
   head: ({ params }) => {
     // Derive from params, not context: `head` also runs when `beforeLoad`
