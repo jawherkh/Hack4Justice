@@ -1,0 +1,12 @@
+{
+  "extends": "@hack4justice/typescript-config/react.json",
+  "compilerOptions": {
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "paths": {
+      "@hack4justice/ui/*": ["./src/*"]
+    }
+  },
+  "include": ["."],
+  "exclude": ["node_modules", "dist"]
+}

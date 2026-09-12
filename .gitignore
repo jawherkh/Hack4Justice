@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.output/
+.nitro/
+.tanstack/
+*.tsbuildinfo
+.turbo/
+.env
+.env*.local
+.DS_Store
