@@ -1,26 +1,25 @@
 {
-  "name": "@hack4justice/shared",
+  "name": "@hack4justice/storage",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit",
-    "dev": "echo \"shared is source-only\" && exit 0",
+    "dev": "echo \"storage is source-only\" && exit 0",
     "lint": "echo \"lint not configured yet\" && exit 0",
     "check-types": "tsc --noEmit",
     "test": "echo \"no tests yet\" && exit 0"
   },
   "dependencies": {
-    "zod": "^4.6.2"
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/s3-request-presigner": "^3.0.0"
   },
   "devDependencies": {
     "@hack4justice/typescript-config": "workspace:*",
+    "@types/node": "^22.10.2",
     "typescript": "^5.9.2"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./constants/*": "./src/constants/*.ts",
-    "./validators/*": "./src/validators/*.ts",
-    "./errors/*": "./src/errors/*.ts"
+    ".": "./src/index.ts"
   }
 }

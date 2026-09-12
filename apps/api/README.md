@@ -156,3 +156,49 @@ Storage tests create and remove unique schemas and temporary file directories;
 they do not modify the preview's `h4j_api` data. `test:storage` requires an
 explicit test database URL. Plain `test` runs the in-memory tests and skips the
 database suite when that URL is absent.
+
+## Uploads (PDF upload + text extraction)
+
+Requires the local stack: `docker compose up -d db minio minio-init tika`.
+Files go to S3-compatible storage (MinIO locally, `@hack4justice/storage`) and
+text is extracted by Apache Tika with Tesseract OCR for scanned pages.
+
+All routes need a Better Auth session cookie.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `POST` | `/api/v1/uploads` | multipart `file` (PDF, max 25 MB), optional `languages` (Tesseract codes, default `fra+eng`). Returns the upload with extracted `text`. |
+| `GET` | `/api/v1/uploads` | List own uploads. |
+| `GET` | `/api/v1/uploads/:id` | Own upload plus a 15-minute presigned `downloadUrl`. |
+| `DELETE` | `/api/v1/uploads/:id` | Remove from storage and database. |
+
+```bash
+curl -b cookies.txt -F file=@dossier.pdf -F languages=fra+ara http://localhost:3001/api/v1/uploads
+```
+
+Extraction runs synchronously in the request today. Move it to a queue once
+files get large or volume grows. (`/api/v1/documents/*` belongs to the access
+module and refers to dossier evidence, a different concept.)
+
+## Errors and localisation
+
+Every error response has one shape, produced by the global handler in `src/errors.ts`:
+
+```json
+{ "error": { "status": 404, "code": "upload_not_found", "message": "Fichier introuvable", "details": {} } }
+```
+
+Throw `AppError` (from `@hack4justice/shared`) anywhere in a request:
+
+```ts
+throw new AppError({ status: 404, code: "upload_not_found" });
+throw new AppError({ status: 413, code: "file_too_large", params: { maxSize: "25 MB" }, details: { size } });
+```
+
+`code` doubles as the translation key. Messages live in `src/i18n/messages/{fr,en,ar}.json`;
+the language comes from the `locale` cookie set by the web app, then `Accept-Language`,
+then French. Unknown codes fall back to a humanised code. Route handlers get `t()` and
+`locale` in context via the `i18n` plugin (`src/i18n/plugin.ts`).
+
+Logging uses `@hack4justice/logger` (pino). One line per request; set `LOG_LEVEL`
+(`info` default, `debug` for local work). Pretty output when `NODE_ENV=development`.
