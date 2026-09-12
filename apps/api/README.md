@@ -1,5 +1,6 @@
 # Business API
 
+Runs on Node (>= 22) via `tsx` in development and a `tsup` bundle in production.
 Run from the repository root with `pnpm --filter @hack4justice/api dev`.
 The API exposes `/health` and versioned routes under `/api/v1`.
 
