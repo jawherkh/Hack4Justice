@@ -10,6 +10,7 @@
     "dev": "bun --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
     "start": "bun dist/index.js",
+    "worker": "node --import tsx src/lifecycle/worker.ts",
     "check-types": "tsc --noEmit",
     "lint": "echo \"lint not configured yet\" && exit 0",
     "test": "bun test",
@@ -23,6 +24,9 @@
     "@hack4justice/db": "workspace:*",
     "@hack4justice/shared": "workspace:*",
     "@t3-oss/env-core": "^0.13.11",
+    "@temporalio/client": "1.23.0",
+    "@temporalio/worker": "1.23.0",
+    "@temporalio/workflow": "1.23.0",
     "elysia": "^1.4.30",
     "postgres": "3.4.9",
     "zod": "^4.6.2"
@@ -30,6 +34,7 @@
   "devDependencies": {
     "@hack4justice/typescript-config": "workspace:*",
     "@types/bun": "latest",
+    "tsx": "^4.23.13",
     "typescript": "^6.0.2"
   },
   "exports": {

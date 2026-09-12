@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { AsyncAccessRepository } from "../dossiers/persistent";
 import { MAX_UPLOAD_BYTES } from "../dossiers/files";
+import { lifecycleCommandBody } from "../lifecycle/validation";
 import { type ResolvePrincipal } from "./identity";
 import {
   AccessError, canEditEvidence, canMaintainRules, canReadDependency, canReadDocument,
@@ -39,20 +40,6 @@ const multipartBody = z.object({
   expectedVersion: z.coerce.number().int().positive(),
   requirementIds: z.union([z.string().min(1).max(5000), z.array(z.string())]).optional(),
   replacesDocumentId: z.string().min(1).optional(),
-});
-
-const lifecycleCommandBody = z.object({
-  type: z.enum([
-    "evidence_changed",
-    "review_requested",
-    "submission_requested",
-    "resubmission_requested",
-    "cancellation_requested",
-    "decision_recorded",
-  ]),
-  expectedVersion: z.number().int().min(1),
-  idempotencyKey: z.string().min(1).max(200),
-  nodeId: z.string().min(1).optional(),
 });
 
 function found<T>(value: T | undefined): T {
@@ -197,7 +184,7 @@ export function createAccessRoutes(repository: AsyncAccessRepository, resolvePri
         set.status = 422;
         return { error: { code: "validation_error" } };
       }
-      const result = await repository.updateConfirmedFacts({ ...parsed.data, dossierId: dossier.id });
+      const result = await repository.updateConfirmedFacts({ ...parsed.data, dossierId: dossier.id, actorId: principal.id });
       return { dossier: result.detail.dossier, invalidatedFindingIds: result.invalidatedFindingIds };
     })
     .post("/dossiers/:dossierId/commands", async ({ params, body, principal, set }) => {
@@ -214,6 +201,20 @@ export function createAccessRoutes(repository: AsyncAccessRepository, resolvePri
       const acknowledgement = await repository.dispatchCommand({ ...parsed.data, dossierId: dossier.id, actorId: principal.id });
       set.status = 202;
       return acknowledgement;
+    })
+    .get("/dossiers/:dossierId/commands/:commandId", async ({ params, principal }) => {
+      const dossier = found(await repository.dossier(params.dossierId));
+      requireAccess(canReadDossier(principal, dossier));
+      if (!repository.commandResult) throw new AccessError(503, "workflow_not_configured");
+      return found(await repository.commandResult({ dossierId: dossier.id, commandId: params.commandId }));
+    })
+    .get("/dossiers/:dossierId/lifecycle-events", async ({ params, query, principal }) => {
+      const dossier = found(await repository.dossier(params.dossierId));
+      requireAccess(canReadDossier(principal, dossier));
+      const after = z.coerce.number().int().nonnegative().safeParse(query.after ?? 0);
+      if (!after.success) throw new AccessError(422, "invalid_event_cursor");
+      if (!repository.lifecycleEvents) throw new AccessError(503, "workflow_not_configured");
+      return repository.lifecycleEvents(dossier.id, after.data);
     })
     .post("/dossiers/:dossierId/decisions", async ({ params, principal, set }) => {
       const dossier = found(await repository.dossier(params.dossierId));

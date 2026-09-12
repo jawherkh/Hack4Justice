@@ -3,6 +3,92 @@
 Run from the repository root with `pnpm --filter @hack4justice/api dev`.
 The API exposes `/health` and versioned routes under `/api/v1`.
 
+## Recoverable review processing
+
+Run the worker under Node.js 22 or newer; the HTTP API continues to use Bun.
+The worker and API must share `DATABASE_URL`. Rerun `db:init` after upgrading
+to create the command queue and event tables while preserving existing data.
+
+From the repository root, start the development Temporal service:
+
+```sh
+docker compose -f apps/api/compose.workflow.yaml up -d
+pnpm --filter @hack4justice/api worker
+```
+
+The worker reads environment variables from its process. To load the root
+environment file explicitly, run `node --env-file=../../.env --import tsx
+src/lifecycle/worker.ts` from `apps/api`. `TEMPORAL_ADDRESS` defaults to
+`127.0.0.1:7233`, `TEMPORAL_NAMESPACE` to `default`, and `TEMPORAL_TASK_QUEUE`
+to `dossier-lifecycle`. The local Temporal UI is at `http://localhost:8233`.
+The compose service is a development server with a persistent volume, not a
+production Temporal deployment. Keep its ports on loopback.
+
+`POST /api/v1/dossiers/:dossierId/commands` accepts a versioned request and
+returns 202 after the command is committed to PostgreSQL. A separate relay
+delivers its reference to the dossier's workflow. Requests remain queued when
+Temporal or the worker is unavailable. Duplicate delivery is harmless: command
+results, decisions, dossier changes and projection events commit together.
+An activity retry after a successful commit returns the stored result.
+
+Example explicit submission for the synthetic platform review:
+
+```json
+{"type":"submission_requested","expectedVersion":1,"idempotencyKey":"submit-example","confirmed":true}
+```
+
+Read `GET /api/v1/dossiers/:dossierId/commands/:commandId` until its status is
+`completed` or `rejected`. A rejected result includes an error code, such as
+`version_conflict` or `invalid_transition`. Refresh the dossier before making
+a new request. Retrying the same actor/key/payload returns the original
+acknowledgement; a changed payload returns 409. Officer decisions use the same
+command endpoint, with a `nodeId` identifying a decision or human-review node:
+
+```json
+{"type":"decision_recorded","expectedVersion":2,"idempotencyKey":"review-example","nodeId":"<review-node-id>","decision":{"action":"request_modification","reason":"The uploaded page is unreadable.","targetNodeIds":["<document-node-id>"],"evidenceIds":["<document-id>"]}}
+```
+
+Only an officer for the dossier's agency can record a decision. Modification
+requests require target nodes. Business members upload corrections, then send
+`resubmission_requested` with explicit confirmation and the current version.
+Acceptance/refusal closes the dossier; cancellation preserves previous
+decisions. Closed/cancelled dossiers reject new writes. A request for review
+alone never changes agency acceptance. Submission here starts the platform's
+synthetic review; it does not send a government submission or create a receipt.
+
+Uploads and confirmed-fact changes enqueue evidence-change references in the
+same transaction as the stored evidence. Their immediate responses contain the
+stored version; the worker may advance it again, so refresh before the next
+command. No original file bytes enter workflow history. OCR, model calls, graph
+queries and sandbox execution must be separate activities; the worker currently
+registers only command preparation and projection persistence activities.
+
+Trusted service callers can enqueue `prerequisite_changed` through the repository
+with an obligation ID, observation version, source/rule references, expiry and
+covered actions. Public business endpoints reject that command type. Unknown,
+disputed or expired observations require review; unfulfilled obligations block
+only their covered submission actions. A newer fulfilled observation clears
+that wait. Stale observations cannot replace newer ones. The upstream rule/status
+service owns applicability and authoritative verification; missing uploads are
+never interpreted as an unfulfilled obligation.
+
+`GET /api/v1/dossiers/:dossierId/lifecycle-events?after=0` returns up to 100
+events in aggregate-version order, scoped to the same company/agency access.
+Use the last returned version as the next cursor. Each event has a stable ID
+and the resulting status; fetch dossier detail for its documents and decisions.
+The initial snapshot is the baseline for repositories created before event
+tracking was installed. This polling endpoint is separate from live SSE delivery.
+
+Workflow signals only enqueue references; the main loop serializes transitions.
+The commit activity rechecks the dossier version so an intervening upload cannot
+be overwritten. Workflows remain waiting after a business terminal state to
+consume delayed deliveries safely; new commands are still rejected by the stored
+state. They continue into a new run after 100 processed references when the queue
+is empty, limiting history growth. Use the cancellation command to cancel a
+dossier; force-terminating Temporal is an operational action, not a business decision.
+
+Offline regression tests run with `bun test src/lifecycle/state.test.ts`.
+
 The access module provides server-side company membership and agency permission
 checks with an injectable identity resolver and resource repository. Business
 members can read their own dossiers and edit their evidence. Officers can read
@@ -59,16 +145,16 @@ The dossier API supports synthetic create/resume, immutable document versions,
 replacement uploads, confirmed-fact updates and optimistic version checks.
 Evidence and fact changes mark affected findings stale and return the updated
 projection. Lifecycle commands are validated, authorized and accepted through
-an idempotent command boundary; execution remains owned by the future Temporal
-workflow. Command acknowledgements persist when database storage is configured;
-they do not execute transitions or imply agency acceptance.
+an idempotent command boundary. A Temporal worker executes the queued requests
+and writes their results and versioned projection events back to PostgreSQL.
+A command acknowledgement means queued, and does not imply agency acceptance.
 The production identity resolver must verify credentials and load roles and
 memberships from server storage on each request.
 
 ## Persistent local preview
 
-Use Bun 1.4.2 or newer. Set `DATABASE_URL` to opt into PostgreSQL storage;
-without it the existing in-memory preview remains available. Storage setup is
+Use Bun 1.4.2 or newer. The API requires `DATABASE_URL` for PostgreSQL storage
+and a private `BETTER_AUTH_SECRET` of at least 32 characters. Storage setup is
 explicit and does not use Supabase credentials automatically.
 
 From the repository root, start a disposable database and initialize synthetic
