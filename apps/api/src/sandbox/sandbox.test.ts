@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -50,6 +50,20 @@ describe("workspace containment", () => {
     }
     expect(space.resolvePath("link.txt")).rejects.toBeInstanceOf(SandboxPathError);
     expect(space.readFile("link.txt")).rejects.toBeInstanceOf(SandboxPathError);
+  });
+
+  test("refuses to write through a link planted at the target path", async () => {
+    const space = await workspace("dossier4b");
+    const outside = join(base, "write-target.txt");
+    await writeFile(outside, "original");
+    try {
+      await symlink(outside, join(space.root, "swapped.txt"));
+    } catch {
+      return; // creating links can require a privilege the test runner lacks
+    }
+
+    expect(space.writeFile("swapped.txt", "overwritten")).rejects.toBeInstanceOf(SandboxPathError);
+    expect(new TextDecoder().decode(await readFile(outside))).toBe("original");
   });
 
   test("one dossier cannot reach another dossier's files by path", async () => {
@@ -107,6 +121,8 @@ describe("container restrictions", () => {
     expect(joined).toContain("--security-opt no-new-privileges");
     expect(joined).toContain("--read-only");
     expect(joined).toContain("--pids-limit 128");
+    expect(joined).toContain("--ulimit fsize=33554432:33554432");
+    expect(joined).toContain("--ulimit nofile=256:256");
     expect(joined).toContain("--memory 512m");
     expect(joined).toContain("--memory-swap 512m");
 
@@ -192,6 +208,19 @@ live("container isolation against a real daemon", () => {
     expect(result.timedOut).toBe(true);
     expect(result.durationMs).toBeLessThan(60_000);
   }, 120_000);
+
+  test("the container cannot write a file larger than its limit", async () => {
+    const space = await Workspace.create(base, "live9", `run${randomUUID().slice(0, 8)}`);
+    const capped = new DockerRunner(image, { ...defaultRunLimits, fileBytes: 1024 * 1024, timeoutMs: 30_000 });
+
+    // Without a file size limit this would keep writing into the host directory.
+    const result = await capped.run(space, ["sh", "-c", "dd if=/dev/zero of=/work/big bs=1M count=64 2>&1; echo EXIT=$?"]);
+
+    expect(result.stdout).toContain("EXIT=");
+    expect(result.stdout).not.toContain("64+0 records out");
+    const written = await stat(join(space.root, "big")).then((info) => info.size).catch(() => 0);
+    expect(written).toBeLessThanOrEqual(1024 * 1024);
+  }, 180_000);
 
   test("output beyond the limit is dropped and flagged", async () => {
     const space = await Workspace.create(base, "live8", `run${randomUUID().slice(0, 8)}`);

@@ -1,6 +1,20 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, mkdir, open, readdir, realpath, rm, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+
+// Refusing to follow a link on open closes the gap between checking a path and using it:
+// a container writing into the same directory could otherwise replace a checked file with
+// a link at exactly that moment.
+//
+// Windows has no such flag and rejects numeric open flags outright, so it uses the plain
+// modes and relies on the explicit link check below. Runs execute on Linux, where the flag
+// applies.
+const onWindows = process.platform === "win32";
+const readFlags: string | number = onWindows ? "r" : constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0);
+const writeFlags: string | number = onWindows
+  ? "w"
+  : constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0);
 
 export class SandboxPathError extends Error {
   readonly code = "invalid_path";
@@ -105,6 +119,17 @@ export class Workspace {
     return target;
   }
 
+  /** Refuses a path whose final component is a link, before it is opened. */
+  private async assertNotLink(target: string): Promise<void> {
+    try {
+      const info = await lstat(target);
+      if (info.isSymbolicLink()) throw new SandboxPathError("path is a symbolic link");
+    } catch (error) {
+      if (error instanceof SandboxPathError) throw error;
+      // The file not existing yet is fine; a write creates it.
+    }
+  }
+
   async writeFile(relativePath: string, contents: Uint8Array | string): Promise<void> {
     const bytes = typeof contents === "string" ? new TextEncoder().encode(contents) : contents;
     if (bytes.byteLength > this.limits.fileBytes) {
@@ -116,15 +141,28 @@ export class Workspace {
       throw new SandboxLimitError("workspace exceeds its total size limit");
     }
     await mkdir(dirname(target), { recursive: true });
-    await writeFile(target, bytes);
+    await this.assertNotLink(target);
+    const handle = await open(target, writeFlags as never);
+    try {
+      await handle.writeFile(bytes);
+    } finally {
+      await handle.close();
+    }
   }
 
   async readFile(relativePath: string): Promise<Uint8Array> {
     const target = await this.resolvePath(relativePath);
-    const info = await stat(target);
-    if (!info.isFile()) throw new SandboxPathError("path is not a file");
-    if (info.size > this.limits.fileBytes) throw new SandboxLimitError("file exceeds the per-file limit");
-    return new Uint8Array(await readFile(target));
+    await this.assertNotLink(target);
+    const handle = await open(target, readFlags as never);
+    try {
+      // Stat through the open handle, so the size checked is the file being read.
+      const info = await handle.stat();
+      if (!info.isFile()) throw new SandboxPathError("path is not a file");
+      if (info.size > this.limits.fileBytes) throw new SandboxLimitError("file exceeds the per-file limit");
+      return new Uint8Array(await handle.readFile());
+    } finally {
+      await handle.close();
+    }
   }
 
   /** Reads a file and describes where it came from, so an artifact can be traced to its run. */

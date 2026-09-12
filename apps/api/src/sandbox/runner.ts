@@ -11,6 +11,13 @@ export interface RunLimits {
   pids: number;
   /** Largest amount of stdout or stderr kept. Output past it is dropped and flagged. */
   outputBytes: number;
+  /**
+   * Largest file the container may create. The workspace is a host directory, so without
+   * this a run could fill the host disk however small its memory limit is.
+   */
+  fileBytes: number;
+  /** Open file limit, so a run cannot exhaust the host's descriptors. */
+  openFiles: number;
 }
 
 export const defaultRunLimits: RunLimits = {
@@ -19,6 +26,8 @@ export const defaultRunLimits: RunLimits = {
   timeoutMs: 30_000,
   pids: 128,
   outputBytes: 256 * 1024,
+  fileBytes: 32 * 1024 * 1024,
+  openFiles: 256,
 };
 
 export interface RunResult {
@@ -64,6 +73,10 @@ export function buildRunArguments(
     "--read-only",
     "--tmpfs", "/tmp:rw,noexec,nosuid,size=16m",
     "--pids-limit", String(limits.pids),
+    // The workspace is a host directory, so the file size limit is what stops a run from
+    // filling the host disk. The open file limit bounds descriptor use.
+    "--ulimit", `fsize=${limits.fileBytes}:${limits.fileBytes}`,
+    "--ulimit", `nofile=${limits.openFiles}:${limits.openFiles}`,
     "--memory", `${limits.memoryMb}m`,
     // Matching swap to memory stops the limit being sidestepped by swapping.
     "--memory-swap", `${limits.memoryMb}m`,
