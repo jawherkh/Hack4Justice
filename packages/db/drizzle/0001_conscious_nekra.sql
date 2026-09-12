@@ -1,6 +1,6 @@
 CREATE TYPE "public"."upload_status" AS ENUM('UPLOADED', 'PROCESSING', 'EXTRACTED', 'FAILED');--> statement-breakpoint
 CREATE TABLE "upload" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" text PRIMARY KEY NOT NULL,
 	"user_id" uuid NOT NULL,
 	"storage_key" text NOT NULL,
 	"filename" text NOT NULL,

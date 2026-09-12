@@ -1,8 +1,10 @@
-import { timestamp, uuid } from "drizzle-orm/pg-core";
+import { text, timestamp } from "drizzle-orm/pg-core";
+import { nanoid } from "nanoid";
 
 /** Reusable column sets. Spread into a table definition. */
+/** nanoid primary key (21 chars, URL-safe). Generated app-side so callers can know the id before insert. */
 export const id = {
-  id: uuid().primaryKey().defaultRandom(),
+  id: text().primaryKey().$defaultFn(() => nanoid()),
 };
 
 export const timestamps = {
