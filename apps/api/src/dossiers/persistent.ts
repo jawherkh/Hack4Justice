@@ -3,6 +3,8 @@ import postgres from "postgres";
 import { AccessError } from "../access/policy";
 import { checksum, FileStore, inspectFile, MAX_UPLOAD_BYTES } from "./files";
 import { storageSchema } from "./schema";
+import type { CommandReference, CommandResult, LifecycleEvent, PreparedCommand, Transition } from "../lifecycle/contracts";
+import { lifecycleCommandBody, prerequisiteBody } from "../lifecycle/validation";
 import { createDemoDossierRepository, InMemoryDossierRepository,
   type AccessRepository, type CreateDossierInput, type ConfirmedFactsInput,
   type LifecycleCommandInput, type RepositorySnapshot, type UploadDocumentInput } from "./store";
@@ -17,6 +19,8 @@ export type AsyncAccessRepository = {
   uploadDocument(input: TextUpload): UploadResult | Promise<UploadResult>;
   uploadFile?(input: BinaryUpload): Promise<UploadResult>;
   readContent?(id: string): Promise<Uint8Array>;
+  commandResult?(reference: CommandReference): Promise<CommandResult | undefined>;
+  lifecycleEvents?(dossierId: string, after: number): Promise<LifecycleEvent[]>;
 };
 interface Connection { query<T>(statement: string, parameters?: unknown[]): Promise<T[]> }
 
@@ -49,14 +53,22 @@ export class PersistentRepository implements AsyncAccessRepository {
     if (!row) throw new AccessError(503, "storage_not_initialized");
     return fn(InMemoryDossierRepository.restore(row.snapshot));
   }
-  private async write<T>(fn: (repository: InMemoryDossierRepository, tx: Connection) => T | Promise<T>): Promise<T> {
+  private async write<T>(fn: (repository: InMemoryDossierRepository, tx: Connection) => T | Promise<T>, eventContext: Partial<LifecycleEvent> = {}): Promise<T> {
     return this.transaction(async (tx) => {
       // Serialize mutations across API processes so version checks and their writes are atomic.
       const row = (await tx.query<{snapshot: RepositorySnapshot}>("SELECT snapshot FROM h4j_api.repository WHERE id=1 FOR UPDATE"))[0];
       if (!row) throw new AccessError(503, "storage_not_initialized");
       const repository = InMemoryDossierRepository.restore(row.snapshot);
       const result = await fn(repository, tx);
-      await tx.query("UPDATE h4j_api.repository SET snapshot=$1::jsonb WHERE id=1", [repository.snapshot()]);
+      const snapshot = repository.snapshot();
+      await tx.query("UPDATE h4j_api.repository SET snapshot=$1::jsonb WHERE id=1", [snapshot]);
+      for (const dossier of snapshot.dossiers) {
+        if (row.snapshot.dossiers.find((d) => d.id === dossier.id)?.version === dossier.version) continue;
+        const event: LifecycleEvent = { ...eventContext, id: `${dossier.id}:${dossier.version}`, type: "projection_changed",
+          companyId: dossier.companyId, dossierId: dossier.id, aggregateVersion: dossier.version, occurredAt: dossier.updatedAt,
+          lifecycle: dossier.lifecycle, agencyAcceptance: dossier.agencyAcceptance, readiness: dossier.readiness, prerequisiteStatus: dossier.prerequisiteStatus };
+        await tx.query("INSERT INTO h4j_api.lifecycle_events(dossier_id,version,event) VALUES($1,$2,$3::jsonb)", [dossier.id, dossier.version, event]);
+      }
       return result;
     });
   }
@@ -70,8 +82,98 @@ export class PersistentRepository implements AsyncAccessRepository {
   procedures() { return this.read((r) => r.procedures()); }
   procedure(id: string) { return this.read((r) => r.procedure(id)); }
   createDossier(input: CreateDossierInput) { return this.write((r) => r.createDossier(input)); }
-  updateConfirmedFacts(input: ConfirmedFactsInput) { return this.write((r) => r.updateConfirmedFacts(input)); }
-  dispatchCommand(input: LifecycleCommandInput) { return this.write((r) => r.dispatchCommand(input)); }
+  updateConfirmedFacts(input: ConfirmedFactsInput) {
+    return this.write(async (r, tx) => {
+      const result = r.updateConfirmedFacts(input);
+      await this.enqueue(r, tx, { dossierId: input.dossierId, actorId: input.actorId ?? "system",
+        type: "evidence_changed", expectedVersion: result.detail.dossier.version, idempotencyKey: `facts:${result.detail.dossier.version}` });
+      return result;
+    });
+  }
+  dispatchCommand(input: LifecycleCommandInput) {
+    return this.write((r, tx) => this.enqueue(r, tx, input));
+  }
+  private async enqueue(r: InMemoryDossierRepository, tx: Connection, input: LifecycleCommandInput) {
+    if (input.type === "prerequisite_changed") {
+      if (!prerequisiteBody.safeParse(input.prerequisite).success) throw new AccessError(422, "invalid_prerequisite");
+    } else {
+      const { dossierId: _dossier, actorId: _actor, ...body } = input;
+      if (!lifecycleCommandBody.safeParse(body).success) throw new AccessError(422, "invalid_command");
+    }
+    const detail = r.dossierDetail(input.dossierId);
+    if (!detail) throw new AccessError(404, "not_found");
+    if (input.decision) {
+      const node = detail.nodes.find((n) => n.id === input.nodeId);
+      if (!node || !["human_review", "decision"].includes(node.type)) throw new AccessError(422, "invalid_review_node");
+      if (input.decision.targetNodeIds.some((id) => !detail.nodes.some((n) => n.id === id)) ||
+        input.decision.evidenceIds.some((id) => !detail.evidence.some((d) => d.id === id))) throw new AccessError(422, "invalid_evidence_scope");
+    }
+    const ack = r.dispatchCommand(input);
+    await tx.query("INSERT INTO h4j_api.lifecycle_commands(id,dossier_id,payload,result) VALUES($1,$2,$3::jsonb,$4::jsonb) ON CONFLICT DO NOTHING",
+      [ack.commandId, input.dossierId, input, { commandId: ack.commandId, dossierId: input.dossierId, status: "queued" }]);
+    return ack;
+  }
+
+  async commandResult(reference: CommandReference) {
+    return (await this.query<{result: CommandResult}>("SELECT result FROM h4j_api.lifecycle_commands WHERE id=$1 AND dossier_id=$2", [reference.commandId, reference.dossierId]))[0]?.result;
+  }
+  async lifecycleEvents(dossierId: string, after: number) {
+    return (await this.query<{event: LifecycleEvent}>("SELECT event FROM h4j_api.lifecycle_events WHERE dossier_id=$1 AND version>$2 ORDER BY version LIMIT 100", [dossierId, after])).map((r) => r.event);
+  }
+  async claimCommands(): Promise<CommandReference[]> {
+    return this.transaction(async (tx) => (await tx.query<{id: string; dossier_id: string; sequence: string}>(`
+      UPDATE h4j_api.lifecycle_commands SET next_delivery_at=now()+interval '30 seconds'
+      WHERE id IN (SELECT id FROM h4j_api.lifecycle_commands WHERE result->>'status'='queued' AND next_delivery_at<=now()
+        ORDER BY sequence LIMIT 50 FOR UPDATE SKIP LOCKED) RETURNING id,dossier_id,sequence
+    `)).sort((a, b) => Number(a.sequence) - Number(b.sequence)).map((r) => ({ commandId: r.id, dossierId: r.dossier_id })));
+  }
+  async prepare(reference: CommandReference): Promise<PreparedCommand | null> {
+    return this.write(async (r, tx) => {
+      const row = (await tx.query<{payload: LifecycleCommandInput; result: CommandResult}>(
+        "SELECT payload,result FROM h4j_api.lifecycle_commands WHERE id=$1 AND dossier_id=$2", [reference.commandId, reference.dossierId]))[0];
+      if (!row || row.result.status !== "queued") return null;
+      const dossier = r.dossier(reference.dossierId);
+      if (!dossier) throw new AccessError(404, "not_found");
+      return { reference, command: row.payload, now: new Date().toISOString(), state: {
+        version: dossier.version, lifecycle: dossier.lifecycle, agencyAcceptance: dossier.agencyAcceptance,
+        readiness: dossier.readiness, prerequisiteStatus: dossier.prerequisiteStatus,
+        context: dossier.lifecycleContext ?? { prerequisites: {}, correctionNodeIds: [] },
+      } };
+    });
+  }
+  async commit(prepared: PreparedCommand, transition: Transition): Promise<CommandResult> {
+    const { reference, command } = prepared;
+    return this.write(async (r, tx) => {
+      const previous = (await tx.query<{result: CommandResult}>("SELECT result FROM h4j_api.lifecycle_commands WHERE id=$1 AND dossier_id=$2", [reference.commandId, reference.dossierId]))[0];
+      if (!previous) throw new AccessError(404, "not_found");
+      if (previous.result.status !== "queued") return previous.result;
+      const detail = r.dossierDetail(reference.dossierId)!;
+      const expired = (command.type === "submission_requested" || command.type === "resubmission_requested") &&
+        Object.values(prepared.state.context.prerequisites).some((o) => o.actions.includes(command.type as "submission_requested" | "resubmission_requested") && Date.parse(o.expiresAt) <= Date.now());
+      const error = detail.dossier.version !== prepared.state.version ? "version_conflict" : "error" in transition ? transition.error : expired ? "prerequisite_needs_review" : undefined;
+      const result: CommandResult = { ...reference, status: error ? "rejected" : "completed", ...(error ? { error } : {}) };
+      if (!error && "state" in transition) {
+        const { context, ...state } = transition.state;
+        r.addDossier({ ...detail.dossier, ...state, lifecycleContext: context, updatedAt: prepared.now });
+        result.version = state.version;
+        for (const node of detail.nodes) {
+          const targeted = context.correctionNodeIds.includes(node.id);
+          const reviewed = node.type === "human_review" || node.type === "decision";
+          r.addNode({ ...node, version: node.version + 1, agencyAcceptance: state.agencyAcceptance,
+            prerequisiteStatus: state.prerequisiteStatus, readiness: state.readiness,
+            state: state.lifecycle === "cancelled" ? "cancelled" : targeted ? "needs_correction" :
+              reviewed && state.lifecycle === "closed" ? "completed" : state.agencyAcceptance === "pending" &&
+                (reviewed || prepared.state.context.correctionNodeIds.includes(node.id)) ? "waiting" : node.state });
+        }
+        if (command.decision) r.addDecision({ companyId: detail.dossier.companyId, dossierId: reference.dossierId,
+          agency: detail.dossier.agency, id: `decision-${reference.commandId}`, nodeId: command.nodeId!, actorId: command.actorId,
+          ...command.decision, dossierVersion: state.version, createdAt: prepared.now });
+      }
+      await tx.query("UPDATE h4j_api.lifecycle_commands SET result=$2::jsonb WHERE id=$1", [reference.commandId, result]);
+      return result;
+    }, { commandId: reference.commandId, actorId: command.actorId, correlationId: command.correlationId ?? command.idempotencyKey,
+      ...(command.decision ? { decisionId: `decision-${reference.commandId}` } : {}) });
+  }
 
   uploadDocument(input: TextUpload) {
     const { binary: _untrusted, ...text } = input;
@@ -107,6 +209,8 @@ export class PersistentRepository implements AsyncAccessRepository {
       // Write exclusively before committing metadata. A failed transaction can leave an orphan, never overwrite an original.
       await this.files.put(key, bytes);
       await tx.query("INSERT INTO h4j_api.originals(id,storage_key,metadata) VALUES($1,$2,$3::jsonb)", [result.document.id, key, result.document]);
+      await this.enqueue(repository, tx, { dossierId: input.dossierId, actorId: input.uploadedBy,
+        type: "evidence_changed", nodeId: input.nodeId, expectedVersion: result.detail.dossier.version, idempotencyKey: `upload:${result.document.id}` });
       if (input.idempotencyKey) await tx.query(
         "INSERT INTO h4j_api.upload_receipts(scope,key,fingerprint,response) VALUES($1,$2,$3,$4::jsonb)",
         [scope, input.idempotencyKey, fingerprint, result]);

@@ -20,7 +20,7 @@ const app = new Elysia()
     cors({
       origin: env.WEB_ORIGIN,
       credentials: true,
-      allowedHeaders: ["Content-Type", "Authorization"],
+      allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", ...(env.DEMO_ACCESS_ENABLED ? ["x-demo-user"] : [])],
     }),
   )
   .use(openapi())

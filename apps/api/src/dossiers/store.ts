@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { LifecycleContext, PrerequisiteObservation } from "../lifecycle/contracts";
 
 import {
   AccessError,
@@ -104,6 +105,7 @@ export interface ProcedureVersionRecord {
 }
 
 export interface DossierRecord extends ResourceScope {
+  readonly lifecycleContext?: LifecycleContext;
   readonly id: string;
   readonly title: string;
   readonly simulated: true;
@@ -178,6 +180,8 @@ export interface NodeRecord extends ResourceScope {
 }
 
 export interface DecisionRecord extends ResourceScope {
+  readonly evidenceIds?: readonly string[];
+  readonly targetNodeIds?: readonly string[];
   readonly id: string;
   readonly nodeId: string;
   readonly agency: Agency;
@@ -225,6 +229,7 @@ export interface UploadDocumentInput {
 }
 
 export interface ConfirmedFactsInput {
+  readonly actorId?: string;
   readonly dossierId: string;
   readonly expectedVersion: number;
   readonly changes: Readonly<Record<string, unknown>>;
@@ -238,11 +243,16 @@ export interface LifecycleCommandInput {
     | "submission_requested"
     | "resubmission_requested"
     | "cancellation_requested"
+    | "prerequisite_changed"
     | "decision_recorded";
   readonly expectedVersion: number;
   readonly idempotencyKey: string;
   readonly actorId: string;
   readonly nodeId?: string;
+  readonly correlationId?: string;
+  readonly confirmed?: boolean;
+  readonly decision?: { action: "accept" | "refuse" | "request_modification"; reason: string; targetNodeIds: string[]; evidenceIds: string[] };
+  readonly prerequisite?: PrerequisiteObservation;
 }
 
 export interface LifecycleCommandAcknowledgement {
@@ -292,6 +302,9 @@ const ALL_NODE_TYPES: readonly NodeType[] = [
 const clone = <T>(value: T): T => structuredClone(value);
 const timestamp = (): string => new Date().toISOString();
 const checksum = (content: string): string => createHash("sha256").update(content).digest("hex");
+const commandFingerprint = (input: unknown): string => JSON.stringify(input, (_key, value) =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value);
 
 function requireValue<T>(value: T | undefined, code = "not_found"): T {
   if (!value) throw new AccessError(404, code);
@@ -495,6 +508,7 @@ export class InMemoryDossierRepository implements AccessRepository {
 
   public uploadDocument(input: UploadDocumentInput) {
     const dossier = requireValue(this.dossierRows.get(input.dossierId));
+    if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled") throw new AccessError(409, "dossier_closed");
     assertVersion(dossier.version, input.expectedVersion);
     const node = requireValue(this.nodeRows.get(input.nodeId));
     if (node.dossierId !== dossier.id || node.companyId !== dossier.companyId || node.agency !== dossier.agency) {
@@ -583,7 +597,7 @@ export class InMemoryDossierRepository implements AccessRepository {
     this.dossierRows.set(dossier.id, {
       ...dossier,
       version: dossier.version + 1,
-      lifecycle: "active",
+      lifecycle: dossier.lifecycle,
       readiness: "needs_review",
       updatedAt: timestamp(),
     });
@@ -597,6 +611,7 @@ export class InMemoryDossierRepository implements AccessRepository {
 
   public updateConfirmedFacts(input: ConfirmedFactsInput) {
     const dossier = requireValue(this.dossierRows.get(input.dossierId));
+    if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled") throw new AccessError(409, "dossier_closed");
     assertVersion(dossier.version, input.expectedVersion);
     if (!Object.keys(input.changes).length) throw new AccessError(422, "empty_fact_update");
 
@@ -627,13 +642,14 @@ export class InMemoryDossierRepository implements AccessRepository {
   public dispatchCommand(input: LifecycleCommandInput): LifecycleCommandAcknowledgement {
     const dossier = requireValue(this.dossierRows.get(input.dossierId));
     const key = `${input.dossierId}:${input.actorId}:${input.idempotencyKey}`;
-    const fingerprint = JSON.stringify(input);
+    const fingerprint = commandFingerprint(input);
     const previous = this.commandRows.get(key);
     if (previous) {
-      if (previous.fingerprint !== fingerprint) throw new AccessError(409, "idempotency_conflict");
+      if (commandFingerprint(JSON.parse(previous.fingerprint)) !== fingerprint) throw new AccessError(409, "idempotency_conflict");
       return clone(previous.acknowledgement);
     }
     assertVersion(dossier.version, input.expectedVersion);
+    if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled") throw new AccessError(409, "dossier_closed");
     if (input.nodeId && !dossier.nodeIds.includes(input.nodeId)) throw new AccessError(404, "not_found");
 
     const acknowledgement: LifecycleCommandAcknowledgement = {
@@ -668,6 +684,11 @@ export class InMemoryDossierRepository implements AccessRepository {
 
   public addFinding(finding: FindingRecord): void {
     this.findingRows.set(finding.id, clone(finding));
+  }
+
+  public addDecision(decision: DecisionRecord): void {
+    if (this.decisionRows.has(decision.id)) throw new AccessError(409, "decision_already_recorded");
+    this.decisionRows.set(decision.id, clone(decision));
   }
 
   public addDependency(dependency: DependencyRecord): void {

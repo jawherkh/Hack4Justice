@@ -17,6 +17,22 @@ CREATE TABLE IF NOT EXISTS h4j_api.upload_receipts (
   response jsonb NOT NULL,
   PRIMARY KEY (scope, key)
 );
+CREATE TABLE IF NOT EXISTS h4j_api.lifecycle_commands (
+  sequence bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
+  id text PRIMARY KEY,
+  dossier_id text NOT NULL,
+  payload jsonb NOT NULL,
+  result jsonb NOT NULL,
+  next_delivery_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS lifecycle_pending ON h4j_api.lifecycle_commands(next_delivery_at, sequence)
+  WHERE result->>'status' = 'queued';
+CREATE TABLE IF NOT EXISTS h4j_api.lifecycle_events (
+  dossier_id text NOT NULL,
+  version integer NOT NULL,
+  event jsonb NOT NULL,
+  PRIMARY KEY (dossier_id, version)
+);
 CREATE OR REPLACE FUNCTION h4j_api.reject_original_mutation() RETURNS trigger
 LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Original documents are immutable'; END $$;
 DROP TRIGGER IF EXISTS immutable_original ON h4j_api.originals;
@@ -25,4 +41,6 @@ FOR EACH ROW EXECUTE FUNCTION h4j_api.reject_original_mutation();
 ALTER TABLE h4j_api.repository ENABLE ROW LEVEL SECURITY;
 ALTER TABLE h4j_api.originals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE h4j_api.upload_receipts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE h4j_api.lifecycle_commands ENABLE ROW LEVEL SECURITY;
+ALTER TABLE h4j_api.lifecycle_events ENABLE ROW LEVEL SECURITY;
 `;
