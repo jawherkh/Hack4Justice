@@ -52,3 +52,21 @@ export function changePasswordSchema(t: Translate) {
 
 export type ProfileValues = z.infer<ReturnType<typeof profileSchema>>
 export type ChangePasswordValues = z.infer<ReturnType<typeof changePasswordSchema>>
+
+export function forgotPasswordSchema(t: Translate) {
+  return z.object({ email: z.email(t('auth.validation.email')) })
+}
+
+export function resetPasswordSchema(t: Translate) {
+  return z
+    .object({
+      newPassword: z
+        .string()
+        .min(MIN_PASSWORD_LENGTH, t('auth.validation.passwordMin', { min: MIN_PASSWORD_LENGTH })),
+      confirmPassword: z.string(),
+    })
+    .refine((data) => data.newPassword === data.confirmPassword, {
+      message: t('auth.error.passwordMismatch'),
+      path: ['confirmPassword'],
+    })
+}

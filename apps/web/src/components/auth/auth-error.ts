@@ -11,6 +11,9 @@ export function authErrorKey(code: string | undefined): MessageKey {
     case 'USER_ALREADY_EXISTS':
     case 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL':
       return 'auth.error.emailTaken'
+    case 'INVALID_TOKEN':
+    case 'TOKEN_EXPIRED':
+      return 'auth.error.invalidToken'
     default:
       return 'auth.error.generic'
   }

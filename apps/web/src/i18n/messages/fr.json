@@ -64,5 +64,17 @@
   "account.sessions.revoke": "Déconnecter les autres appareils",
   "account.sessions.revoked": "Les autres sessions ont été fermées.",
   "account.sessions.signOut": "Se déconnecter ici",
-  "auth.error.wrongPassword": "Le mot de passe actuel est incorrect."
+  "auth.error.wrongPassword": "Le mot de passe actuel est incorrect.",
+  "auth.login.forgot": "Mot de passe oublié ?",
+  "auth.forgot.title": "Mot de passe oublié",
+  "auth.forgot.description": "Saisissez votre e-mail, nous vous enverrons un lien de réinitialisation.",
+  "auth.forgot.submit": "Envoyer le lien",
+  "auth.forgot.sent": "Si un compte existe pour cet e-mail, un lien de réinitialisation a été envoyé.",
+  "auth.forgot.back": "Retour à la connexion",
+  "auth.reset.title": "Nouveau mot de passe",
+  "auth.reset.description": "Choisissez un nouveau mot de passe pour votre compte.",
+  "auth.reset.submit": "Réinitialiser le mot de passe",
+  "auth.reset.done": "Mot de passe réinitialisé. Vous pouvez vous connecter.",
+  "auth.reset.invalidLink": "Ce lien est invalide ou a expiré. Demandez-en un nouveau.",
+  "auth.error.invalidToken": "Ce lien est invalide ou a expiré."
 }

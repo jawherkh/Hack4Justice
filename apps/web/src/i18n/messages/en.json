@@ -64,5 +64,17 @@
   "account.sessions.revoke": "Sign out other devices",
   "account.sessions.revoked": "Other sessions were closed.",
   "account.sessions.signOut": "Sign out here",
-  "auth.error.wrongPassword": "The current password is incorrect."
+  "auth.error.wrongPassword": "The current password is incorrect.",
+  "auth.login.forgot": "Forgot your password?",
+  "auth.forgot.title": "Forgot password",
+  "auth.forgot.description": "Enter your email and we will send you a reset link.",
+  "auth.forgot.submit": "Send reset link",
+  "auth.forgot.sent": "If an account exists for this email, a reset link has been sent.",
+  "auth.forgot.back": "Back to login",
+  "auth.reset.title": "New password",
+  "auth.reset.description": "Choose a new password for your account.",
+  "auth.reset.submit": "Reset password",
+  "auth.reset.done": "Password reset. You can now log in.",
+  "auth.reset.invalidLink": "This link is invalid or has expired. Request a new one.",
+  "auth.error.invalidToken": "This link is invalid or has expired."
 }

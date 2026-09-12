@@ -64,5 +64,17 @@
   "account.sessions.revoke": "تسجيل الخروج من الأجهزة الأخرى",
   "account.sessions.revoked": "تم إغلاق الجلسات الأخرى.",
   "account.sessions.signOut": "تسجيل الخروج هنا",
-  "auth.error.wrongPassword": "كلمة المرور الحالية غير صحيحة."
+  "auth.error.wrongPassword": "كلمة المرور الحالية غير صحيحة.",
+  "auth.login.forgot": "هل نسيت كلمة المرور؟",
+  "auth.forgot.title": "نسيت كلمة المرور",
+  "auth.forgot.description": "أدخل بريدك الإلكتروني وسنرسل لك رابط إعادة التعيين.",
+  "auth.forgot.submit": "إرسال الرابط",
+  "auth.forgot.sent": "إذا كان هناك حساب بهذا البريد، فقد تم إرسال رابط إعادة التعيين.",
+  "auth.forgot.back": "العودة إلى تسجيل الدخول",
+  "auth.reset.title": "كلمة مرور جديدة",
+  "auth.reset.description": "اختر كلمة مرور جديدة لحسابك.",
+  "auth.reset.submit": "إعادة تعيين كلمة المرور",
+  "auth.reset.done": "تمت إعادة تعيين كلمة المرور. يمكنك تسجيل الدخول الآن.",
+  "auth.reset.invalidLink": "هذا الرابط غير صالح أو منتهي الصلاحية. اطلب رابطًا جديدًا.",
+  "auth.error.invalidToken": "هذا الرابط غير صالح أو منتهي الصلاحية."
 }

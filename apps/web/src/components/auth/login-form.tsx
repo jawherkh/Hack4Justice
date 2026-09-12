@@ -96,7 +96,16 @@ export function LoginForm({ redirectTo, className, ...props }: LoginFormProps) {
                   const invalid = field.state.meta.isTouched && field.state.meta.errors.length > 0
                   return (
                     <Field data-invalid={invalid || undefined}>
-                      <FieldLabel htmlFor={field.name}>{t('auth.field.password')}</FieldLabel>
+                      <div className="flex items-center">
+                        <FieldLabel htmlFor={field.name}>{t('auth.field.password')}</FieldLabel>
+                        <Link
+                          to="/{-$locale}/forgot-password"
+                          params={{ locale: toLocaleParam(locale) }}
+                          className="ms-auto text-sm underline-offset-4 hover:underline"
+                        >
+                          {t('auth.login.forgot')}
+                        </Link>
+                      </div>
                       <Input
                         id={field.name}
                         name={field.name}
