@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from apps.graphiti.main import app
 from apps.graphiti.models import AgencyScope, LegalDocument
-from apps.graphiti.service import GraphitiKnowledgeService, chunk_text
+from apps.graphiti.service import GraphitiKnowledgeService, chunk_document, chunk_text
 from apps.graphiti.settings import GraphitiSettings
 from contracts.models import AgencyCode
 
@@ -34,6 +34,28 @@ def test_chunk_text_respects_limit_and_keeps_boundaries():
     assert chunks[-1].endswith("paragraph.")
     assert all(len(chunk) <= 24 for chunk in chunks)
     assert "Second paragraph." in " ".join(chunks)
+
+
+def test_chunk_document_returns_chonkie_offsets_and_token_counts():
+    text = "Art. 1. Tax applies. Art. 2. Filing is annual."
+
+    chunks = chunk_document(text, max_chars=24, overlap_chars=4)
+
+    assert chunks
+    assert all(chunk.text == text[chunk.start_index : chunk.end_index] for chunk in chunks)
+    assert all(chunk.token_count == len(chunk.text) for chunk in chunks)
+    assert chunks[0].text.startswith("Art. 1.")
+
+
+def test_chunk_document_has_a_hard_limit_for_oversized_ocr_sentences():
+    text = "A malformed OCR line " + ("without a sentence delimiter " * 8)
+
+    chunks = chunk_document(text, max_chars=40, overlap_chars=5)
+
+    assert len(chunks) > 1
+    assert all(len(chunk.text) <= 40 for chunk in chunks)
+    assert chunks[0].start_index == 0
+    assert chunks[-1].end_index == len(text)
 
 
 class FakeGraphiti:
@@ -101,9 +123,11 @@ def test_ingestion_passes_provenance_ontology_and_group_id():
         assert all(call["group_id"] == "dgi" for call in fake.added)
         assert all(call["source_description"].startswith("official legal source") for call in fake.added)
         assert all("LEGAL SOURCE PASSAGE" in call["episode_body"] for call in fake.added)
+        assert all("chunk_start_index:" in call["episode_body"] for call in fake.added)
         assert all("uuid" not in call for call in fake.added)
         assert all("LegalRule" in call["entity_types"] for call in fake.added)
         assert all("REQUIRES" in call["edge_types"] for call in fake.added)
+        assert all(episode.token_count > 0 for episode in response.episodes)
 
     asyncio.run(run())
 
