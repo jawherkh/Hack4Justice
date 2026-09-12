@@ -48,16 +48,22 @@ Fixtures contain two companies and three agencies. An RNE officer may view
 `/api/v1/documents/document-alpha-dgi` without a separate document grant.
 All dependency statuses and records are synthetic.
 
-Read routes cover dossiers, nested nodes/documents, document lookup, queues and
-dependency summaries. The event endpoint sends one authorized synthetic SSE
-snapshot and closes; it is not a live subscription. Real event delivery must
-revalidate access on reconnect and permission changes during a subscription.
+Read routes cover procedures, dossiers, nested nodes/documents, document
+lookup, queues and dependency summaries. Dossier detail includes the source,
+requirement, evidence and finding projections needed by the UI. The event
+endpoint sends one authorized synthetic SSE snapshot and closes; it is not a
+live subscription. Real event delivery must revalidate access on reconnect and
+permission changes during a subscription.
 
-Document writes and review decisions enforce access and then return 501. File
-persistence and workflow execution are not configured; no successful write is
-claimed. The production identity resolver must verify credentials and load roles
-and memberships from server storage on each request. The synthetic repository
-must be replaced with persistent storage before production use.
+The dossier API supports synthetic create/resume, immutable document versions,
+replacement uploads, confirmed-fact updates and optimistic version checks.
+Evidence and fact changes mark affected findings stale and return the updated
+projection. Lifecycle commands are validated, authorized and accepted through
+an idempotent command boundary; execution remains owned by the future Temporal
+workflow. The in-memory repository and `memory://` storage references are demo
+implementations and must be replaced with persistent storage before production.
+The production identity resolver must verify credentials and load roles and
+memberships from server storage on each request.
 
 Run `pnpm --filter @hack4justice/api test` and
 `pnpm --filter @hack4justice/api check-types` for verification.
