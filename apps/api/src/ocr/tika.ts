@@ -43,7 +43,7 @@ export function createTikaClient(baseUrl: string) {
         "X-Tika-OCRLanguage": options.ocrLanguages ?? "fra+eng",
       };
 
-      // Copy into a plain ArrayBuffer-backed body: satisfies both Bun's and the DOM's BodyInit typings.
+      // Copy into a plain ArrayBuffer-backed body so it satisfies the DOM BodyInit typing.
       const body = new Blob([new Uint8Array(bytes)]);
       const [textRes, metaRes] = await Promise.all([
         fetch(`${url}/tika`, { method: "PUT", headers, body, signal: options.signal }),

@@ -68,7 +68,7 @@ memberships from server storage on each request.
 
 ## Persistent local preview
 
-Use Bun 1.4.2 or newer. Set `DATABASE_URL` to opt into PostgreSQL storage;
+Use Node 22 or newer. Set `DATABASE_URL` to opt into PostgreSQL storage;
 without it the existing in-memory preview remains available. Storage setup is
 explicit and does not use Supabase credentials automatically.
 

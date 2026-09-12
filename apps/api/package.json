@@ -13,8 +13,8 @@
     "check-types": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:storage": "bun scripts/test-storage.ts",
-    "db:init": "bun scripts/init-storage.ts",
+    "test:storage": "tsx scripts/test-storage.ts",
+    "db:init": "tsx scripts/init-storage.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
