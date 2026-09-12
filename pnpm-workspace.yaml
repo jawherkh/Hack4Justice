@@ -1,0 +1,10 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+allowBuilds:
+  esbuild: true
+  lightningcss: true
+
+minimumReleaseAgeExclude:
+  - cn@0.3.0

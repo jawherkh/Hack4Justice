@@ -7,3 +7,12 @@ __pycache__/
 *.[mM][dD]
 ![rR][eE][aA][dD][mM][eE].[mM][dD]
 [dD][oO][cC][sS]/
+node_modules/
+dist/
+.output/
+.nitro/
+.tanstack/
+*.tsbuildinfo
+.turbo/
+.env*.local
+.DS_Store
