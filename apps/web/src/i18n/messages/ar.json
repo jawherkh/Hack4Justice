@@ -40,5 +40,9 @@
   "auth.validation.nameRequired": "الاسم مطلوب.",
   "auth.validation.email": "البريد الإلكتروني غير صالح.",
   "auth.validation.passwordRequired": "كلمة المرور مطلوبة.",
-  "auth.validation.passwordMin": "يجب أن تتكون كلمة المرور من {min} أحرف على الأقل."
+  "auth.validation.passwordMin": "يجب أن تتكون كلمة المرور من {min} أحرف على الأقل.",
+  "footer.tagline": "العدالة في متناول الجميع.",
+  "footer.rights": "© {year} Hack4Justice. جميع الحقوق محفوظة.",
+  "footer.navigation": "التنقل",
+  "footer.account": "الحساب"
 }

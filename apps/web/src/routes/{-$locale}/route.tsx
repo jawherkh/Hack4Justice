@@ -1,4 +1,5 @@
 import { Link, Outlet, createFileRoute, notFound } from '@tanstack/react-router'
+import { Footer } from '#/components/footer'
 import { Navbar } from '#/components/navbar'
 import {
   DEFAULT_LOCALE,
@@ -31,8 +32,13 @@ function LocaleLayout() {
   const { locale } = Route.useRouteContext()
   return (
     <I18nProvider locale={locale}>
-      <Navbar />
-      <Outlet />
+      <div className="flex min-h-svh flex-col">
+        <Navbar />
+        <div className="flex flex-1 flex-col">
+          <Outlet />
+        </div>
+        <Footer />
+      </div>
     </I18nProvider>
   )
 }

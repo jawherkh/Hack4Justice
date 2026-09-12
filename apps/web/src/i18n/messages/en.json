@@ -40,5 +40,9 @@
   "auth.validation.nameRequired": "Name is required.",
   "auth.validation.email": "Invalid email address.",
   "auth.validation.passwordRequired": "Password is required.",
-  "auth.validation.passwordMin": "Password must be at least {min} characters."
+  "auth.validation.passwordMin": "Password must be at least {min} characters.",
+  "footer.tagline": "Justice, accessible to everyone.",
+  "footer.rights": "© {year} Hack4Justice. All rights reserved.",
+  "footer.navigation": "Navigation",
+  "footer.account": "Account"
 }

@@ -40,5 +40,9 @@
   "auth.validation.nameRequired": "Le nom est requis.",
   "auth.validation.email": "Adresse e-mail invalide.",
   "auth.validation.passwordRequired": "Le mot de passe est requis.",
-  "auth.validation.passwordMin": "Le mot de passe doit contenir au moins {min} caractères."
+  "auth.validation.passwordMin": "Le mot de passe doit contenir au moins {min} caractères.",
+  "footer.tagline": "La justice, accessible à tous.",
+  "footer.rights": "© {year} Hack4Justice. Tous droits réservés.",
+  "footer.navigation": "Navigation",
+  "footer.account": "Compte"
 }
