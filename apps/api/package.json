@@ -26,6 +26,7 @@
     "@hack4justice/shared": "workspace:*",
     "@hack4justice/storage": "workspace:*",
     "@t3-oss/env-core": "^0.13.11",
+    "@temporalio/activity": "1.23.0",
     "@temporalio/client": "1.23.0",
     "@temporalio/worker": "1.23.0",
     "@temporalio/workflow": "1.23.0",

@@ -6,6 +6,7 @@ import { NativeConnection, Worker } from "@temporalio/worker";
 import { PersistentRepository } from "../dossiers/persistent";
 import { FileStore } from "../dossiers/files";
 import { COMMAND_SIGNAL, DEFAULT_TASK_QUEUE, WORKFLOW_TYPE } from "./contracts";
+import { createDocumentActivities } from "../jobs/worker-activities";
 
 // Match the API's root .env loading while allowing deployment-provided variables to win.
 config({ path: fileURLToPath(new URL("../../../../.env", import.meta.url)), quiet: true });
@@ -19,9 +20,15 @@ const repository = new PersistentRepository(url, new FileStore(process.env.DOCUM
 const connection = await Connection.connect({ address });
 const nativeConnection = await NativeConnection.connect({ address });
 const client = new Client({ connection, namespace });
+const documents = createDocumentActivities(url);
+await documents.initialize();
 const worker = await Worker.create({ connection: nativeConnection, namespace, taskQueue,
   workflowsPath: fileURLToPath(new URL("./workflows.ts", import.meta.url)),
-  activities: { prepare: repository.prepare.bind(repository), commit: repository.commit.bind(repository) },
+  activities: {
+    prepare: repository.prepare.bind(repository),
+    commit: repository.commit.bind(repository),
+    ...documents.activities,
+  },
   maxConcurrentActivityTaskExecutions: 5,
 });
 let stopped = false;
@@ -42,5 +49,5 @@ try { await worker.run(); }
 finally {
   stopped = true;
   await delivery;
-  await Promise.all([connection.close(), nativeConnection.close(), repository.close()]);
+  await Promise.all([connection.close(), nativeConnection.close(), repository.close(), documents.close()]);
 }

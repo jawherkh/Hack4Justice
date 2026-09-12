@@ -38,9 +38,24 @@ LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Original documents are immutable';
 DROP TRIGGER IF EXISTS immutable_original ON h4j_api.originals;
 CREATE TRIGGER immutable_original BEFORE UPDATE OR DELETE ON h4j_api.originals
 FOR EACH ROW EXECUTE FUNCTION h4j_api.reject_original_mutation();
+CREATE TABLE IF NOT EXISTS h4j_api.document_jobs (
+  id text PRIMARY KEY,
+  dossier_id text NOT NULL,
+  kind text NOT NULL,
+  status text NOT NULL,
+  output jsonb,
+  error text,
+  retryable boolean,
+  attempts integer NOT NULL DEFAULT 1,
+  started_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS document_jobs_running ON h4j_api.document_jobs(updated_at)
+  WHERE status = 'running';
 ALTER TABLE h4j_api.repository ENABLE ROW LEVEL SECURITY;
 ALTER TABLE h4j_api.originals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE h4j_api.upload_receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE h4j_api.lifecycle_commands ENABLE ROW LEVEL SECURITY;
 ALTER TABLE h4j_api.lifecycle_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE h4j_api.document_jobs ENABLE ROW LEVEL SECURITY;
 `;
