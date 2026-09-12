@@ -9,7 +9,7 @@
     "start": "bun dist/index.js",
     "check-types": "tsc --noEmit",
     "lint": "echo \"lint not configured yet\" && exit 0",
-    "test": "echo \"no tests yet\" && exit 0"
+    "test": "bun test"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",
