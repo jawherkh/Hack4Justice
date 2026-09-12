@@ -17,7 +17,10 @@ class MemoryStore implements NotificationStore {
   readonly records: NotificationRecord[] = [];
 
   async findByIdempotencyKey(key: string) {
-    return this.records.find((record) => record.idempotencyKey === key);
+    const record = this.records.find((candidate) => candidate.idempotencyKey === key);
+    // A database read returns a detached row. Handing out the live object instead would
+    // hide races, because a caller would silently observe another caller's writes.
+    return record ? { ...record } : undefined;
   }
 
   async insertQueued(request: NotificationRequest) {
@@ -39,7 +42,16 @@ class MemoryStore implements NotificationStore {
       updatedAt: now,
     };
     this.records.push(record);
-    return record;
+    return { ...record };
+  }
+
+  async claimAttempt(id: string, expectedAttempts: number) {
+    const record = this.records.find((candidate) => candidate.id === id);
+    if (!record || record.attempts !== expectedAttempts) return undefined;
+    record.attempts += 1;
+    record.status = "queued";
+    record.updatedAt = new Date().toISOString();
+    return { ...record };
   }
 
   async markResult(id: string, result: { status: NotificationRecord["status"]; providerMessageId?: string; failureReason?: string }) {
@@ -48,9 +60,8 @@ class MemoryStore implements NotificationStore {
     record.status = result.status;
     record.providerMessageId = result.providerMessageId;
     record.failureReason = result.failureReason;
-    record.attempts += 1;
     record.updatedAt = new Date().toISOString();
-    return record;
+    return { ...record };
   }
 }
 
@@ -193,11 +204,13 @@ describe("outbound notification delivery", () => {
     expect(first.id).toBe(second.id);
   });
 
-  test("an interrupted message is not sent again", async () => {
+  test("a message interrupted mid-attempt is not sent again", async () => {
     const store = new MemoryStore();
     const request = message();
-    // The record stays queued when the process stops after the provider accepted it.
-    await store.insertQueued(request);
+    // The attempt was taken and the process stopped before the outcome was written, so
+    // the provider may already have accepted the message.
+    const queued = await store.insertQueued(request);
+    await store.claimAttempt(queued.id, 0);
     let calls = 0;
     const counting: Transport = {
       channels: ["whatsapp"],
@@ -212,6 +225,45 @@ describe("outbound notification delivery", () => {
 
     expect(calls).toBe(0);
     expect(record.status).toBe("queued");
+  });
+
+  test("a message stranded before any attempt is delivered on the next call", async () => {
+    const store = new MemoryStore();
+    const request = message();
+    // A store outage between writing the record and reporting the outcome leaves the
+    // message queued with no attempt spent. It never reached the provider.
+    await store.insertQueued(request);
+    const notifier = new Notifier({ store, recipients: directory, transports: [acceptingTransport("SMrecovered")] });
+
+    const record = await notifier.notify(request);
+
+    expect(record.status).toBe("sent");
+    expect(record.providerMessageId).toBe("SMrecovered");
+    expect(store.records).toHaveLength(1);
+  });
+
+  test("two concurrent retries of a failed message send it once", async () => {
+    const store = new MemoryStore();
+    let calls = 0;
+    const counting: Transport = {
+      channels: ["whatsapp"],
+      async send() {
+        calls += 1;
+        if (calls === 1) return { status: "failed", reason: "provider_error_500" };
+        return { status: "sent", providerMessageId: `SM${calls}` };
+      },
+    };
+    const notifier = new Notifier({ store, recipients: directory, transports: [counting] });
+    const request = message();
+
+    await notifier.notify(request);
+    expect(store.records[0]!.status).toBe("failed");
+
+    await Promise.all([notifier.notify(request), notifier.notify(request)]);
+
+    expect(calls).toBe(2);
+    expect(store.records).toHaveLength(1);
+    expect(store.records[0]!.attempts).toBe(2);
   });
 
   test("a failed message retries up to the bound and then stops", async () => {
@@ -264,6 +316,9 @@ describe("outbound notification delivery", () => {
         throw new Error("database_unavailable");
       },
       async insertQueued() {
+        throw new Error("database_unavailable");
+      },
+      async claimAttempt() {
         throw new Error("database_unavailable");
       },
       async markResult() {

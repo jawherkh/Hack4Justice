@@ -45,6 +45,14 @@ export interface NotificationStore {
    * twice. With a SQL store, a unique index on the key provides it.
    */
   insertQueued(request: NotificationRequest): Promise<NotificationRecord>;
+  /**
+   * Takes ownership of one delivery attempt and increments the attempt count. This must
+   * apply only while the record still shows `expectedAttempts`, and must return undefined
+   * when another caller claimed the attempt first, so two callers retrying the same
+   * message cannot both reach the provider. With a SQL store, a conditional update on the
+   * attempt count provides it.
+   */
+  claimAttempt(id: string, expectedAttempts: number): Promise<NotificationRecord | undefined>;
   markResult(
     id: string,
     result: { status: NotificationStatus; providerMessageId?: string; failureReason?: string },
@@ -113,22 +121,25 @@ export class Notifier {
 
   private async deliver(request: NotificationRequest): Promise<NotificationRecord> {
     const existing = await this.store.findByIdempotencyKey(request.idempotencyKey);
-    if (existing) {
-      // A delivered or simulated message is final, and a queued one is either still in
-      // flight or was interrupted after the provider accepted it. Neither may be sent
-      // again, because the recipient would receive a second message.
-      if (existing.status !== "failed") return existing;
-      if (existing.attempts >= maxAttempts) return existing;
-    }
 
-    let record: NotificationRecord;
+    let candidate: NotificationRecord;
     if (existing) {
-      record = existing;
+      if (!this.isResumable(existing)) return existing;
+      candidate = existing;
     } else {
       const claimed = await this.claim(request);
       // Another caller won the race for this key and is delivering it.
       if (!claimed.owned) return claimed.record;
-      record = claimed.record;
+      candidate = claimed.record;
+    }
+
+    // Taking the attempt decides who delivers. The count rises before the provider is
+    // called, so an attempt interrupted before it finished stays visible as one already
+    // spent rather than looking like a message that was never tried.
+    const record = await this.store.claimAttempt(candidate.id, candidate.attempts);
+    if (!record) {
+      const current = await this.store.findByIdempotencyKey(request.idempotencyKey);
+      return current ?? candidate;
     }
 
     const recipient = await this.recipients.find(request.recipientId);
@@ -160,6 +171,21 @@ export class Notifier {
       return await this.store.markResult(record.id, { status: "sent", providerMessageId: outcome.providerMessageId });
     }
     return await this.store.markResult(record.id, { status: outcome.status, failureReason: outcome.reason });
+  }
+
+  /**
+   * Decides whether a stored message may still be delivered.
+   *
+   * A delivered or simulated message is final. A queued message that already spent an
+   * attempt was interrupted while the provider was deciding, so its outcome is unknown
+   * and sending again risks a second message to the recipient. A queued message with no
+   * attempt spent never reached the provider, which is what a store outage between the
+   * insert and the result leaves behind, so it is safe to resume.
+   */
+  private isResumable(record: NotificationRecord) {
+    if (record.status === "sent" || record.status === "simulated") return false;
+    if (record.status === "queued") return record.attempts === 0;
+    return record.attempts < maxAttempts;
   }
 
   /**
