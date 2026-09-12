@@ -1,6 +1,7 @@
 import { Link, useNavigate, useRouteContext, useRouter } from '@tanstack/react-router'
 import { Button } from '@hack4justice/ui/components/button'
 import { LanguageSwitcher } from '#/components/language-switcher'
+import { MobileNav } from '#/components/mobile-nav'
 import { toLocaleParam, useI18n } from '#/i18n'
 import { signOut } from '#/lib/auth'
 
@@ -19,7 +20,7 @@ export function Navbar() {
           Hack4Justice
         </Link>
 
-        <ul className="flex items-center gap-4">
+        <ul className="hidden items-center gap-4 md:flex">
           <li>
             <Link
               to="/{-$locale}"
@@ -44,9 +45,12 @@ export function Navbar() {
           ) : null}
         </ul>
 
-        <div className="ms-auto flex items-center gap-4">
+        <div className="ms-auto hidden items-center gap-4 md:flex">
           <LanguageSwitcher />
           <SessionActions />
+        </div>
+        <div className="ms-auto md:hidden">
+          <MobileNav session={session} />
         </div>
       </nav>
     </header>
