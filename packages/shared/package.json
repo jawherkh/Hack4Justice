@@ -1,0 +1,25 @@
+{
+  "name": "@hack4justice/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "dev": "echo \"shared is source-only\" && exit 0",
+    "lint": "echo \"lint not configured yet\" && exit 0",
+    "check-types": "tsc --noEmit",
+    "test": "echo \"no tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "@hack4justice/typescript-config": "workspace:*",
+    "typescript": "^5.9.2"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./constants/*": "./src/constants/*.ts",
+    "./validators/*": "./src/validators/*.ts"
+  }
+}

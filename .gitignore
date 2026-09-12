@@ -1,6 +1,32 @@
+# ── Python ────────────────────────────────────
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+.prisma/
+
+# ── Node ──────────────────────────────────────
 node_modules/
 dist/
-.env
-*.log
+.output/
+.nitro/
+.tanstack/
+*.tsbuildinfo
 coverage/
-.prisma/
+
+# ── Turborepo ─────────────────────────────────
+.turbo/
+
+# ── Environment ───────────────────────────────
+.env
+.env.*
+.env*.local
+
+# ── Misc ──────────────────────────────────────
+*.log
+.DS_Store
+
+# ── Docs (keep READMEs, ignore everything else) ──
+*.[mM][dD]
+![rR][eE][aA][dD][mM][eE].[mM][dD]
+[dD][oO][cC][sS]/

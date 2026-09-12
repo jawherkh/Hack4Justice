@@ -1,0 +1,15 @@
+{
+  "status": "proposed_not_yet_agreed",
+  "contracts_owner": "Arbi",
+  "required_reviewers": [
+    "Jawher",
+    "Mouayed"
+  ],
+  "boundaries": {
+    "Arbi": "API authorization, company/evidence storage, read projections, readiness and action-specific dependency policy",
+    "Mouayed": "Temporal transition serialization, durable activities, event delivery, sandbox and infrastructure",
+    "Jawher": "Graphiti source-backed context and explicitly approved procedure/rule versions; agent proposals cannot mutate authoritative lifecycle",
+    "Aziz": "Frontend consumes API projections and allowed_actions; no client inference of legal gates or agency acceptance"
+  },
+  "versioning": "Pin procedure_version_id on every dossier. A new rule version requests explicit reassessment; never silently mutate prior decisions. Breaking wire changes require a new schema_version and coordinated consumer migration."
+}

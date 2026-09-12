@@ -1,0 +1,30 @@
+{
+  "name": "@hack4justice/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "start": "bun dist/index.js",
+    "check-types": "tsc --noEmit",
+    "lint": "echo \"lint not configured yet\" && exit 0",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@elysiajs/cors": "^1.4.2",
+    "@elysiajs/openapi": "^1.4.16",
+    "@hack4justice/shared": "workspace:*",
+    "@t3-oss/env-core": "^0.13.11",
+    "elysia": "^1.4.30",
+    "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "@hack4justice/typescript-config": "workspace:*",
+    "@types/bun": "latest",
+    "typescript": "^6.0.2"
+  },
+  "exports": {
+    "./app": "./src/index.ts"
+  }
+}

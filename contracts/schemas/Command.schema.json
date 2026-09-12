@@ -1,0 +1,794 @@
+{
+  "$defs": {
+    "Actor": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "business_member",
+            "officer",
+            "rule_maintainer",
+            "service"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "agency": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgencyCode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "Actor",
+      "type": "object"
+    },
+    "AgencyCode": {
+      "enum": [
+        "DGI",
+        "RNE",
+        "APII"
+      ],
+      "title": "AgencyCode",
+      "type": "string"
+    },
+    "CancellationRequested": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "format": "uuid",
+          "title": "Company Id",
+          "type": "string"
+        },
+        "dossier_id": {
+          "format": "uuid",
+          "title": "Dossier Id",
+          "type": "string"
+        },
+        "node_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Node Id"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "correlation_id": {
+          "format": "uuid",
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "expected_version": {
+          "minimum": 1,
+          "title": "Expected Version",
+          "type": "integer"
+        },
+        "type": {
+          "const": "cancellation_requested",
+          "title": "Type",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "company_id",
+        "dossier_id",
+        "actor",
+        "correlation_id",
+        "idempotency_key",
+        "expected_version",
+        "type",
+        "reason"
+      ],
+      "title": "CancellationRequested",
+      "type": "object"
+    },
+    "DecisionRecorded": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "format": "uuid",
+          "title": "Company Id",
+          "type": "string"
+        },
+        "dossier_id": {
+          "format": "uuid",
+          "title": "Dossier Id",
+          "type": "string"
+        },
+        "node_id": {
+          "format": "uuid",
+          "title": "Node Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "correlation_id": {
+          "format": "uuid",
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "expected_version": {
+          "minimum": 1,
+          "title": "Expected Version",
+          "type": "integer"
+        },
+        "type": {
+          "const": "decision_recorded",
+          "title": "Type",
+          "type": "string"
+        },
+        "decision": {
+          "$ref": "#/$defs/ReviewDecision"
+        }
+      },
+      "required": [
+        "company_id",
+        "dossier_id",
+        "node_id",
+        "actor",
+        "correlation_id",
+        "idempotency_key",
+        "expected_version",
+        "type",
+        "decision"
+      ],
+      "title": "DecisionRecorded",
+      "type": "object"
+    },
+    "EvidenceChanged": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "format": "uuid",
+          "title": "Company Id",
+          "type": "string"
+        },
+        "dossier_id": {
+          "format": "uuid",
+          "title": "Dossier Id",
+          "type": "string"
+        },
+        "node_id": {
+          "format": "uuid",
+          "title": "Node Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "correlation_id": {
+          "format": "uuid",
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "expected_version": {
+          "minimum": 1,
+          "title": "Expected Version",
+          "type": "integer"
+        },
+        "type": {
+          "const": "evidence_changed",
+          "title": "Type",
+          "type": "string"
+        },
+        "evidence_id": {
+          "format": "uuid",
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "replaced_evidence_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Replaced Evidence Id"
+        }
+      },
+      "required": [
+        "company_id",
+        "dossier_id",
+        "node_id",
+        "actor",
+        "correlation_id",
+        "idempotency_key",
+        "expected_version",
+        "type",
+        "evidence_id"
+      ],
+      "title": "EvidenceChanged",
+      "type": "object"
+    },
+    "ObligationStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "company_id": {
+          "format": "uuid",
+          "title": "Company Id",
+          "type": "string"
+        },
+        "responsible_agency": {
+          "$ref": "#/$defs/AgencyCode"
+        },
+        "code": {
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/PrerequisiteStatus"
+        },
+        "basis": {
+          "enum": [
+            "missing_evidence",
+            "user_claim",
+            "authoritative",
+            "simulated"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Source"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "authoritative_reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Authoritative Reference"
+        }
+      },
+      "required": [
+        "id",
+        "company_id",
+        "responsible_agency",
+        "code",
+        "status",
+        "basis",
+        "observed_at"
+      ],
+      "title": "ObligationStatus",
+      "type": "object"
+    },
+    "PrerequisiteChanged": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "format": "uuid",
+          "title": "Company Id",
+          "type": "string"
+        },
+        "dossier_id": {
+          "format": "uuid",
+          "title": "Dossier Id",
+          "type": "string"
+        },
+        "node_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Node Id"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "correlation_id": {
+          "format": "uuid",
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "expected_version": {
+          "minimum": 1,
+          "title": "Expected Version",
+          "type": "integer"
+        },
+        "type": {
+          "const": "prerequisite_changed",
+          "title": "Type",
+          "type": "string"
+        },
+        "obligation": {
+          "$ref": "#/$defs/ObligationStatus"
+        }
+      },
+      "required": [
+        "company_id",
+        "dossier_id",
+        "actor",
+        "correlation_id",
+        "idempotency_key",
+        "expected_version",
+        "type",
+        "obligation"
+      ],
+      "title": "PrerequisiteChanged",
+      "type": "object"
+    },
+    "PrerequisiteStatus": {
+      "enum": [
+        "unknown",
+        "satisfied",
+        "unsatisfied",
+        "not_applicable"
+      ],
+      "title": "PrerequisiteStatus",
+      "type": "string"
+    },
+    "ReviewDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "format": "uuid",
+          "title": "Company Id",
+          "type": "string"
+        },
+        "dossier_id": {
+          "format": "uuid",
+          "title": "Dossier Id",
+          "type": "string"
+        },
+        "node_id": {
+          "format": "uuid",
+          "title": "Node Id",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "agency": {
+          "$ref": "#/$defs/AgencyCode"
+        },
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "action": {
+          "enum": [
+            "accept",
+            "refuse",
+            "request_modification"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "dossier_version": {
+          "minimum": 1,
+          "title": "Dossier Version",
+          "type": "integer"
+        },
+        "procedure_version_id": {
+          "format": "uuid",
+          "title": "Procedure Version Id",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "company_id",
+        "dossier_id",
+        "node_id",
+        "id",
+        "agency",
+        "actor",
+        "action",
+        "reason",
+        "dossier_version",
+        "procedure_version_id",
+        "evidence_ids",
+        "created_at",
+        "idempotency_key"
+      ],
+      "title": "ReviewDecision",
+      "type": "object"
+    },
+    "ReviewRequested": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "format": "uuid",
+          "title": "Company Id",
+          "type": "string"
+        },
+        "dossier_id": {
+          "format": "uuid",
+          "title": "Dossier Id",
+          "type": "string"
+        },
+        "node_id": {
+          "format": "uuid",
+          "title": "Node Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "correlation_id": {
+          "format": "uuid",
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "expected_version": {
+          "minimum": 1,
+          "title": "Expected Version",
+          "type": "integer"
+        },
+        "type": {
+          "const": "review_requested",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "company_id",
+        "dossier_id",
+        "node_id",
+        "actor",
+        "correlation_id",
+        "idempotency_key",
+        "expected_version",
+        "type"
+      ],
+      "title": "ReviewRequested",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "official",
+            "synthetic"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "uri": {
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        },
+        "passage": {
+          "minLength": 1,
+          "title": "Passage",
+          "type": "string"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "retrieved_at": {
+          "format": "date-time",
+          "title": "Retrieved At",
+          "type": "string"
+        },
+        "effective_from": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effective From"
+        },
+        "effective_to": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effective To"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "uri",
+        "passage",
+        "sha256",
+        "retrieved_at"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "SubmissionRequested": {
+      "additionalProperties": false,
+      "properties": {
+        "company_id": {
+          "format": "uuid",
+          "title": "Company Id",
+          "type": "string"
+        },
+        "dossier_id": {
+          "format": "uuid",
+          "title": "Dossier Id",
+          "type": "string"
+        },
+        "node_id": {
+          "format": "uuid",
+          "title": "Node Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "correlation_id": {
+          "format": "uuid",
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "expected_version": {
+          "minimum": 1,
+          "title": "Expected Version",
+          "type": "integer"
+        },
+        "type": {
+          "enum": [
+            "submission_requested",
+            "resubmission_requested"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "package_snapshot_id": {
+          "format": "uuid",
+          "title": "Package Snapshot Id",
+          "type": "string"
+        },
+        "user_confirmed": {
+          "const": true,
+          "title": "User Confirmed",
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "platform_review",
+            "simulated_agency",
+            "connected_agency"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "company_id",
+        "dossier_id",
+        "node_id",
+        "actor",
+        "correlation_id",
+        "idempotency_key",
+        "expected_version",
+        "type",
+        "package_snapshot_id",
+        "user_confirmed",
+        "mode"
+      ],
+      "title": "SubmissionRequested",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "cancellation_requested": "#/$defs/CancellationRequested",
+      "decision_recorded": "#/$defs/DecisionRecorded",
+      "evidence_changed": "#/$defs/EvidenceChanged",
+      "prerequisite_changed": "#/$defs/PrerequisiteChanged",
+      "resubmission_requested": "#/$defs/SubmissionRequested",
+      "review_requested": "#/$defs/ReviewRequested",
+      "submission_requested": "#/$defs/SubmissionRequested"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/EvidenceChanged"
+    },
+    {
+      "$ref": "#/$defs/ReviewRequested"
+    },
+    {
+      "$ref": "#/$defs/DecisionRecorded"
+    },
+    {
+      "$ref": "#/$defs/PrerequisiteChanged"
+    },
+    {
+      "$ref": "#/$defs/SubmissionRequested"
+    },
+    {
+      "$ref": "#/$defs/CancellationRequested"
+    }
+  ]
+}

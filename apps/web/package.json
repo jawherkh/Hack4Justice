@@ -1,0 +1,45 @@
+{
+  "name": "@hack4justice/web",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "generate-routes": "tsr generate",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check-types": "tsc --noEmit",
+    "lint": "echo \"lint not configured yet\" && exit 0",
+    "test": "echo \"no tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "@elysiajs/eden": "^1.4.9",
+    "@hack4justice/api": "workspace:*",
+    "@hack4justice/ui": "workspace:*",
+    "@tanstack/react-query": "^5.102.8",
+    "@tanstack/react-router": "latest",
+    "@tanstack/react-start": "latest",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@hack4justice/typescript-config": "workspace:*",
+    "@tailwindcss/vite": "^4",
+    "@tanstack/router-cli": "^1.132.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "tailwindcss": "^4",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "lightningcss"
+    ]
+  }
+}
