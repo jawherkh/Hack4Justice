@@ -1,4 +1,36 @@
 services:
+  neo4j:
+    image: neo4j:5.26-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/password
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4jdata:/data
+      - neo4jlogs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  graphiti:
+    build:
+      context: .
+      dockerfile: apps/graphiti/Dockerfile
+    restart: unless-stopped
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: password
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GRAPHITI_STARTUP_CONNECT: "false"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    ports:
+      - "8010:8010"
   db:
     image: postgres:17-alpine
     restart: unless-stopped
@@ -18,3 +50,5 @@ services:
 
 volumes:
   pgdata:
+  neo4jdata:
+  neo4jlogs:
