@@ -13,7 +13,7 @@ const app = new Elysia()
     cors({
       origin: env.WEB_ORIGIN,
       credentials: true,
-      allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", ...(env.DEMO_ACCESS_ENABLED ? ["x-demo-user"] : [])],
+      allowedHeaders: ["Content-Type", "Authorization"],
     }),
   )
   .use(openapi())
@@ -22,7 +22,7 @@ const app = new Elysia()
   // Better Auth: /api/auth/*
   .mount(auth.handler)
   .use(v1)
-  .listen({ port: PORT, hostname: env.DEMO_ACCESS_ENABLED ? "127.0.0.1" : "0.0.0.0", maxRequestBodySize: 21 * 1024 * 1024, idleTimeout: 200 });
+  .listen({ port: PORT, hostname: env.DEMO_ACCESS_ENABLED ? "127.0.0.1" : "0.0.0.0", maxRequestBodySize: 21 * 1024 * 1024 });
 
 console.log(`API listening on http://localhost:${PORT}`);
 console.log(`Docs at http://localhost:${PORT}/openapi`);
