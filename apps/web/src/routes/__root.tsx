@@ -1,7 +1,13 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import {
+  HeadContent,
+  Scripts,
+  createRootRoute,
+  useParams,
+} from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import * as React from 'react'
 
+import { getDirection, resolveLocale } from '#/i18n'
 import appCss from '../styles.css?url'
 
 export const Route = createRootRoute({
@@ -13,9 +19,6 @@ export const Route = createRootRoute({
       {
         name: 'viewport',
         content: 'width=device-width, initial-scale=1',
-      },
-      {
-        title: 'TanStack Start Starter',
       },
     ],
     links: [
@@ -30,8 +33,10 @@ export const Route = createRootRoute({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   const [queryClient] = React.useState(() => new QueryClient())
+  const params = useParams({ strict: false })
+  const locale = resolveLocale(params.locale)
   return (
-    <html lang="en">
+    <html lang={locale} dir={getDirection(locale)}>
       <head>
         <HeadContent />
       </head>

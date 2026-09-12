@@ -1,0 +1,12 @@
+{
+  "meta.title": "Hack4Justice",
+  "nav.home": "الرئيسية",
+  "nav.about": "حول",
+  "nav.login": "تسجيل الدخول",
+  "home.title": "مرحبًا بك في Hack4Justice",
+  "about.title": "حول",
+  "login.title": "تسجيل الدخول",
+  "language.label": "اللغة",
+  "notFound.title": "الصفحة غير موجودة",
+  "notFound.description": "الصفحة التي تبحث عنها غير موجودة."
+}
