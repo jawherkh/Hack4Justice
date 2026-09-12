@@ -56,7 +56,9 @@ function SessionActions() {
   if (session) {
     return (
       <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground">{session.user.name}</span>
+        <Link to="/{-$locale}/account" params={params} className={navLinkClass}>
+          {session.user.name}
+        </Link>
         <Button
           variant="outline"
           onClick={async () => {

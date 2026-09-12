@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as Char123LocaleChar125RouteRouteImport } from './routes/{-$locale}/route'
 import { Route as Char123LocaleChar125IndexRouteImport } from './routes/{-$locale}/index'
 import { Route as Char123LocaleChar125AboutRouteImport } from './routes/{-$locale}/about'
+import { Route as Char123LocaleChar125AccountRouteImport } from './routes/{-$locale}/account'
 import { Route as Char123LocaleChar125DesignSystemRouteImport } from './routes/{-$locale}/design-system'
 import { Route as Char123LocaleChar125LoginRouteImport } from './routes/{-$locale}/login'
 import { Route as Char123LocaleChar125RegisterRouteImport } from './routes/{-$locale}/register'
@@ -32,6 +33,12 @@ const Char123LocaleChar125AboutRoute =
   Char123LocaleChar125AboutRouteImport.update({
     id: '/about',
     path: '/about',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
+const Char123LocaleChar125AccountRoute =
+  Char123LocaleChar125AccountRouteImport.update({
+    id: '/account',
+    path: '/account',
     getParentRoute: () => Char123LocaleChar125RouteRoute,
   } as any)
 const Char123LocaleChar125DesignSystemRoute =
@@ -56,6 +63,7 @@ const Char123LocaleChar125RegisterRoute =
 export interface FileRoutesByFullPath {
   '/{-$locale}': typeof Char123LocaleChar125RouteRouteWithChildren
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
+  '/{-$locale}/account': typeof Char123LocaleChar125AccountRoute
   '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
   '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
@@ -63,6 +71,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
+  '/{-$locale}/account': typeof Char123LocaleChar125AccountRoute
   '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
   '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
@@ -72,6 +81,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/{-$locale}': typeof Char123LocaleChar125RouteRouteWithChildren
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
+  '/{-$locale}/account': typeof Char123LocaleChar125AccountRoute
   '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
   '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
@@ -82,6 +92,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/{-$locale}'
     | '/{-$locale}/about'
+    | '/{-$locale}/account'
     | '/{-$locale}/design-system'
     | '/{-$locale}/login'
     | '/{-$locale}/register'
@@ -89,6 +100,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/{-$locale}/about'
+    | '/{-$locale}/account'
     | '/{-$locale}/design-system'
     | '/{-$locale}/login'
     | '/{-$locale}/register'
@@ -97,6 +109,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/{-$locale}'
     | '/{-$locale}/about'
+    | '/{-$locale}/account'
     | '/{-$locale}/design-system'
     | '/{-$locale}/login'
     | '/{-$locale}/register'
@@ -130,6 +143,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char123LocaleChar125AboutRouteImport
       parentRoute: typeof Char123LocaleChar125RouteRoute
     }
+    '/{-$locale}/account': {
+      id: '/{-$locale}/account'
+      path: '/account'
+      fullPath: '/{-$locale}/account'
+      preLoaderRoute: typeof Char123LocaleChar125AccountRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
     '/{-$locale}/design-system': {
       id: '/{-$locale}/design-system'
       path: '/design-system'
@@ -156,6 +176,7 @@ declare module '@tanstack/react-router' {
 
 interface Char123LocaleChar125RouteRouteChildren {
   Char123LocaleChar125AboutRoute: typeof Char123LocaleChar125AboutRoute
+  Char123LocaleChar125AccountRoute: typeof Char123LocaleChar125AccountRoute
   Char123LocaleChar125DesignSystemRoute: typeof Char123LocaleChar125DesignSystemRoute
   Char123LocaleChar125LoginRoute: typeof Char123LocaleChar125LoginRoute
   Char123LocaleChar125RegisterRoute: typeof Char123LocaleChar125RegisterRoute
@@ -165,6 +186,7 @@ interface Char123LocaleChar125RouteRouteChildren {
 const Char123LocaleChar125RouteRouteChildren: Char123LocaleChar125RouteRouteChildren =
   {
     Char123LocaleChar125AboutRoute: Char123LocaleChar125AboutRoute,
+    Char123LocaleChar125AccountRoute: Char123LocaleChar125AccountRoute,
     Char123LocaleChar125DesignSystemRoute:
       Char123LocaleChar125DesignSystemRoute,
     Char123LocaleChar125LoginRoute: Char123LocaleChar125LoginRoute,

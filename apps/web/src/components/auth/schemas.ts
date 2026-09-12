@@ -29,3 +29,26 @@ export function signupSchema(t: Translate) {
 
 export type LoginValues = z.infer<ReturnType<typeof loginSchema>>
 export type SignupValues = z.infer<ReturnType<typeof signupSchema>>
+
+export function profileSchema(t: Translate) {
+  return z.object({ name: z.string().trim().min(1, t('auth.validation.nameRequired')) })
+}
+
+export function changePasswordSchema(t: Translate) {
+  return z
+    .object({
+      currentPassword: z.string().min(1, t('auth.validation.passwordRequired')),
+      newPassword: z
+        .string()
+        .min(MIN_PASSWORD_LENGTH, t('auth.validation.passwordMin', { min: MIN_PASSWORD_LENGTH })),
+      confirmPassword: z.string(),
+      revokeOtherSessions: z.boolean(),
+    })
+    .refine((data) => data.newPassword === data.confirmPassword, {
+      message: t('auth.error.passwordMismatch'),
+      path: ['confirmPassword'],
+    })
+}
+
+export type ProfileValues = z.infer<ReturnType<typeof profileSchema>>
+export type ChangePasswordValues = z.infer<ReturnType<typeof changePasswordSchema>>
