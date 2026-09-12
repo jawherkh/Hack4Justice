@@ -156,3 +156,32 @@ Storage tests create and remove unique schemas and temporary file directories;
 they do not modify the preview's `h4j_api` data. `test:storage` requires an
 explicit test database URL. Plain `test` runs the in-memory tests and skips the
 database suite when that URL is absent.
+
+## Document workspaces
+
+Generated documents are prepared in a container that can reach one directory and nothing
+else. Each dossier run gets its own directory on the host, mounted into the container at
+`/work`.
+
+The container runs as a non-root user with every Linux capability dropped, no privilege
+escalation, no network access, a read-only image filesystem, and limits on memory, CPU,
+process count and wall-clock time. The host's container socket is never mounted, and no
+host path other than the run's own directory is exposed, so one run cannot read another
+dossier's files or reach the host.
+
+Paths supplied by callers are resolved against the run directory and refused if they land
+outside it, including by way of a symbolic link. Reads and writes are capped per file and
+per workspace, and command output beyond its limit is dropped and flagged rather than
+buffered without bound.
+
+Cleanup and retention:
+
+- A container is removed as soon as its command finishes, and a run that passes the time
+  limit is force-removed, so nothing is left behind.
+- A run directory outlives its container on purpose, so artifacts can still be exported
+  after the command ends. Removing it is an explicit call.
+- Remove a run directory once its artifacts are stored as dossier documents, or when the
+  dossier closes. Nothing expires on its own.
+
+The live isolation checks run against a local container daemon only when
+`SANDBOX_DOCKER_TESTS=1` is set; the rest of the suite runs without one.
