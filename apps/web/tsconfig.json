@@ -1,10 +1,17 @@
 {
   "extends": "@hack4justice/typescript-config/react.json",
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
   "compilerOptions": {
     "paths": {
-      "#/*": ["./src/*"],
-      "@/*": ["./src/*"]
+      "#/*": [
+        "./src/*"
+      ],
+      "@/*": [
+        "./src/*"
+      ]
     }
   }
 }
