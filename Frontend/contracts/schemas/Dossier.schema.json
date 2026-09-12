@@ -1,0 +1,124 @@
+{
+  "$defs": {
+    "AgencyAcceptance": {
+      "enum": [
+        "not_submitted",
+        "pending",
+        "modification_requested",
+        "accepted",
+        "refused"
+      ],
+      "title": "AgencyAcceptance",
+      "type": "string"
+    },
+    "AgencyCode": {
+      "enum": [
+        "DGI",
+        "RNE",
+        "APII"
+      ],
+      "title": "AgencyCode",
+      "type": "string"
+    },
+    "PrerequisiteStatus": {
+      "enum": [
+        "unknown",
+        "satisfied",
+        "unsatisfied",
+        "not_applicable"
+      ],
+      "title": "PrerequisiteStatus",
+      "type": "string"
+    },
+    "Readiness": {
+      "enum": [
+        "unknown",
+        "incomplete",
+        "needs_review",
+        "ready"
+      ],
+      "title": "Readiness",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "company_id": {
+      "format": "uuid",
+      "title": "Company Id",
+      "type": "string"
+    },
+    "agency": {
+      "$ref": "#/$defs/AgencyCode"
+    },
+    "procedure_version_id": {
+      "format": "uuid",
+      "title": "Procedure Version Id",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "lifecycle": {
+      "enum": [
+        "draft",
+        "active",
+        "awaiting_review",
+        "correction_requested",
+        "closed",
+        "cancelled"
+      ],
+      "title": "Lifecycle",
+      "type": "string"
+    },
+    "readiness": {
+      "$ref": "#/$defs/Readiness"
+    },
+    "agency_acceptance": {
+      "$ref": "#/$defs/AgencyAcceptance"
+    },
+    "prerequisite_status": {
+      "$ref": "#/$defs/PrerequisiteStatus"
+    },
+    "node_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Node Ids",
+      "type": "array"
+    },
+    "simulated": {
+      "title": "Simulated",
+      "type": "boolean"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "company_id",
+    "agency",
+    "procedure_version_id",
+    "version",
+    "lifecycle",
+    "readiness",
+    "agency_acceptance",
+    "prerequisite_status",
+    "node_ids",
+    "simulated",
+    "updated_at"
+  ],
+  "title": "Dossier",
+  "type": "object"
+}

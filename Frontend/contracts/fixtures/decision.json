@@ -1,0 +1,21 @@
+{
+  "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+  "dossier_id": "5f70c9a5-9d18-513b-a7d8-0557c676de3c",
+  "node_id": "f0a1ea07-11cd-587b-9b42-f0bb0d89d702",
+  "id": "4710a7f0-bb7e-56bc-bc19-3c670a55ab5d",
+  "agency": "DGI",
+  "actor": {
+    "id": "8fc62b7a-f4a2-5efb-867d-3bb0a779c8d1",
+    "kind": "officer",
+    "agency": "DGI"
+  },
+  "action": "request_modification",
+  "reason": "Synthetic example: replace the illegible page.",
+  "dossier_version": 1,
+  "procedure_version_id": "421eb5e6-b1b3-5507-b379-eb8748e8bfb0",
+  "evidence_ids": [
+    "c42b5240-5314-571f-81bc-a0e03ecf4427"
+  ],
+  "created_at": "2026-09-12T12:00:00Z",
+  "idempotency_key": "example-review-1"
+}

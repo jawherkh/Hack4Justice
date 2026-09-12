@@ -1,0 +1,16 @@
+[
+  {
+    "id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+    "version": 1,
+    "name": "Synthetic Demo Company",
+    "member_ids": [
+      "ecb39df4-bd7b-581a-a1d3-f69350379af3"
+    ],
+    "legal_form": null,
+    "tax_regime": null,
+    "matricule_fiscal": null,
+    "headcount": null,
+    "governorate": null,
+    "preferred_language": "fr"
+  }
+]
