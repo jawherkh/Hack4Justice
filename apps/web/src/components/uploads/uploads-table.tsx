@@ -19,12 +19,16 @@ import {
 } from '@hack4justice/ui/components/table'
 import { toLocaleParam, useI18n } from '#/i18n'
 import { formatBytes, formatDate } from '#/lib/format'
-import { listUploads } from '#/lib/uploads'
+import { listUploads, pollingInterval } from '#/lib/uploads'
 import { UploadStatusBadge } from './upload-status-badge'
 
 export function UploadsTable() {
   const { t, locale } = useI18n()
-  const uploads = useQuery({ queryKey: ['uploads'], queryFn: listUploads })
+  const uploads = useQuery({
+    queryKey: ['uploads'],
+    queryFn: listUploads,
+    refetchInterval: (query) => pollingInterval((query.state.data ?? []).map((u) => u.status)),
+  })
 
   if (uploads.isPending) {
     return (

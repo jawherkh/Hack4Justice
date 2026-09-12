@@ -88,7 +88,7 @@
   "uploads.drop.submit": "Upload and extract",
   "uploads.drop.notPdf": "Only PDF files are accepted.",
   "uploads.drop.tooLarge": "The file is larger than 25 MB.",
-  "uploads.toast.uploaded": "Text extracted from {filename}.",
+  "uploads.toast.uploaded": "{filename} uploaded. Extracting text…",
   "uploads.toast.deleted": "Document deleted.",
   "uploads.toast.error": "Error",
   "uploads.lang.fra_eng": "French + English",
@@ -135,5 +135,7 @@
   "error.title": "Something went wrong",
   "error.description": "Try again in a moment. If the problem persists, contact us.",
   "error.retry": "Try again",
-  "error.home": "Back to home"
+  "error.home": "Back to home",
+  "uploads.detail.retry": "Retry extraction",
+  "uploads.toast.retried": "Extraction restarted."
 }

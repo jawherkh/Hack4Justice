@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ArrowLeft, Copy, Download, Trash2 } from 'lucide-react'
+import { ArrowLeft, Copy, Download, RefreshCw, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +23,7 @@ import { toLocaleParam, useI18n } from '#/i18n'
 import { ApiError } from '#/lib/api-error'
 import { formatBytes, formatDate } from '#/lib/format'
 import { requireAuth } from '#/lib/guards'
-import { deleteUpload, getUpload } from '#/lib/uploads'
+import { deleteUpload, getUpload, pollingInterval, retryExtraction } from '#/lib/uploads'
 
 export const Route = createFileRoute('/{-$locale}/uploads/$id')({
   beforeLoad: requireAuth,
@@ -36,7 +36,22 @@ function UploadDetail() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const params = { locale: toLocaleParam(locale) }
-  const upload = useQuery({ queryKey: ['uploads', id], queryFn: () => getUpload(id) })
+  const upload = useQuery({
+    queryKey: ['uploads', id],
+    queryFn: () => getUpload(id),
+    refetchInterval: (query) => pollingInterval(query.state.data ? [query.state.data.status] : []),
+  })
+
+  const retry = useMutation({
+    mutationFn: () => retryExtraction({ id }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['uploads'] }),
+    onError: (err) =>
+      toast.add({
+        type: 'error',
+        title: t('uploads.toast.error'),
+        description: err instanceof ApiError ? err.message : t('auth.error.generic'),
+      }),
+  })
 
   const remove = useMutation({
     mutationFn: () => deleteUpload(id),
@@ -88,6 +103,12 @@ function UploadDetail() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
+              {upload.data.status === 'FAILED' ? (
+                <Button variant="secondary" disabled={retry.isPending} onClick={() => retry.mutate()}>
+                  <RefreshCw data-icon="inline-start" />
+                  {t('uploads.detail.retry')}
+                </Button>
+              ) : null}
               <Button variant="outline" render={<a href={upload.data.downloadUrl} download={upload.data.filename} />}>
                 <Download data-icon="inline-start" />
                 {t('uploads.detail.download')}
@@ -128,6 +149,12 @@ function UploadDetail() {
                 <ScrollArea className="h-[28rem] rounded-lg border">
                   <pre className="p-4 font-sans text-sm whitespace-pre-wrap">{upload.data.text}</pre>
                 </ScrollArea>
+              ) : upload.data.status === 'PROCESSING' ? (
+                <div className="flex flex-col gap-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">{upload.data.error ?? t('uploads.detail.noText')}</p>
               )}

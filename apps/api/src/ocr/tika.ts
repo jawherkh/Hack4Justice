@@ -33,7 +33,7 @@ export function createTikaClient(baseUrl: string) {
       return res?.ok ?? false;
     },
 
-    async extract(bytes: Uint8Array<ArrayBuffer>, options: ExtractOptions): Promise<ExtractResult> {
+    async extract(bytes: Uint8Array, options: ExtractOptions): Promise<ExtractResult> {
       const headers: Record<string, string> = {
         "Content-Type": options.contentType,
         Accept: "text/plain",
@@ -43,12 +43,14 @@ export function createTikaClient(baseUrl: string) {
         "X-Tika-OCRLanguage": options.ocrLanguages ?? "fra+eng",
       };
 
+      // Copy into a plain ArrayBuffer-backed body: satisfies both Bun's and the DOM's BodyInit typings.
+      const body = new Blob([new Uint8Array(bytes)]);
       const [textRes, metaRes] = await Promise.all([
-        fetch(`${url}/tika`, { method: "PUT", headers, body: bytes, signal: options.signal }),
+        fetch(`${url}/tika`, { method: "PUT", headers, body, signal: options.signal }),
         fetch(`${url}/meta`, {
           method: "PUT",
           headers: { "Content-Type": options.contentType, Accept: "application/json" },
-          body: bytes,
+          body,
           signal: options.signal,
         }),
       ]);

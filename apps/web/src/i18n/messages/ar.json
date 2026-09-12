@@ -88,7 +88,7 @@
   "uploads.drop.submit": "رفع واستخراج",
   "uploads.drop.notPdf": "يُقبل فقط ملفات PDF.",
   "uploads.drop.tooLarge": "حجم الملف يتجاوز 25 ميغابايت.",
-  "uploads.toast.uploaded": "تم استخراج النص من {filename}.",
+  "uploads.toast.uploaded": "تم رفع {filename}. جارٍ استخراج النص…",
   "uploads.toast.deleted": "تم حذف المستند.",
   "uploads.toast.error": "خطأ",
   "uploads.lang.fra_eng": "فرنسي + إنجليزي",
@@ -135,5 +135,7 @@
   "error.title": "حدث خطأ ما",
   "error.description": "حاول مرة أخرى بعد قليل. إذا استمرت المشكلة، تواصل معنا.",
   "error.retry": "إعادة المحاولة",
-  "error.home": "العودة إلى الرئيسية"
+  "error.home": "العودة إلى الرئيسية",
+  "uploads.detail.retry": "إعادة الاستخراج",
+  "uploads.toast.retried": "أُعيد تشغيل الاستخراج."
 }

@@ -88,7 +88,7 @@
   "uploads.drop.submit": "Téléverser et extraire",
   "uploads.drop.notPdf": "Seuls les fichiers PDF sont acceptés.",
   "uploads.drop.tooLarge": "Le fichier dépasse 25 Mo.",
-  "uploads.toast.uploaded": "Texte extrait de {filename}.",
+  "uploads.toast.uploaded": "{filename} téléversé. Extraction du texte en cours…",
   "uploads.toast.deleted": "Document supprimé.",
   "uploads.toast.error": "Erreur",
   "uploads.lang.fra_eng": "Français + anglais",
@@ -135,5 +135,7 @@
   "error.title": "Une erreur est survenue",
   "error.description": "Réessayez dans un instant. Si le problème persiste, contactez-nous.",
   "error.retry": "Réessayer",
-  "error.home": "Retour à l’accueil"
+  "error.home": "Retour à l’accueil",
+  "uploads.detail.retry": "Relancer l’extraction",
+  "uploads.toast.retried": "Extraction relancée."
 }

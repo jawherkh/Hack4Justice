@@ -167,7 +167,8 @@ All routes need a Better Auth session cookie.
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `POST` | `/api/v1/uploads` | multipart `file` (PDF, max 25 MB), optional `languages` (Tesseract codes, default `fra+eng`). Returns the upload with extracted `text`. |
+| `POST` | `/api/v1/uploads` | multipart `file` (PDF, max 25 MB), optional `languages` (Tesseract codes, default `fra+eng`). Returns 201 with status `PROCESSING`; poll `GET /:id` until `EXTRACTED` or `FAILED`. |
+| `POST` | `/api/v1/uploads/:id/extract` | Re-run extraction (e.g. after `FAILED`). 202. |
 | `GET` | `/api/v1/uploads` | List own uploads. |
 | `GET` | `/api/v1/uploads/:id` | Own upload plus a 15-minute presigned `downloadUrl`. |
 | `DELETE` | `/api/v1/uploads/:id` | Remove from storage and database. |
@@ -176,8 +177,8 @@ All routes need a Better Auth session cookie.
 curl -b cookies.txt -F file=@dossier.pdf -F languages=fra+ara http://localhost:3001/api/v1/uploads
 ```
 
-Extraction runs synchronously in the request today. Move it to a queue once
-files get large or volume grows. (`/api/v1/documents/*` belongs to the access
+Extraction runs in the background of the API process (not a durable queue:
+a crash mid-extraction leaves the row `PROCESSING`; re-run it via `/extract`). (`/api/v1/documents/*` belongs to the access
 module and refers to dossier evidence, a different concept.)
 
 ## Errors and localisation
