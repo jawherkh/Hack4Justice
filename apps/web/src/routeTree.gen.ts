@@ -18,6 +18,8 @@ import { Route as Char123LocaleChar125ForgotPasswordRouteImport } from './routes
 import { Route as Char123LocaleChar125LoginRouteImport } from './routes/{-$locale}/login'
 import { Route as Char123LocaleChar125RegisterRouteImport } from './routes/{-$locale}/register'
 import { Route as Char123LocaleChar125ResetPasswordRouteImport } from './routes/{-$locale}/reset-password'
+import { Route as Char123LocaleChar125UploadsIndexRouteImport } from './routes/{-$locale}/uploads/index'
+import { Route as Char123LocaleChar125UploadsIdRouteImport } from './routes/{-$locale}/uploads/$id'
 
 const Char123LocaleChar125RouteRoute =
   Char123LocaleChar125RouteRouteImport.update({
@@ -73,6 +75,18 @@ const Char123LocaleChar125ResetPasswordRoute =
     path: '/reset-password',
     getParentRoute: () => Char123LocaleChar125RouteRoute,
   } as any)
+const Char123LocaleChar125UploadsIndexRoute =
+  Char123LocaleChar125UploadsIndexRouteImport.update({
+    id: '/uploads/',
+    path: '/uploads/',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
+const Char123LocaleChar125UploadsIdRoute =
+  Char123LocaleChar125UploadsIdRouteImport.update({
+    id: '/uploads/$id',
+    path: '/uploads/$id',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/{-$locale}': typeof Char123LocaleChar125RouteRouteWithChildren
@@ -84,6 +98,8 @@ export interface FileRoutesByFullPath {
   '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
   '/{-$locale}/reset-password': typeof Char123LocaleChar125ResetPasswordRoute
   '/{-$locale}/': typeof Char123LocaleChar125IndexRoute
+  '/{-$locale}/uploads/$id': typeof Char123LocaleChar125UploadsIdRoute
+  '/{-$locale}/uploads/': typeof Char123LocaleChar125UploadsIndexRoute
 }
 export interface FileRoutesByTo {
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
@@ -94,6 +110,8 @@ export interface FileRoutesByTo {
   '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
   '/{-$locale}/reset-password': typeof Char123LocaleChar125ResetPasswordRoute
   '/{-$locale}': typeof Char123LocaleChar125IndexRoute
+  '/{-$locale}/uploads/$id': typeof Char123LocaleChar125UploadsIdRoute
+  '/{-$locale}/uploads': typeof Char123LocaleChar125UploadsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -106,6 +124,8 @@ export interface FileRoutesById {
   '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
   '/{-$locale}/reset-password': typeof Char123LocaleChar125ResetPasswordRoute
   '/{-$locale}/': typeof Char123LocaleChar125IndexRoute
+  '/{-$locale}/uploads/$id': typeof Char123LocaleChar125UploadsIdRoute
+  '/{-$locale}/uploads/': typeof Char123LocaleChar125UploadsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -119,6 +139,8 @@ export interface FileRouteTypes {
     | '/{-$locale}/register'
     | '/{-$locale}/reset-password'
     | '/{-$locale}/'
+    | '/{-$locale}/uploads/$id'
+    | '/{-$locale}/uploads/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/{-$locale}/about'
@@ -129,6 +151,8 @@ export interface FileRouteTypes {
     | '/{-$locale}/register'
     | '/{-$locale}/reset-password'
     | '/{-$locale}'
+    | '/{-$locale}/uploads/$id'
+    | '/{-$locale}/uploads'
   id:
     | '__root__'
     | '/{-$locale}'
@@ -140,6 +164,8 @@ export interface FileRouteTypes {
     | '/{-$locale}/register'
     | '/{-$locale}/reset-password'
     | '/{-$locale}/'
+    | '/{-$locale}/uploads/$id'
+    | '/{-$locale}/uploads/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -211,6 +237,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char123LocaleChar125ResetPasswordRouteImport
       parentRoute: typeof Char123LocaleChar125RouteRoute
     }
+    '/{-$locale}/uploads/': {
+      id: '/{-$locale}/uploads/'
+      path: '/uploads'
+      fullPath: '/{-$locale}/uploads/'
+      preLoaderRoute: typeof Char123LocaleChar125UploadsIndexRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
+    '/{-$locale}/uploads/$id': {
+      id: '/{-$locale}/uploads/$id'
+      path: '/uploads/$id'
+      fullPath: '/{-$locale}/uploads/$id'
+      preLoaderRoute: typeof Char123LocaleChar125UploadsIdRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
   }
 }
 
@@ -223,6 +263,8 @@ interface Char123LocaleChar125RouteRouteChildren {
   Char123LocaleChar125RegisterRoute: typeof Char123LocaleChar125RegisterRoute
   Char123LocaleChar125ResetPasswordRoute: typeof Char123LocaleChar125ResetPasswordRoute
   Char123LocaleChar125IndexRoute: typeof Char123LocaleChar125IndexRoute
+  Char123LocaleChar125UploadsIdRoute: typeof Char123LocaleChar125UploadsIdRoute
+  Char123LocaleChar125UploadsIndexRoute: typeof Char123LocaleChar125UploadsIndexRoute
 }
 
 const Char123LocaleChar125RouteRouteChildren: Char123LocaleChar125RouteRouteChildren =
@@ -238,6 +280,9 @@ const Char123LocaleChar125RouteRouteChildren: Char123LocaleChar125RouteRouteChil
     Char123LocaleChar125ResetPasswordRoute:
       Char123LocaleChar125ResetPasswordRoute,
     Char123LocaleChar125IndexRoute: Char123LocaleChar125IndexRoute,
+    Char123LocaleChar125UploadsIdRoute: Char123LocaleChar125UploadsIdRoute,
+    Char123LocaleChar125UploadsIndexRoute:
+      Char123LocaleChar125UploadsIndexRoute,
   }
 
 const Char123LocaleChar125RouteRouteWithChildren =

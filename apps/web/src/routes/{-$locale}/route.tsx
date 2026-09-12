@@ -1,4 +1,5 @@
 import { Link, Outlet, createFileRoute, notFound } from '@tanstack/react-router'
+import { Toaster } from '@hack4justice/ui/components/toast'
 import { Footer } from '#/components/footer'
 import { Navbar } from '#/components/navbar'
 import { getSession } from '#/lib/session'
@@ -41,6 +42,7 @@ function LocaleLayout() {
         </div>
         <Footer />
       </div>
+      <Toaster />
     </I18nProvider>
   )
 }

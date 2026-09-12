@@ -78,6 +78,9 @@ importers:
       '@hack4justice/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@hack4justice/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@hack4justice/ui':
         specifier: workspace:*
         version: link:../../packages/ui

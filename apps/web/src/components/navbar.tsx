@@ -10,6 +10,7 @@ const navLinkClass =
 export function Navbar() {
   const { locale, t } = useI18n()
   const params = { locale: toLocaleParam(locale) }
+  const { session } = useRouteContext({ from: '/{-$locale}' })
 
   return (
     <header className="border-b">
@@ -34,6 +35,13 @@ export function Navbar() {
               {t('nav.about')}
             </Link>
           </li>
+          {session ? (
+            <li>
+              <Link to="/{-$locale}/uploads" params={params} className={navLinkClass}>
+                {t('nav.uploads')}
+              </Link>
+            </li>
+          ) : null}
         </ul>
 
         <div className="ms-auto flex items-center gap-4">
