@@ -21,6 +21,9 @@ class MemoryStore implements NotificationStore {
   }
 
   async insertQueued(request: NotificationRequest) {
+    if (this.records.some((record) => record.idempotencyKey === request.idempotencyKey)) {
+      throw new Error("duplicate idempotency key");
+    }
     const now = new Date().toISOString();
     const record: NotificationRecord = {
       id: randomUUID(),
@@ -168,6 +171,127 @@ describe("outbound notification delivery", () => {
     expect(store.records).toHaveLength(1);
     expect(second.id).toBe(first.id);
     expect(second.providerMessageId).toBe("SM1");
+  });
+
+  test("two concurrent callers with one key send a single message", async () => {
+    const store = new MemoryStore();
+    let calls = 0;
+    const counting: Transport = {
+      channels: ["whatsapp"],
+      async send() {
+        calls += 1;
+        return { status: "sent", providerMessageId: `SM${calls}` };
+      },
+    };
+    const notifier = new Notifier({ store, recipients: directory, transports: [counting] });
+    const request = message();
+
+    const [first, second] = await Promise.all([notifier.notify(request), notifier.notify(request)]);
+
+    expect(store.records).toHaveLength(1);
+    expect(calls).toBe(1);
+    expect(first.id).toBe(second.id);
+  });
+
+  test("an interrupted message is not sent again", async () => {
+    const store = new MemoryStore();
+    const request = message();
+    // The record stays queued when the process stops after the provider accepted it.
+    await store.insertQueued(request);
+    let calls = 0;
+    const counting: Transport = {
+      channels: ["whatsapp"],
+      async send() {
+        calls += 1;
+        return { status: "sent", providerMessageId: "SM1" };
+      },
+    };
+    const notifier = new Notifier({ store, recipients: directory, transports: [counting] });
+
+    const record = await notifier.notify(request);
+
+    expect(calls).toBe(0);
+    expect(record.status).toBe("queued");
+  });
+
+  test("a failed message retries up to the bound and then stops", async () => {
+    const store = new MemoryStore();
+    let calls = 0;
+    const failing: Transport = {
+      channels: ["whatsapp"],
+      async send() {
+        calls += 1;
+        return { status: "failed", reason: "provider_error_500" };
+      },
+    };
+    const notifier = new Notifier({ store, recipients: directory, transports: [failing] });
+    const request = message();
+
+    for (let attempt = 0; attempt < 6; attempt += 1) await notifier.notify(request);
+
+    expect(calls).toBe(3);
+    expect(store.records).toHaveLength(1);
+    expect(store.records[0]!.status).toBe("failed");
+    expect(store.records[0]!.attempts).toBe(3);
+  });
+
+  test("a retry after a failure can still succeed and records the provider id", async () => {
+    const store = new MemoryStore();
+    let calls = 0;
+    const flaky: Transport = {
+      channels: ["whatsapp"],
+      async send() {
+        calls += 1;
+        if (calls === 1) return { status: "failed", reason: "provider_error_500" };
+        return { status: "sent", providerMessageId: "SM7" };
+      },
+    };
+    const notifier = new Notifier({ store, recipients: directory, transports: [flaky] });
+    const request = message();
+
+    const failed = await notifier.notify(request);
+    expect(failed.status).toBe("failed");
+
+    const sent = await notifier.notify(request);
+    expect(sent.status).toBe("sent");
+    expect(sent.providerMessageId).toBe("SM7");
+    expect(store.records).toHaveLength(1);
+  });
+
+  test("a broken store does not throw to the caller", async () => {
+    const broken: NotificationStore = {
+      async findByIdempotencyKey() {
+        throw new Error("database_unavailable");
+      },
+      async insertQueued() {
+        throw new Error("database_unavailable");
+      },
+      async markResult() {
+        throw new Error("database_unavailable");
+      },
+    };
+    const notifier = new Notifier({ store: broken, recipients: directory, transports: [acceptingTransport()] });
+
+    const record = await notifier.notify(message());
+
+    expect(record.status).toBe("failed");
+    expect(record.failureReason).toBe("database_unavailable");
+    expect(record.id).toBe("");
+  });
+
+  test("a broken recipient directory does not throw to the caller", async () => {
+    const store = new MemoryStore();
+    const brokenDirectory: RecipientDirectory = {
+      async find() {
+        throw new Error("directory_unavailable");
+      },
+    };
+    const notifier = new Notifier({ store, recipients: brokenDirectory, transports: [acceptingTransport()] });
+
+    const record = await notifier.notify(message());
+
+    expect(record.status).toBe("failed");
+    expect(record.failureReason).toBe("directory_unavailable");
   });
 
   test("templates name the dossier and next action in the recipient's language", () => {

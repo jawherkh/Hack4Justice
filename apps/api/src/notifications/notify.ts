@@ -38,6 +38,12 @@ export interface NotificationRecord {
 export interface NotificationStore {
   /** Returns the existing record for this key, or undefined when it is new. */
   findByIdempotencyKey(key: string): Promise<NotificationRecord | undefined>;
+  /**
+   * Writes a new queued record. The idempotency key must be unique in the store, and
+   * this must reject when a record already holds the key. Without that guarantee two
+   * concurrent callers would each insert a record and the recipient would be messaged
+   * twice. With a SQL store, a unique index on the key provides it.
+   */
   insertQueued(request: NotificationRequest): Promise<NotificationRecord>;
   markResult(
     id: string,
@@ -96,12 +102,34 @@ export class Notifier {
    */
   async notify(input: NotificationRequest): Promise<NotificationRecord> {
     const request = notificationRequest.parse(input);
+    try {
+      return await this.deliver(request);
+    } catch (error) {
+      // The store or the directory is unavailable. The caller's operation must still
+      // succeed, so report the problem as an unrecorded failure instead of throwing.
+      return unrecorded(request, describe(error));
+    }
+  }
 
+  private async deliver(request: NotificationRequest): Promise<NotificationRecord> {
     const existing = await this.store.findByIdempotencyKey(request.idempotencyKey);
-    if (existing && existing.status !== "queued") return existing;
-    if (existing && existing.attempts >= maxAttempts) return existing;
+    if (existing) {
+      // A delivered or simulated message is final, and a queued one is either still in
+      // flight or was interrupted after the provider accepted it. Neither may be sent
+      // again, because the recipient would receive a second message.
+      if (existing.status !== "failed") return existing;
+      if (existing.attempts >= maxAttempts) return existing;
+    }
 
-    const record = existing ?? (await this.store.insertQueued(request));
+    let record: NotificationRecord;
+    if (existing) {
+      record = existing;
+    } else {
+      const claimed = await this.claim(request);
+      // Another caller won the race for this key and is delivering it.
+      if (!claimed.owned) return claimed.record;
+      record = claimed.record;
+    }
 
     const recipient = await this.recipients.find(request.recipientId);
     if (!recipient) {
@@ -133,6 +161,47 @@ export class Notifier {
     }
     return await this.store.markResult(record.id, { status: outcome.status, failureReason: outcome.reason });
   }
+
+  /**
+   * Takes ownership of a new message. When two callers race on the same key the store
+   * rejects the second insert, and the record written by the winner is returned so only
+   * one of them delivers.
+   */
+  private async claim(request: NotificationRequest): Promise<{ record: NotificationRecord; owned: boolean }> {
+    try {
+      return { record: await this.store.insertQueued(request), owned: true };
+    } catch (error) {
+      const winner = await this.store.findByIdempotencyKey(request.idempotencyKey);
+      if (winner) return { record: winner, owned: false };
+      throw error;
+    }
+  }
+}
+
+function describe(error: unknown) {
+  return error instanceof Error ? error.message : "notification_store_unavailable";
+}
+
+/**
+ * A message that could not be written down. The empty id marks it as unrecorded, so a
+ * caller can tell it apart from a stored failure that will be retried.
+ */
+function unrecorded(request: NotificationRequest, failureReason: string): NotificationRecord {
+  const now = new Date().toISOString();
+  return {
+    id: "",
+    recipientId: request.recipientId,
+    channel: request.channel,
+    title: request.title,
+    body: request.body,
+    dossierId: request.dossierId,
+    idempotencyKey: request.idempotencyKey,
+    status: "failed",
+    failureReason,
+    attempts: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 export interface TemplateInput {
