@@ -411,7 +411,7 @@ describe("provider transport", () => {
 
   test("a trial restriction is simulated rather than treated as a defect", async () => {
     const transport = createTwilioTransport(
-      { accountSid: "AC1", authToken: "token", from: "+15550000000" },
+      { accountSid: "AC1", authToken: "token", whatsappFrom: "+15550000000", smsFrom: "+15550000001" },
       (async () =>
         new Response(JSON.stringify({ code: 21608, message: "unverified" }), { status: 400 })) as unknown as typeof fetch,
     );
@@ -423,7 +423,7 @@ describe("provider transport", () => {
 
   test("a genuine provider error is reported as a failure", async () => {
     const transport = createTwilioTransport(
-      { accountSid: "AC1", authToken: "token", from: "+15550000000" },
+      { accountSid: "AC1", authToken: "token", whatsappFrom: "+15550000000", smsFrom: "+15550000001" },
       (async () =>
         new Response(JSON.stringify({ code: 30001, message: "queue overflow" }), { status: 500 })) as unknown as typeof fetch,
     );
@@ -436,7 +436,7 @@ describe("provider transport", () => {
   test("a successful send returns the provider message id and addresses WhatsApp correctly", async () => {
     let sentTo = "";
     const transport = createTwilioTransport(
-      { accountSid: "AC1", authToken: "token", from: "+15550000000" },
+      { accountSid: "AC1", authToken: "token", whatsappFrom: "+15550000000", smsFrom: "+15550000001" },
       (async (_url: string, init: RequestInit) => {
         sentTo = String((init.body as URLSearchParams).get("To"));
         return new Response(JSON.stringify({ sid: "SM999" }), { status: 200 });

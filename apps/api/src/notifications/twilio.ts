@@ -3,7 +3,10 @@ import type { DeliveryOutcome, NotificationChannel, Recipient, Transport } from 
 export interface TwilioCredentials {
   accountSid?: string;
   authToken?: string;
-  from?: string;
+  /** WhatsApp sender. A sandbox sender only reaches recipients who joined it. */
+  whatsappFrom?: string;
+  /** SMS sender. A WhatsApp sandbox number cannot send SMS, so this is separate. */
+  smsFrom?: string;
 }
 
 const apiBase = "https://api.twilio.com/2010-04-01";
@@ -23,7 +26,8 @@ export function createTwilioTransport(
   return {
     channels,
     async send({ recipient, channel, body }): Promise<DeliveryOutcome> {
-      const { accountSid, authToken, from } = credentials;
+      const { accountSid, authToken } = credentials;
+      const from = channel === "whatsapp" ? credentials.whatsappFrom : credentials.smsFrom;
       if (!accountSid || !authToken || !from) return { status: "simulated", reason: "provider_not_configured" };
       if (!recipient.phone) return { status: "simulated", reason: "recipient_has_no_phone" };
 
