@@ -15,9 +15,15 @@ export const getSession = createServerFn({ method: 'GET' }).handler(
   async (): Promise<SessionData> => {
     const { getRequestHeader } = await import('@tanstack/react-start/server')
     const cookie = getRequestHeader('cookie')
-    const { data } = await authClient.getSession({
-      fetchOptions: { headers: cookie ? { cookie } : {} },
-    })
-    return data ?? null
+    try {
+      const { data } = await authClient.getSession({
+        fetchOptions: { headers: cookie ? { cookie } : {} },
+      })
+      return data ?? null
+    } catch (error) {
+      // API unreachable: render as signed out instead of failing every page.
+      console.error('[session] could not reach the auth API:', error)
+      return null
+    }
   },
 )
