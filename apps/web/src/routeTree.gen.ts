@@ -14,6 +14,7 @@ import { Route as Char123LocaleChar125IndexRouteImport } from './routes/{-$local
 import { Route as Char123LocaleChar125AboutRouteImport } from './routes/{-$locale}/about'
 import { Route as Char123LocaleChar125DesignSystemRouteImport } from './routes/{-$locale}/design-system'
 import { Route as Char123LocaleChar125LoginRouteImport } from './routes/{-$locale}/login'
+import { Route as Char123LocaleChar125RegisterRouteImport } from './routes/{-$locale}/register'
 
 const Char123LocaleChar125RouteRoute =
   Char123LocaleChar125RouteRouteImport.update({
@@ -45,18 +46,26 @@ const Char123LocaleChar125LoginRoute =
     path: '/login',
     getParentRoute: () => Char123LocaleChar125RouteRoute,
   } as any)
+const Char123LocaleChar125RegisterRoute =
+  Char123LocaleChar125RegisterRouteImport.update({
+    id: '/register',
+    path: '/register',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/{-$locale}': typeof Char123LocaleChar125RouteRouteWithChildren
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
   '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
+  '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
   '/{-$locale}/': typeof Char123LocaleChar125IndexRoute
 }
 export interface FileRoutesByTo {
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
   '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
+  '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
   '/{-$locale}': typeof Char123LocaleChar125IndexRoute
 }
 export interface FileRoutesById {
@@ -65,6 +74,7 @@ export interface FileRoutesById {
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
   '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
+  '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
   '/{-$locale}/': typeof Char123LocaleChar125IndexRoute
 }
 export interface FileRouteTypes {
@@ -74,12 +84,14 @@ export interface FileRouteTypes {
     | '/{-$locale}/about'
     | '/{-$locale}/design-system'
     | '/{-$locale}/login'
+    | '/{-$locale}/register'
     | '/{-$locale}/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/{-$locale}/about'
     | '/{-$locale}/design-system'
     | '/{-$locale}/login'
+    | '/{-$locale}/register'
     | '/{-$locale}'
   id:
     | '__root__'
@@ -87,6 +99,7 @@ export interface FileRouteTypes {
     | '/{-$locale}/about'
     | '/{-$locale}/design-system'
     | '/{-$locale}/login'
+    | '/{-$locale}/register'
     | '/{-$locale}/'
   fileRoutesById: FileRoutesById
 }
@@ -131,6 +144,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char123LocaleChar125LoginRouteImport
       parentRoute: typeof Char123LocaleChar125RouteRoute
     }
+    '/{-$locale}/register': {
+      id: '/{-$locale}/register'
+      path: '/register'
+      fullPath: '/{-$locale}/register'
+      preLoaderRoute: typeof Char123LocaleChar125RegisterRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
   }
 }
 
@@ -138,6 +158,7 @@ interface Char123LocaleChar125RouteRouteChildren {
   Char123LocaleChar125AboutRoute: typeof Char123LocaleChar125AboutRoute
   Char123LocaleChar125DesignSystemRoute: typeof Char123LocaleChar125DesignSystemRoute
   Char123LocaleChar125LoginRoute: typeof Char123LocaleChar125LoginRoute
+  Char123LocaleChar125RegisterRoute: typeof Char123LocaleChar125RegisterRoute
   Char123LocaleChar125IndexRoute: typeof Char123LocaleChar125IndexRoute
 }
 
@@ -147,6 +168,7 @@ const Char123LocaleChar125RouteRouteChildren: Char123LocaleChar125RouteRouteChil
     Char123LocaleChar125DesignSystemRoute:
       Char123LocaleChar125DesignSystemRoute,
     Char123LocaleChar125LoginRoute: Char123LocaleChar125LoginRoute,
+    Char123LocaleChar125RegisterRoute: Char123LocaleChar125RegisterRoute,
     Char123LocaleChar125IndexRoute: Char123LocaleChar125IndexRoute,
   }
 
