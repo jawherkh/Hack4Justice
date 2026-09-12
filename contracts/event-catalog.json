@@ -1,0 +1,57 @@
+{
+  "schema_version": "0.1.0",
+  "status": "proposed_for_team_review",
+  "transport": {
+    "commands": "Temporal Workflow Update proposed; workflow service owns implementation",
+    "events": "Transactional outbox to API projections; delivery is at least once",
+    "workflow_id": "dossier/{dossier_id}",
+    "history": "References and validated structured fields only; no raw documents or credentials"
+  },
+  "commands": {
+    "evidence_changed": "Reference immutable evidence version; invalidate dependent findings",
+    "review_requested": "Request review without granting agency acceptance",
+    "decision_recorded": "Append officer decision; serialize resulting transition",
+    "prerequisite_changed": "Reassess affected actions using source-backed obligation status",
+    "submission_requested": "Require explicit confirmation, current version and fresh gate evaluation",
+    "resubmission_requested": "New immutable package snapshot after requested corrections",
+    "cancellation_requested": "Cancel eligible active workflow; preserve history"
+  },
+  "events": {
+    "projection_changed": "Versioned dossier projection plus changed nodes and invalidated findings",
+    "decision_appended": "Immutable agency-scoped decision",
+    "submission_receipt": "Delivery receipt is separate from agency acceptance; simulated mode explicit"
+  },
+  "ordering": "All events share one monotonically increasing per-dossier aggregate_version. Apply v=N+1; ignore known event IDs; buffer gaps and rebuild from authorized snapshot/replay. Never silently skip a gap.",
+  "idempotency": "Scope: company_id + dossier_id + actor.id + idempotency_key. Same payload returns original acknowledgement; different payload is 409 idempotency_conflict. Deduplicate before stale-version rejection. Transport retries reuse IDs/keys.",
+  "concurrency": "Temporal serializes every accepted command per dossier. expected_version mismatch is 409 version_conflict. API projections never originate lifecycle changes.",
+  "acknowledgement": "202 means accepted for processing, not completed. Read projection/events until resulting version arrives.",
+  "authority": "API resolves authenticated actor; client actor is not authorization. Workflow service-only events cannot be submitted by business clients. Agent cannot record officer decisions or confirm submission on behalf of the user.",
+  "review_transitions": [
+    {
+      "command": "submission_requested",
+      "from": "not_submitted",
+      "to": "pending"
+    },
+    {
+      "command": "decision_recorded:request_modification",
+      "from": "pending",
+      "to": "modification_requested"
+    },
+    {
+      "command": "resubmission_requested",
+      "from": "modification_requested",
+      "to": "pending"
+    },
+    {
+      "command": "decision_recorded:accept",
+      "from": "pending",
+      "to": "accepted"
+    },
+    {
+      "command": "decision_recorded:refuse",
+      "from": "pending",
+      "to": "refused"
+    }
+  ],
+  "transition_errors": "Other review transitions are 409; cancellation preserves acceptance/decisions and closes lifecycle as cancelled. Worker recovery is not a new user transition."
+}

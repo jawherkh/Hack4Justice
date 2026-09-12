@@ -1,0 +1,506 @@
+{
+  "dossier": {
+    "id": "50573ec5-a3e7-5c03-98e3-ea31e9c83e75",
+    "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+    "agency": "APII",
+    "procedure_version_id": "9bdcb341-159f-5325-8dd7-5990b382f0b7",
+    "version": 1,
+    "lifecycle": "active",
+    "readiness": "needs_review",
+    "agency_acceptance": "not_submitted",
+    "prerequisite_status": "unknown",
+    "node_ids": [
+      "0e361827-ca27-55ef-a280-435dd32e92fd",
+      "fb7144e0-ebf7-541d-9e82-5cf960485d74",
+      "8ebc98dc-17f5-55ef-ba4f-7b7270e3d64b",
+      "2e74f4dd-25e9-588f-a923-861a53c891f8",
+      "44067818-6534-5909-a812-871fc6db8559",
+      "46c6cc37-4c6e-58bc-b91b-478391dd53ac",
+      "fe0f8297-297c-5bc3-8a9a-2ff2850312a6",
+      "a76ebfa3-eaf2-515f-b1f5-18af0fc8acc6"
+    ],
+    "simulated": true,
+    "updated_at": "2026-09-12T12:00:00Z"
+  },
+  "nodes": [
+    {
+      "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+      "dossier_id": "50573ec5-a3e7-5c03-98e3-ea31e9c83e75",
+      "node_id": "0e361827-ca27-55ef-a280-435dd32e92fd",
+      "version": 1,
+      "procedure_version_id": "9bdcb341-159f-5325-8dd7-5990b382f0b7",
+      "agency": "APII",
+      "type": "information_input",
+      "state": "not_started",
+      "title": "information input",
+      "content": "",
+      "responsible_actor": {
+        "id": "ecb39df4-bd7b-581a-a1d3-f69350379af3",
+        "kind": "business_member",
+        "agency": null
+      },
+      "dependencies": [],
+      "requirement_ids": [],
+      "finding_ids": [],
+      "sources": [
+        {
+          "id": "184ed35f-6cc5-52bc-8b70-146e0b18f37f",
+          "kind": "synthetic",
+          "uri": "https://example.invalid/synthetic/APII",
+          "passage": "Synthetic test condition only; not a legal requirement.",
+          "page": null,
+          "section": null,
+          "sha256": "030da96caa69d1c5d7a1eb109b07d1f88febff1faa1bf6b6bfea46445f627872",
+          "retrieved_at": "2026-09-12T12:00:00Z",
+          "effective_from": null,
+          "effective_to": null
+        }
+      ],
+      "allowed_actions": [
+        "view",
+        "edit_facts"
+      ],
+      "blockers": [],
+      "readiness": "unknown",
+      "agency_acceptance": "not_submitted",
+      "prerequisite_status": "unknown"
+    },
+    {
+      "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+      "dossier_id": "50573ec5-a3e7-5c03-98e3-ea31e9c83e75",
+      "node_id": "fb7144e0-ebf7-541d-9e82-5cf960485d74",
+      "version": 1,
+      "procedure_version_id": "9bdcb341-159f-5325-8dd7-5990b382f0b7",
+      "agency": "APII",
+      "type": "document_evidence",
+      "state": "not_started",
+      "title": "document evidence",
+      "content": "",
+      "responsible_actor": {
+        "id": "ecb39df4-bd7b-581a-a1d3-f69350379af3",
+        "kind": "business_member",
+        "agency": null
+      },
+      "dependencies": [
+        "0e361827-ca27-55ef-a280-435dd32e92fd"
+      ],
+      "requirement_ids": [
+        "1b590091-91b9-5bd7-982e-de66dd86b44f"
+      ],
+      "finding_ids": [
+        "bf388860-b069-507d-b6fb-d37d738622ff"
+      ],
+      "sources": [
+        {
+          "id": "184ed35f-6cc5-52bc-8b70-146e0b18f37f",
+          "kind": "synthetic",
+          "uri": "https://example.invalid/synthetic/APII",
+          "passage": "Synthetic test condition only; not a legal requirement.",
+          "page": null,
+          "section": null,
+          "sha256": "030da96caa69d1c5d7a1eb109b07d1f88febff1faa1bf6b6bfea46445f627872",
+          "retrieved_at": "2026-09-12T12:00:00Z",
+          "effective_from": null,
+          "effective_to": null
+        }
+      ],
+      "allowed_actions": [
+        "view",
+        "upload_evidence",
+        "correct_evidence",
+        "request_review"
+      ],
+      "blockers": [],
+      "readiness": "unknown",
+      "agency_acceptance": "not_submitted",
+      "prerequisite_status": "unknown"
+    },
+    {
+      "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+      "dossier_id": "50573ec5-a3e7-5c03-98e3-ea31e9c83e75",
+      "node_id": "8ebc98dc-17f5-55ef-ba4f-7b7270e3d64b",
+      "version": 1,
+      "procedure_version_id": "9bdcb341-159f-5325-8dd7-5990b382f0b7",
+      "agency": "APII",
+      "type": "document_preparation",
+      "state": "not_started",
+      "title": "document preparation",
+      "content": "",
+      "responsible_actor": {
+        "id": "ecb39df4-bd7b-581a-a1d3-f69350379af3",
+        "kind": "business_member",
+        "agency": null
+      },
+      "dependencies": [
+        "fb7144e0-ebf7-541d-9e82-5cf960485d74"
+      ],
+      "requirement_ids": [],
+      "finding_ids": [],
+      "sources": [
+        {
+          "id": "184ed35f-6cc5-52bc-8b70-146e0b18f37f",
+          "kind": "synthetic",
+          "uri": "https://example.invalid/synthetic/APII",
+          "passage": "Synthetic test condition only; not a legal requirement.",
+          "page": null,
+          "section": null,
+          "sha256": "030da96caa69d1c5d7a1eb109b07d1f88febff1faa1bf6b6bfea46445f627872",
+          "retrieved_at": "2026-09-12T12:00:00Z",
+          "effective_from": null,
+          "effective_to": null
+        }
+      ],
+      "allowed_actions": [
+        "view",
+        "prepare_document"
+      ],
+      "blockers": [],
+      "readiness": "unknown",
+      "agency_acceptance": "not_submitted",
+      "prerequisite_status": "unknown"
+    },
+    {
+      "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+      "dossier_id": "50573ec5-a3e7-5c03-98e3-ea31e9c83e75",
+      "node_id": "2e74f4dd-25e9-588f-a923-861a53c891f8",
+      "version": 1,
+      "procedure_version_id": "9bdcb341-159f-5325-8dd7-5990b382f0b7",
+      "agency": "APII",
+      "type": "validation",
+      "state": "not_started",
+      "title": "validation",
+      "content": "",
+      "responsible_actor": {
+        "id": "ecb39df4-bd7b-581a-a1d3-f69350379af3",
+        "kind": "business_member",
+        "agency": null
+      },
+      "dependencies": [
+        "8ebc98dc-17f5-55ef-ba4f-7b7270e3d64b"
+      ],
+      "requirement_ids": [],
+      "finding_ids": [],
+      "sources": [
+        {
+          "id": "184ed35f-6cc5-52bc-8b70-146e0b18f37f",
+          "kind": "synthetic",
+          "uri": "https://example.invalid/synthetic/APII",
+          "passage": "Synthetic test condition only; not a legal requirement.",
+          "page": null,
+          "section": null,
+          "sha256": "030da96caa69d1c5d7a1eb109b07d1f88febff1faa1bf6b6bfea46445f627872",
+          "retrieved_at": "2026-09-12T12:00:00Z",
+          "effective_from": null,
+          "effective_to": null
+        }
+      ],
+      "allowed_actions": [
+        "view",
+        "run_validation"
+      ],
+      "blockers": [],
+      "readiness": "unknown",
+      "agency_acceptance": "not_submitted",
+      "prerequisite_status": "unknown"
+    },
+    {
+      "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+      "dossier_id": "50573ec5-a3e7-5c03-98e3-ea31e9c83e75",
+      "node_id": "44067818-6534-5909-a812-871fc6db8559",
+      "version": 1,
+      "procedure_version_id": "9bdcb341-159f-5325-8dd7-5990b382f0b7",
+      "agency": "APII",
+      "type": "decision",
+      "state": "not_started",
+      "title": "decision",
+      "content": "",
+      "responsible_actor": {
+        "id": "9264ec81-f748-5ffa-bb2a-d3ca4f96d9f9",
+        "kind": "officer",
+        "agency": "APII"
+      },
+      "dependencies": [
+        "2e74f4dd-25e9-588f-a923-861a53c891f8"
+      ],
+      "requirement_ids": [],
+      "finding_ids": [],
+      "sources": [
+        {
+          "id": "184ed35f-6cc5-52bc-8b70-146e0b18f37f",
+          "kind": "synthetic",
+          "uri": "https://example.invalid/synthetic/APII",
+          "passage": "Synthetic test condition only; not a legal requirement.",
+          "page": null,
+          "section": null,
+          "sha256": "030da96caa69d1c5d7a1eb109b07d1f88febff1faa1bf6b6bfea46445f627872",
+          "retrieved_at": "2026-09-12T12:00:00Z",
+          "effective_from": null,
+          "effective_to": null
+        }
+      ],
+      "allowed_actions": [
+        "view"
+      ],
+      "blockers": [],
+      "readiness": "unknown",
+      "agency_acceptance": "not_submitted",
+      "prerequisite_status": "unknown"
+    },
+    {
+      "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+      "dossier_id": "50573ec5-a3e7-5c03-98e3-ea31e9c83e75",
+      "node_id": "46c6cc37-4c6e-58bc-b91b-478391dd53ac",
+      "version": 1,
+      "procedure_version_id": "9bdcb341-159f-5325-8dd7-5990b382f0b7",
+      "agency": "APII",
+      "type": "external_action",
+      "state": "not_started",
+      "title": "external action",
+      "content": "",
+      "responsible_actor": {
+        "id": "ecb39df4-bd7b-581a-a1d3-f69350379af3",
+        "kind": "business_member",
+        "agency": null
+      },
+      "dependencies": [
+        "44067818-6534-5909-a812-871fc6db8559"
+      ],
+      "requirement_ids": [],
+      "finding_ids": [],
+      "sources": [
+        {
+          "id": "184ed35f-6cc5-52bc-8b70-146e0b18f37f",
+          "kind": "synthetic",
+          "uri": "https://example.invalid/synthetic/APII",
+          "passage": "Synthetic test condition only; not a legal requirement.",
+          "page": null,
+          "section": null,
+          "sha256": "030da96caa69d1c5d7a1eb109b07d1f88febff1faa1bf6b6bfea46445f627872",
+          "retrieved_at": "2026-09-12T12:00:00Z",
+          "effective_from": null,
+          "effective_to": null
+        }
+      ],
+      "allowed_actions": [
+        "view"
+      ],
+      "blockers": [],
+      "readiness": "unknown",
+      "agency_acceptance": "not_submitted",
+      "prerequisite_status": "unknown"
+    },
+    {
+      "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+      "dossier_id": "50573ec5-a3e7-5c03-98e3-ea31e9c83e75",
+      "node_id": "fe0f8297-297c-5bc3-8a9a-2ff2850312a6",
+      "version": 1,
+      "procedure_version_id": "9bdcb341-159f-5325-8dd7-5990b382f0b7",
+      "agency": "APII",
+      "type": "human_review",
+      "state": "not_started",
+      "title": "human review",
+      "content": "",
+      "responsible_actor": {
+        "id": "9264ec81-f748-5ffa-bb2a-d3ca4f96d9f9",
+        "kind": "officer",
+        "agency": "APII"
+      },
+      "dependencies": [
+        "46c6cc37-4c6e-58bc-b91b-478391dd53ac"
+      ],
+      "requirement_ids": [],
+      "finding_ids": [],
+      "sources": [
+        {
+          "id": "184ed35f-6cc5-52bc-8b70-146e0b18f37f",
+          "kind": "synthetic",
+          "uri": "https://example.invalid/synthetic/APII",
+          "passage": "Synthetic test condition only; not a legal requirement.",
+          "page": null,
+          "section": null,
+          "sha256": "030da96caa69d1c5d7a1eb109b07d1f88febff1faa1bf6b6bfea46445f627872",
+          "retrieved_at": "2026-09-12T12:00:00Z",
+          "effective_from": null,
+          "effective_to": null
+        }
+      ],
+      "allowed_actions": [
+        "view"
+      ],
+      "blockers": [],
+      "readiness": "unknown",
+      "agency_acceptance": "not_submitted",
+      "prerequisite_status": "unknown"
+    },
+    {
+      "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+      "dossier_id": "50573ec5-a3e7-5c03-98e3-ea31e9c83e75",
+      "node_id": "a76ebfa3-eaf2-515f-b1f5-18af0fc8acc6",
+      "version": 1,
+      "procedure_version_id": "9bdcb341-159f-5325-8dd7-5990b382f0b7",
+      "agency": "APII",
+      "type": "submission",
+      "state": "blocked",
+      "title": "submission",
+      "content": "",
+      "responsible_actor": {
+        "id": "ecb39df4-bd7b-581a-a1d3-f69350379af3",
+        "kind": "business_member",
+        "agency": null
+      },
+      "dependencies": [
+        "fe0f8297-297c-5bc3-8a9a-2ff2850312a6"
+      ],
+      "requirement_ids": [],
+      "finding_ids": [],
+      "sources": [
+        {
+          "id": "184ed35f-6cc5-52bc-8b70-146e0b18f37f",
+          "kind": "synthetic",
+          "uri": "https://example.invalid/synthetic/APII",
+          "passage": "Synthetic test condition only; not a legal requirement.",
+          "page": null,
+          "section": null,
+          "sha256": "030da96caa69d1c5d7a1eb109b07d1f88febff1faa1bf6b6bfea46445f627872",
+          "retrieved_at": "2026-09-12T12:00:00Z",
+          "effective_from": null,
+          "effective_to": null
+        }
+      ],
+      "allowed_actions": [
+        "view"
+      ],
+      "blockers": [
+        {
+          "obligation_id": "59dec47d-2666-5cd0-aba4-1497efe81a9f",
+          "action": "submit",
+          "status": "unknown",
+          "dependency_verification": "synthetic",
+          "reason": "Demo prerequisite is unknown or unsatisfied; upload and correction remain available.",
+          "source": {
+            "id": "184ed35f-6cc5-52bc-8b70-146e0b18f37f",
+            "kind": "synthetic",
+            "uri": "https://example.invalid/synthetic/APII",
+            "passage": "Synthetic test condition only; not a legal requirement.",
+            "page": null,
+            "section": null,
+            "sha256": "030da96caa69d1c5d7a1eb109b07d1f88febff1faa1bf6b6bfea46445f627872",
+            "retrieved_at": "2026-09-12T12:00:00Z",
+            "effective_from": null,
+            "effective_to": null
+          }
+        }
+      ],
+      "readiness": "unknown",
+      "agency_acceptance": "not_submitted",
+      "prerequisite_status": "unknown"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "1b590091-91b9-5bd7-982e-de66dd86b44f",
+      "procedure_version_id": "9bdcb341-159f-5325-8dd7-5990b382f0b7",
+      "code": "SYNTHETIC-01",
+      "description": "Synthetic supporting document",
+      "evidence_type": "synthetic_document",
+      "minimum_count": 1,
+      "applicability": "applicable",
+      "sources": [
+        {
+          "id": "184ed35f-6cc5-52bc-8b70-146e0b18f37f",
+          "kind": "synthetic",
+          "uri": "https://example.invalid/synthetic/APII",
+          "passage": "Synthetic test condition only; not a legal requirement.",
+          "page": null,
+          "section": null,
+          "sha256": "030da96caa69d1c5d7a1eb109b07d1f88febff1faa1bf6b6bfea46445f627872",
+          "retrieved_at": "2026-09-12T12:00:00Z",
+          "effective_from": null,
+          "effective_to": null
+        }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+      "dossier_id": "50573ec5-a3e7-5c03-98e3-ea31e9c83e75",
+      "node_id": "fb7144e0-ebf7-541d-9e82-5cf960485d74",
+      "id": "e28963aa-cfea-504f-a0ee-36c166172944",
+      "version": 1,
+      "replaces_id": null,
+      "requirement_ids": [
+        "1b590091-91b9-5bd7-982e-de66dd86b44f"
+      ],
+      "storage_ref": "synthetic/APII/document.txt",
+      "sha256": "71cb49988a2f45274b8f28b3a4fe87c9ba156295a055b549d781e4a6ef504144",
+      "mime_type": "text/plain",
+      "uploaded_by": {
+        "id": "ecb39df4-bd7b-581a-a1d3-f69350379af3",
+        "kind": "business_member",
+        "agency": null
+      },
+      "uploaded_at": "2026-09-12T12:00:00Z",
+      "extraction_method": "native",
+      "raw_text_ref": "synthetic/APII/text.txt",
+      "confirmed_fields_ref": null,
+      "review_status": "unreviewed"
+    }
+  ],
+  "findings": [
+    {
+      "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+      "dossier_id": "50573ec5-a3e7-5c03-98e3-ea31e9c83e75",
+      "node_id": "fb7144e0-ebf7-541d-9e82-5cf960485d74",
+      "id": "bf388860-b069-507d-b6fb-d37d738622ff",
+      "procedure_version_id": "9bdcb341-159f-5325-8dd7-5990b382f0b7",
+      "requirement_id": "1b590091-91b9-5bd7-982e-de66dd86b44f",
+      "evidence_ids": [
+        "e28963aa-cfea-504f-a0ee-36c166172944"
+      ],
+      "evaluated_dossier_version": 1,
+      "outcome": "needs_review",
+      "message": "Synthetic document awaits confirmation.",
+      "sources": [
+        {
+          "id": "184ed35f-6cc5-52bc-8b70-146e0b18f37f",
+          "kind": "synthetic",
+          "uri": "https://example.invalid/synthetic/APII",
+          "passage": "Synthetic test condition only; not a legal requirement.",
+          "page": null,
+          "section": null,
+          "sha256": "030da96caa69d1c5d7a1eb109b07d1f88febff1faa1bf6b6bfea46445f627872",
+          "retrieved_at": "2026-09-12T12:00:00Z",
+          "effective_from": null,
+          "effective_to": null
+        }
+      ],
+      "validity": "current"
+    }
+  ],
+  "decisions": [],
+  "obligations": [
+    {
+      "id": "59dec47d-2666-5cd0-aba4-1497efe81a9f",
+      "company_id": "2e4bc8ce-f971-5042-9486-4ad4fcb43557",
+      "responsible_agency": "APII",
+      "code": "synthetic_prerequisite",
+      "status": "unknown",
+      "basis": "missing_evidence",
+      "source": {
+        "id": "184ed35f-6cc5-52bc-8b70-146e0b18f37f",
+        "kind": "synthetic",
+        "uri": "https://example.invalid/synthetic/APII",
+        "passage": "Synthetic test condition only; not a legal requirement.",
+        "page": null,
+        "section": null,
+        "sha256": "030da96caa69d1c5d7a1eb109b07d1f88febff1faa1bf6b6bfea46445f627872",
+        "retrieved_at": "2026-09-12T12:00:00Z",
+        "effective_from": null,
+        "effective_to": null
+      },
+      "observed_at": "2026-09-12T12:00:00Z",
+      "authoritative_reference": null
+    }
+  ]
+}
