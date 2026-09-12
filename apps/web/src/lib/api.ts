@@ -6,4 +6,7 @@ const baseUrl =
   "http://localhost:3001";
 
 /** Type-safe Eden client for the Elysia API. */
-export const api: ReturnType<typeof treaty<App>> = treaty<App>(baseUrl);
+// Cookies (session + locale) must travel cross-origin to the API.
+export const api: ReturnType<typeof treaty<App>> = treaty<App>(baseUrl, {
+  fetch: { credentials: "include" },
+});

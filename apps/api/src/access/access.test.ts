@@ -1,13 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { Elysia } from "elysia";
 
+import { errorHandler } from "../errors";
+
 import { createDemoRepository, demoPrincipals } from "./fixtures";
 import { createDemoIdentity } from "./identity";
 import { canReadDocument, type DocumentGrant } from "./policy";
 import { createAccessRoutes } from "./routes";
 
 function app(grants: readonly DocumentGrant[] = []) {
-  return new Elysia({ prefix: "/api/v1" })
+  return new Elysia({ prefix: "/api/v1" }).use(errorHandler)
     .use(createAccessRoutes(createDemoRepository(grants), createDemoIdentity(true, "test")));
 }
 
@@ -41,10 +43,10 @@ describe("server identities", () => {
   test("demo access is opt-in and unavailable in production", async () => {
     expect(() => createDemoIdentity(true, "production")).toThrow();
     expect(() => createDemoIdentity(true, "staging")).toThrow();
-    const disabled = new Elysia().use(createAccessRoutes(createDemoRepository(), createDemoIdentity(false, "development")));
+    const disabled = new Elysia().use(errorHandler).use(createAccessRoutes(createDemoRepository(), createDemoIdentity(false, "development")));
     const response = await disabled.handle(new Request("http://localhost/me", { headers: { "x-demo-user": member } }));
     expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({ error: { code: "identity_provider_not_configured" } });
+    expect(await response.json()).toMatchObject({ error: { code: "identity_provider_not_configured" } });
   });
 });
 
@@ -147,7 +149,7 @@ describe("mutation boundaries", () => {
     }
     const allowed = await app().handle(request("/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST", decision));
     expect(allowed.status).toBe(501);
-    expect(await allowed.json()).toEqual({ error: { code: "workflow_not_configured" } });
+    expect(await allowed.json()).toMatchObject({ error: { code: "workflow_not_configured" } });
   });
 
   test("only the company member can reach document writes", async () => {
