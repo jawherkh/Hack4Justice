@@ -31,7 +31,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-h4j}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-h4jpassword}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your local environment}
       POSTGRES_DB: ${POSTGRES_DB:-h4j_dev}
     ports:
       - "5432:5432"
@@ -49,7 +49,7 @@ services:
     container_name: h4j_neo4j
     restart: unless-stopped
     environment:
-      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-h4jgraph}
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in your local environment}
       NEO4J_PLUGINS: '["apoc"]'
       NEO4J_dbms_security_procedures_unrestricted: apoc.*
       NEO4J_dbms_memory_heap_initial__size: 512m
@@ -61,7 +61,7 @@ services:
       - neo4j_data:/data
       - neo4j_logs:/logs
     healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "${NEO4J_USER:-neo4j}", "-p", "${NEO4J_PASSWORD:-h4jgraph}", "RETURN 1"]
+      test: ["CMD", "cypher-shell", "-u", "${NEO4J_USER:-neo4j}", "-p", "${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in your local environment}", "RETURN 1"]
       interval: 15s
       timeout: 10s
       retries: 6
@@ -74,7 +74,7 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-h4jadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-h4jminio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in your local environment}
     ports:
       - "9000:9000"   # S3 API
       - "9001:9001"   # web console
@@ -98,7 +98,7 @@ services:
       DB: postgresql
       DB_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER:-h4j}
-      POSTGRES_PWD: ${POSTGRES_PASSWORD:-h4jpassword}
+      POSTGRES_PWD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your local environment}
       POSTGRES_SEEDS: postgres
       TEMPORAL_ADDRESS: 0.0.0.0:7233
       DYNAMIC_CONFIG_FILE_PATH: /etc/temporal/config/dynamicconfig/development-sql.yaml

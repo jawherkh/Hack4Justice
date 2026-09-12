@@ -22,7 +22,7 @@ Open `http://127.0.0.1:8000/docs` to explore the contract preview.
 See [`Backend/README.md`](Backend/README.md) and [`agent/README.md`](agent/README.md) for setup instructions, or run the full stack with:
 
 ```bash
-cp .env.example .env   # fill in secrets
+# Create a local .env with POSTGRES_PASSWORD, NEO4J_PASSWORD and MINIO_ROOT_PASSWORD.
 docker compose up -d
 cd Backend && npm run demo
 ```
