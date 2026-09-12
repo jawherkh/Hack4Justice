@@ -334,6 +334,39 @@ describe("outbound notification delivery", () => {
     expect(record.id).toBe("");
   });
 
+  test("a message survives a directory outage and is delivered once it recovers", async () => {
+    const store = new MemoryStore();
+    let available = false;
+    const flakyDirectory: RecipientDirectory = {
+      async find(id) {
+        if (!available) throw new Error("directory_unavailable");
+        return id === owner.id ? owner : undefined;
+      },
+    };
+    let calls = 0;
+    const counting: Transport = {
+      channels: ["whatsapp"],
+      async send() {
+        calls += 1;
+        return { status: "sent", providerMessageId: "SMlater" };
+      },
+    };
+    const notifier = new Notifier({ store, recipients: flakyDirectory, transports: [counting] });
+    const request = message();
+
+    const duringOutage = await notifier.notify(request);
+    expect(duringOutage.status).toBe("failed");
+    expect(calls).toBe(0);
+
+    available = true;
+    const afterRecovery = await notifier.notify(request);
+
+    expect(afterRecovery.status).toBe("sent");
+    expect(afterRecovery.providerMessageId).toBe("SMlater");
+    expect(calls).toBe(1);
+    expect(store.records).toHaveLength(1);
+  });
+
   test("a broken recipient directory does not throw to the caller", async () => {
     const store = new MemoryStore();
     const brokenDirectory: RecipientDirectory = {

@@ -142,7 +142,16 @@ export class Notifier {
       return current ?? candidate;
     }
 
-    const recipient = await this.recipients.find(request.recipientId);
+    let recipient: Recipient | undefined;
+    try {
+      recipient = await this.recipients.find(request.recipientId);
+    } catch (error) {
+      // Nothing has been sent yet, so the spent attempt must not leave the message
+      // looking like one whose outcome is unknown. Recording a failure keeps it
+      // retryable once the directory recovers, still inside the attempt bound.
+      return await this.store.markResult(record.id, { status: "failed", failureReason: describe(error) });
+    }
+
     if (!recipient) {
       return await this.store.markResult(record.id, { status: "failed", failureReason: "unknown_recipient" });
     }
@@ -181,6 +190,9 @@ export class Notifier {
    * and sending again risks a second message to the recipient. A queued message with no
    * attempt spent never reached the provider, which is what a store outage between the
    * insert and the result leaves behind, so it is safe to resume.
+   *
+   * A problem that happens after the attempt is taken but before the provider is called
+   * is recorded as a failure rather than left queued, so it stays retryable here.
    */
   private isResumable(record: NotificationRecord) {
     if (record.status === "sent" || record.status === "simulated") return false;
