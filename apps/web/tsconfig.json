@@ -5,6 +5,7 @@
     "**/*.tsx"
   ],
   "compilerOptions": {
+    "types": ["vite/client"],
     "paths": {
       "#/*": [
         "./src/*"

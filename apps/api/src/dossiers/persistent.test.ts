@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import postgres from "postgres";
 import { Elysia } from "elysia";
+import { errorHandler } from "../errors";
 import { createAccessRoutes } from "../access/routes";
 import { createDemoIdentity } from "../access/identity";
 import { FileStore, checksum } from "./files";
@@ -51,7 +52,8 @@ describe.skipIf(!url)("persistent API storage", () => {
     await rm(target, { recursive: true });
   });
   function server(connection = repository) {
-    return new Elysia({ prefix: "/api/v1" }).use(createAccessRoutes(connection, createDemoIdentity(true, "test")));
+    return new Elysia({ prefix: "/api/v1" }).use(errorHandler)
+      .use(createAccessRoutes(connection, createDemoIdentity(true, "test")));
   }
   function request(path: string, user = "demo-member-alpha", method = "GET", body?: unknown) {
     return new Request(`http://localhost/api/v1${path}`, { method,
@@ -185,7 +187,7 @@ describe.skipIf(!url)("persistent API storage", () => {
     await writeFile(join(directory, key), "tampered");
     const response = await server().handle(request(`/documents/${uploaded.document.id}/content`));
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: { code: "file_integrity_failure" } });
+    expect(await response.json()).toMatchObject({ error: { code: "file_integrity_failure" } });
     expect((await repository.document(uploaded.document.id))?.sha256).toBe(checksum(pdf));
   });
 

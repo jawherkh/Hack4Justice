@@ -4,6 +4,91 @@ Runs on Node (>= 22) via `tsx` in development and a `tsup` bundle in production.
 Run from the repository root with `pnpm --filter @hack4justice/api dev`.
 The API exposes `/health` and versioned routes under `/api/v1`.
 
+## Recoverable review processing
+
+Both the worker and the HTTP API run under Node.js 22 or newer.
+The worker and API must share `DATABASE_URL`. Rerun `db:init` after upgrading
+to create the command queue and event tables while preserving existing data.
+
+From the repository root, start the development Temporal service:
+
+```sh
+docker compose -f apps/api/compose.workflow.yaml up -d
+pnpm --filter @hack4justice/api worker
+```
+
+The worker loads the repository-root `.env` automatically; deployment-provided
+environment variables take precedence. `TEMPORAL_ADDRESS` defaults to
+`127.0.0.1:7233`, `TEMPORAL_NAMESPACE` to `default`, and `TEMPORAL_TASK_QUEUE`
+to `dossier-lifecycle`. The local Temporal UI is at `http://localhost:8233`.
+The compose service is a development server with a persistent volume, not a
+production Temporal deployment. Keep its ports on loopback.
+
+`POST /api/v1/dossiers/:dossierId/commands` accepts a versioned request and
+returns 202 after the command is committed to PostgreSQL. A separate relay
+delivers its reference to the dossier's workflow. Requests remain queued when
+Temporal or the worker is unavailable. Duplicate delivery is harmless: command
+results, decisions, dossier changes and projection events commit together.
+An activity retry after a successful commit returns the stored result.
+
+Example explicit submission for the synthetic platform review:
+
+```json
+{"type":"submission_requested","expectedVersion":1,"idempotencyKey":"submit-example","confirmed":true}
+```
+
+Read `GET /api/v1/dossiers/:dossierId/commands/:commandId` until its status is
+`completed` or `rejected`. A rejected result includes an error code, such as
+`version_conflict` or `invalid_transition`. Refresh the dossier before making
+a new request. Retrying the same actor/key/payload returns the original
+acknowledgement; a changed payload returns 409. Officer decisions use the same
+command endpoint, with a `nodeId` identifying a decision or human-review node:
+
+```json
+{"type":"decision_recorded","expectedVersion":2,"idempotencyKey":"review-example","nodeId":"<review-node-id>","decision":{"action":"request_modification","reason":"The uploaded page is unreadable.","targetNodeIds":["<document-node-id>"],"evidenceIds":["<document-id>"]}}
+```
+
+Only an officer for the dossier's agency can record a decision. Modification
+requests require target nodes. Business members upload corrections, then send
+`resubmission_requested` with explicit confirmation and the current version.
+Acceptance/refusal closes the dossier; cancellation preserves previous
+decisions. Closed/cancelled dossiers reject new writes. A request for review
+alone never changes agency acceptance. Submission here starts the platform's
+synthetic review; it does not send a government submission or create a receipt.
+
+Uploads and confirmed-fact changes enqueue evidence-change references in the
+same transaction as the stored evidence. Their immediate responses contain the
+stored version; the worker may advance it again, so refresh before the next
+command. No original file bytes enter workflow history. OCR, model calls, graph
+queries and sandbox execution must be separate activities; the worker currently
+registers only command preparation and projection persistence activities.
+
+Trusted service callers can enqueue `prerequisite_changed` through the repository
+with an obligation ID, observation version, source/rule references, expiry and
+covered actions. Public business endpoints reject that command type. Unknown,
+disputed or expired observations require review; unfulfilled obligations block
+only their covered submission actions. A newer fulfilled observation clears
+that wait. Stale observations cannot replace newer ones. The upstream rule/status
+service owns applicability and authoritative verification; missing uploads are
+never interpreted as an unfulfilled obligation.
+
+`GET /api/v1/dossiers/:dossierId/lifecycle-events?after=0` returns up to 100
+events in aggregate-version order, scoped to the same company/agency access.
+Use the last returned version as the next cursor. Each event has a stable ID
+and the resulting status; fetch dossier detail for its documents and decisions.
+The initial snapshot is the baseline for repositories created before event
+tracking was installed. This polling endpoint is separate from live SSE delivery.
+
+Workflow signals only enqueue references; the main loop serializes transitions.
+The commit activity rechecks the dossier version so an intervening upload cannot
+be overwritten. Workflows remain waiting after a business terminal state to
+consume delayed deliveries safely; new commands are still rejected by the stored
+state. They continue into a new run after 100 processed references when the queue
+is empty, limiting history growth. Use the cancellation command to cancel a
+dossier; force-terminating Temporal is an operational action, not a business decision.
+
+Offline regression tests run with `bun test src/lifecycle/state.test.ts`.
+
 The access module provides server-side company membership and agency permission
 checks with an injectable identity resolver and resource repository. Business
 members can read their own dossiers and edit their evidence. Officers can read
@@ -46,7 +131,7 @@ For example, request `/api/v1/dossiers/dossier-alpha-dgi` with
 
 Fixtures contain two companies and three agencies. An RNE officer may view
 `/api/v1/dependencies/dependency-alpha-dgi`, but cannot read
-`/api/v1/uploads/document-alpha-dgi` without a separate document grant.
+`/api/v1/documents/document-alpha-dgi` without a separate document grant.
 All dependency statuses and records are synthetic.
 
 Read routes cover procedures, dossiers, nested nodes/documents, document
@@ -60,16 +145,16 @@ The dossier API supports synthetic create/resume, immutable document versions,
 replacement uploads, confirmed-fact updates and optimistic version checks.
 Evidence and fact changes mark affected findings stale and return the updated
 projection. Lifecycle commands are validated, authorized and accepted through
-an idempotent command boundary; execution remains owned by the future Temporal
-workflow. Command acknowledgements persist when database storage is configured;
-they do not execute transitions or imply agency acceptance.
+an idempotent command boundary. A Temporal worker executes the queued requests
+and writes their results and versioned projection events back to PostgreSQL.
+A command acknowledgement means queued, and does not imply agency acceptance.
 The production identity resolver must verify credentials and load roles and
 memberships from server storage on each request.
 
 ## Persistent local preview
 
-Use Node 22 or newer. Set `DATABASE_URL` to opt into PostgreSQL storage;
-without it the existing in-memory preview remains available. Storage setup is
+Use Node 22 or newer. The API requires `DATABASE_URL` for PostgreSQL storage
+and a private `BETTER_AUTH_SECRET` of at least 32 characters. Storage setup is
 explicit and does not use Supabase credentials automatically.
 
 From the repository root, start a disposable database and initialize synthetic
@@ -138,7 +223,7 @@ result without incrementing the revision again. Reusing that key with different
 content or metadata returns 409. It is scoped to the dossier and authenticated
 actor and works for both JSON and multipart uploads with database storage.
 
-`GET /api/v1/uploads/:documentId/content` returns the original bytes as an
+`GET /api/v1/documents/:documentId/content` returns the original bytes as an
 attachment after the same company, agency or document-grant checks as metadata
 access. It is never a public storage URL. Existing synthetic documents remain
 downloadable as text. OCR, workflow delivery and live event streaming remain
@@ -158,6 +243,47 @@ they do not modify the preview's `h4j_api` data. `test:storage` requires an
 explicit test database URL. Plain `test` runs the in-memory tests and skips the
 database suite when that URL is absent.
 
+## Document workspaces
+
+Generated documents are prepared in a container that can reach one directory and nothing
+else. Each dossier run gets its own directory on the host, mounted into the container at
+`/work`.
+
+The container runs as the API process's non-root UID when available, falling back to the
+nobody UID where it is not, with every Linux capability dropped, no privilege escalation,
+no network access, a read-only image filesystem, and limits on memory, CPU, process count
+and wall-clock time. Using the API UID keeps the private bind mount writable without making
+it readable by other host users; deployments should run the API as a non-root user. The
+host's container socket is never mounted, and no host path other than the run's own directory
+is exposed, so one run cannot read another dossier's files or reach the host.
+
+Paths supplied by callers are resolved against the run directory and refused if they land
+outside it. Every component of a path is checked, not only the last, so a parent directory
+swapped for a link cannot redirect a read or a write, and on Linux the opened descriptor is
+confirmed to point inside the directory before any content moves. Anything that is not a
+plain file is refused before it is opened, so a pipe left where an artifact is expected
+cannot make the reader wait for a writer that never arrives.
+
+Reads and writes are capped per file and per workspace, and command output beyond its limit
+is dropped and flagged rather than buffered without bound.
+
+The per-file limit is enforced by the kernel. The workspace total is enforced by measuring
+the directory while a run executes and stopping a run that passes it, which bounds disk use
+but is not a precise quota: a run writing at full disk speed can overshoot by whatever it
+manages between two measurements. Put the workspace on a filesystem created with a fixed
+size when untrusted runs share a disk with anything that matters.
+
+Cleanup and retention:
+
+- A container is removed as soon as its command finishes, and a run that passes the time
+  limit is force-removed, so nothing is left behind.
+- A run directory outlives its container on purpose, so artifacts can still be exported
+  after the command ends. Removing it is an explicit call.
+- Remove a run directory once its artifacts are stored as dossier documents, or when the
+  dossier closes. Nothing expires on its own.
+
+The live isolation checks run against a local container daemon only when
+`SANDBOX_DOCKER_TESTS=1` is set; the rest of the suite runs without one.
 ## Uploads (PDF upload + text extraction)
 
 Requires the local stack: `docker compose up -d db minio minio-init tika`.
