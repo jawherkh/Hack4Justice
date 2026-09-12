@@ -1,12 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { Elysia } from "elysia";
 
+import { errorHandler } from "../errors";
+
 import { createDemoRepository } from "../access/fixtures";
 import { createDemoIdentity } from "../access/identity";
 import { createAccessRoutes } from "../access/routes";
 
 function app() {
-  return new Elysia({ prefix: "/api/v1" })
+  return new Elysia({ prefix: "/api/v1" }).use(errorHandler)
     .use(createAccessRoutes(createDemoRepository(), createDemoIdentity(true, "test")));
 }
 
@@ -108,7 +110,7 @@ describe("dossier projections", () => {
       changes: { headcount: 10 },
     }));
     expect(stale.status).toBe(409);
-    expect(await stale.json()).toEqual({ error: { code: "version_conflict" } });
+    expect(await stale.json()).toMatchObject({ error: { code: "version_conflict" } });
   });
 
   test("accepts lifecycle commands idempotently and keeps execution outside the API projection", async () => {
