@@ -45,7 +45,7 @@ For example, request `/api/v1/dossiers/dossier-alpha-dgi` with
 
 Fixtures contain two companies and three agencies. An RNE officer may view
 `/api/v1/dependencies/dependency-alpha-dgi`, but cannot read
-`/api/v1/uploads/document-alpha-dgi` without a separate document grant.
+`/api/v1/documents/document-alpha-dgi` without a separate document grant.
 All dependency statuses and records are synthetic.
 
 Read routes cover procedures, dossiers, nested nodes/documents, document
@@ -137,7 +137,7 @@ result without incrementing the revision again. Reusing that key with different
 content or metadata returns 409. It is scoped to the dossier and authenticated
 actor and works for both JSON and multipart uploads with database storage.
 
-`GET /api/v1/uploads/:documentId/content` returns the original bytes as an
+`GET /api/v1/documents/:documentId/content` returns the original bytes as an
 attachment after the same company, agency or document-grant checks as metadata
 access. It is never a public storage URL. Existing synthetic documents remain
 downloadable as text. OCR, workflow delivery and live event streaming remain
