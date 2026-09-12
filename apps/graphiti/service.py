@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
-import re
+from dataclasses import dataclass
 from typing import Any, Callable
+
+from chonkie import SentenceChunker
 
 from .models import (
     AgencyScope,
@@ -28,37 +30,83 @@ class GraphitiNotReadyError(RuntimeError):
     """Raised when Neo4j/Gemini configuration is not available."""
 
 
-def chunk_text(text: str, max_chars: int, overlap_chars: int) -> list[str]:
-    """Split long legal text at paragraph/sentence boundaries with bounded overlap."""
+@dataclass(frozen=True, slots=True)
+class TextChunk:
+    """A Chonkie chunk plus offsets that can be used for source evidence."""
+
+    text: str
+    start_index: int
+    end_index: int
+    token_count: int
+
+
+def chunk_document(text: str, max_chars: int, overlap_chars: int) -> list[TextChunk]:
+    """Chunk legal text at sentence boundaries using Chonkie's character tokenizer.
+
+    Chonkie's ``chunk_size`` and ``chunk_overlap`` are token-based settings. The
+    character tokenizer makes the existing service configuration names and
+    limits map directly to character counts, without adding another tokenizer
+    model or downloading a tokenizer vocabulary at runtime.
+    """
 
     if max_chars < 1:
         raise ValueError("max_chars must be positive")
     if overlap_chars < 0 or overlap_chars >= max_chars:
         raise ValueError("overlap_chars must be >= 0 and smaller than max_chars")
 
-    normalized = re.sub(r"\n{3,}", "\n\n", text.strip())
-    chunks: list[str] = []
-    start = 0
-    while start < len(normalized):
-        proposed_end = min(start + max_chars, len(normalized))
-        end = proposed_end
-        if proposed_end < len(normalized):
-            candidates = [
-                normalized.rfind("\n\n", start + max_chars // 2, proposed_end),
-                normalized.rfind(". ", start + max_chars // 2, proposed_end),
-                normalized.rfind("; ", start + max_chars // 2, proposed_end),
-            ]
-            boundary = max(candidates)
-            if boundary > start:
-                end = boundary + (2 if normalized[boundary : boundary + 2] in {". ", "; "} else 0)
+    chunker = SentenceChunker(
+        tokenizer="character",
+        chunk_size=max_chars,
+        chunk_overlap=overlap_chars,
+        # Legal provisions are often short (for example, “Art. 1.”). Do not
+        # discard them because they are below Chonkie's default sentence size.
+        min_sentences_per_chunk=1,
+        min_characters_per_sentence=1,
+        delim=[". ", "! ", "? ", "\n"],
+        include_delim="prev",
+    )
+    chunks: list[TextChunk] = []
+    for chunk in chunker.chunk(text):
+        if not chunk.text.strip():
+            continue
 
-        chunk = normalized[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
-        if end >= len(normalized):
-            break
-        start = max(end - overlap_chars, start + 1)
+        # SentenceChunker keeps an unusually long sentence intact. Keep that
+        # semantic preference, but enforce the service limit as a safety valve
+        # for OCR output containing a missing or malformed sentence delimiter.
+        if len(chunk.text) <= max_chars:
+            chunks.append(
+                TextChunk(
+                    text=chunk.text,
+                    start_index=chunk.start_index,
+                    end_index=chunk.end_index,
+                    token_count=chunk.token_count,
+                )
+            )
+            continue
+
+        start = chunk.start_index
+        while start < chunk.end_index:
+            end = min(start + max_chars, chunk.end_index)
+            piece = text[start:end]
+            if piece.strip():
+                chunks.append(
+                    TextChunk(
+                        text=piece,
+                        start_index=start,
+                        end_index=end,
+                        token_count=len(piece),
+                    )
+                )
+            if end >= chunk.end_index:
+                break
+            start = max(end - overlap_chars, start + 1)
     return chunks
+
+
+def chunk_text(text: str, max_chars: int, overlap_chars: int) -> list[str]:
+    """Compatibility helper returning only the text of each Chonkie chunk."""
+
+    return [chunk.text for chunk in chunk_document(text, max_chars, overlap_chars)]
 
 
 def _get(value: Any, name: str, default: Any = None) -> Any:
@@ -169,7 +217,7 @@ class GraphitiKnowledgeService:
         await self.connect()
         assert self._client is not None
 
-        chunks = chunk_text(
+        chunks = chunk_document(
             document.text,
             max_chars=self.settings.max_text_chars,
             overlap_chars=self.settings.chunk_overlap_chars,
@@ -204,6 +252,9 @@ class GraphitiKnowledgeService:
                         chunk_count=len(chunks),
                         node_count=len(_get(result, "nodes", [])),
                         edge_count=len(_get(result, "edges", [])),
+                        start_index=chunk.start_index,
+                        end_index=chunk.end_index,
+                        token_count=chunk.token_count,
                     )
                 )
         return IngestResponse(
@@ -221,7 +272,7 @@ class GraphitiKnowledgeService:
         return EpisodeType.text
 
     @staticmethod
-    def _episode_body(document: LegalDocument, chunk: str, index: int, count: int) -> str:
+    def _episode_body(document: LegalDocument, chunk: TextChunk, index: int, count: int) -> str:
         metadata = [
             "LEGAL SOURCE METADATA",
             f"document_id: {document.document_id}",
@@ -231,6 +282,9 @@ class GraphitiKnowledgeService:
             f"retrieved_at: {document.retrieved_at.isoformat()}",
             f"language: {document.language}",
             f"chunk: {index + 1}/{count}",
+            f"chunk_start_index: {chunk.start_index}",
+            f"chunk_end_index: {chunk.end_index}",
+            f"chunk_token_count: {chunk.token_count}",
         ]
         if document.effective_from:
             metadata.append(f"effective_from: {document.effective_from.isoformat()}")
@@ -238,7 +292,7 @@ class GraphitiKnowledgeService:
             metadata.append(f"effective_to: {document.effective_to.isoformat()}")
         if document.section:
             metadata.append(f"section: {document.section}")
-        return "\n".join(metadata) + "\n\nLEGAL SOURCE PASSAGE\n" + chunk
+        return "\n".join(metadata) + "\n\nLEGAL SOURCE PASSAGE\n" + chunk.text
 
     async def search(self, scope: AgencyScope, query: str, max_results: int) -> SearchResponse:
         await self.connect()

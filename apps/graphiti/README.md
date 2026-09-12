@@ -44,8 +44,9 @@ legal graph.
 ## Pipeline endpoints
 
 - `GET /api/v1/ontology` returns the extraction ontology and provenance rules.
-- `POST /api/v1/knowledge/ingest` chunks a legal document, attaches provenance,
-  extracts typed entities/edges, and stores episodes in Neo4j.
+- `POST /api/v1/knowledge/ingest` uses Chonkie's sentence chunker, attaches
+  provenance and source offsets, extracts typed entities/edges, and stores each
+  chunk as an episode in Neo4j.
 - `POST /api/v1/knowledge/ingest/bulk` processes several documents sequentially
   so Graphiti can use recent episode context during entity resolution.
 - `POST /api/v1/knowledge/search` uses
@@ -74,3 +75,17 @@ curl -X POST http://127.0.0.1:8010/api/v1/knowledge/ingest \
 The service does not promote scraped content to an approved legal procedure.
 That promotion remains subject to the existing contracts' maintainer approval
 and official-source safeguards.
+
+## Chunking and upload architecture
+
+The TypeScript API should upload the original file to MinIO, persist the OCR
+text and document metadata, then submit one document to this service with the
+`X-Agency-Code` header. This service is the chunking boundary: Chonkie's
+`SentenceChunker` preserves sentence boundaries, adds configured overlap, and
+returns source offsets and token counts that are included in each episode's
+provenance metadata.
+
+Do not send one HTTP request per chunk. A durable worker/outbox should retry the
+single document request and update ingestion status, while this service writes
+the resulting episodes sequentially so Graphiti can use recent graph context
+for entity resolution.

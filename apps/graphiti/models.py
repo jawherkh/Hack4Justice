@@ -74,6 +74,9 @@ class IngestedEpisode(ServiceModel):
     chunk_count: int
     node_count: int
     edge_count: int
+    start_index: int = 0
+    end_index: int = 0
+    token_count: int = 0
 
 
 class IngestResponse(ServiceModel):
