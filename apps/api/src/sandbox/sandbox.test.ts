@@ -153,7 +153,7 @@ describe("workspace containment", () => {
     const space = await workspace("dossier5");
     await space.writeFile("nested/report.txt", "bonjour");
     expect(new TextDecoder().decode(await space.readFile("nested/report.txt"))).toBe("bonjour");
-    expect(await space.resolvePath("nested/report.txt").startsWith(space.root)).toBe(true);
+    expect((await space.resolvePath("nested/report.txt")).startsWith(space.root)).toBe(true);
   });
 
   test("enforces the per-file and total size limits", async () => {
