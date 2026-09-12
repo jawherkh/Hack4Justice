@@ -17,7 +17,7 @@ const app = new Elysia()
   // Unversioned: load balancers / uptime checks.
   .get("/health", () => ({ ok: true }))
   .use(v1)
-  .listen({ port: PORT, hostname: env.DEMO_ACCESS_ENABLED ? "127.0.0.1" : "0.0.0.0" });
+  .listen({ port: PORT, hostname: env.DEMO_ACCESS_ENABLED ? "127.0.0.1" : "0.0.0.0", maxRequestBodySize: 21 * 1024 * 1024 });
 
 console.log(`API listening on http://localhost:${PORT}`);
 console.log(`Docs at http://localhost:${PORT}/openapi`);
