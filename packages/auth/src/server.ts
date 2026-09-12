@@ -13,6 +13,8 @@ export interface CreateAuthOptions {
   trustedOrigins?: string[];
   /** Delivers the password-reset link. Without it, "forgot password" is disabled. */
   sendResetPassword?: (input: ResetPasswordEmail) => Promise<void>;
+  /** Per-IP rate limiting on auth endpoints. Defaults to enabled. Disable for tests. */
+  rateLimit?: { enabled: boolean };
 }
 
 export interface ResetPasswordEmail {
@@ -22,12 +24,32 @@ export interface ResetPasswordEmail {
   token: string;
 }
 
-export function createAuth({ db, baseURL, secret, trustedOrigins = [], sendResetPassword }: CreateAuthOptions) {
+export function createAuth({
+  db,
+  baseURL,
+  secret,
+  trustedOrigins = [],
+  sendResetPassword,
+  rateLimit = { enabled: true },
+}: CreateAuthOptions) {
   return betterAuth({
     baseURL,
     secret,
     basePath: "/api/auth",
     trustedOrigins,
+    rateLimit: {
+      enabled: rateLimit.enabled,
+      // Global ceiling per IP, then tighter limits on credential endpoints.
+      window: 60,
+      max: 100,
+      customRules: {
+        "/sign-in/email": { window: 60, max: 10 },
+        "/sign-up/email": { window: 60, max: 5 },
+        "/request-password-reset": { window: 60, max: 3 },
+        "/reset-password": { window: 60, max: 5 },
+        "/change-password": { window: 60, max: 5 },
+      },
+    },
     database: drizzleAdapter(db, { provider: "pg", schema }),
     emailAndPassword: {
       enabled: true,
