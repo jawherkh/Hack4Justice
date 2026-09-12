@@ -1,10 +1,23 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalEnv": ["PORT", "WEB_ORIGIN"],
+  "globalEnv": [
+    "PORT",
+    "WEB_ORIGIN",
+    "DATABASE_URL",
+    "BETTER_AUTH_SECRET",
+    "BETTER_AUTH_URL"
+  ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".output/**", ".tanstack/**", ".nitro/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".output/**",
+        ".tanstack/**",
+        ".nitro/**"
+      ]
     },
     "dev": {
       "cache": false,
@@ -12,10 +25,14 @@
     },
     "lint": {},
     "check-types": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "test": {
-      "dependsOn": ["build"]
+      "dependsOn": [
+        "build"
+      ]
     }
   }
 }
