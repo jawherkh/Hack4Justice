@@ -1,9 +1,4 @@
-import {
-  HeadContent,
-  Scripts,
-  createRootRoute,
-  useParams,
-} from '@tanstack/react-router'
+import { HeadContent, Scripts, createRootRoute, useParams } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import * as React from 'react'
 
@@ -39,9 +34,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 
         <Scripts />
       </body>

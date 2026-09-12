@@ -38,11 +38,23 @@ export function ForgotPasswordForm() {
         {status.sent ? (
           <p className="text-sm">{t('auth.forgot.sent')}</p>
         ) : (
-          <form noValidate onSubmit={(e) => { e.preventDefault(); void form.handleSubmit() }}>
+          <form
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault()
+              void form.handleSubmit()
+            }}
+          >
             <FieldGroup>
               <form.Field name="email">
                 {(field) => (
-                  <TextField field={field} type="email" label={t('auth.field.email')} placeholder={t('auth.placeholder.email')} autoComplete="email" />
+                  <TextField
+                    field={field}
+                    type="email"
+                    label={t('auth.field.email')}
+                    placeholder={t('auth.placeholder.email')}
+                    autoComplete="email"
+                  />
                 )}
               </form.Field>
               <Field data-invalid={status.error ? true : undefined}>

@@ -16,9 +16,7 @@ export function LanguageSwitcher() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button variant="ghost" size="sm" aria-label={t('language.label')} />}
-      >
+      <DropdownMenuTrigger render={<Button variant="ghost" size="sm" aria-label={t('language.label')} />}>
         <Languages data-icon="inline-start" />
         {LOCALE_LABELS[current]}
       </DropdownMenuTrigger>
@@ -28,9 +26,7 @@ export function LanguageSwitcher() {
             <DropdownMenuItem
               key={locale}
               lang={locale}
-              render={
-                <Link to="." params={(prev) => ({ ...prev, locale: toLocaleParam(locale) })} />
-              }
+              render={<Link to="." params={(prev) => ({ ...prev, locale: toLocaleParam(locale) })} />}
             >
               {LOCALE_LABELS[locale]}
               {locale === current ? <Check className="ms-auto" /> : null}

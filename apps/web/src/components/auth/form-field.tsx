@@ -28,7 +28,11 @@ export function TextField({ field, label, placeholder, hint, type = 'text', auto
         onChange={(event) => field.handleChange(event.target.value)}
         aria-invalid={invalid || undefined}
       />
-      {invalid ? <FieldError errors={field.state.meta.errors} /> : hint ? <FieldDescription>{hint}</FieldDescription> : null}
+      {invalid ? (
+        <FieldError errors={field.state.meta.errors} />
+      ) : hint ? (
+        <FieldDescription>{hint}</FieldDescription>
+      ) : null}
     </Field>
   )
 }

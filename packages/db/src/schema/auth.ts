@@ -1,12 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import {
-  pgTable,
-  text,
-  timestamp,
-  boolean,
-  uuid,
-  index,
-} from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, index } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: uuid("id")

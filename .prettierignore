@@ -1,0 +1,12 @@
+node_modules
+dist
+.output
+.tanstack
+.nitro
+.turbo
+pnpm-lock.yaml
+**/routeTree.gen.ts
+packages/db/drizzle
+packages/ui/src/components
+apps/web/src/components/showcase
+contracts

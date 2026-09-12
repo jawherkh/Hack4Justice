@@ -55,16 +55,35 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
             </Link>
           </div>
         ) : (
-          <form noValidate onSubmit={(e) => { e.preventDefault(); void form.handleSubmit() }}>
+          <form
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault()
+              void form.handleSubmit()
+            }}
+          >
             <FieldGroup>
               <form.Field name="newPassword">
                 {(field) => (
-                  <TextField field={field} type="password" label={t('account.password.new')} placeholder={t('auth.placeholder.newPassword')} hint={t('auth.field.passwordHint')} autoComplete="new-password" />
+                  <TextField
+                    field={field}
+                    type="password"
+                    label={t('account.password.new')}
+                    placeholder={t('auth.placeholder.newPassword')}
+                    hint={t('auth.field.passwordHint')}
+                    autoComplete="new-password"
+                  />
                 )}
               </form.Field>
               <form.Field name="confirmPassword">
                 {(field) => (
-                  <TextField field={field} type="password" label={t('account.password.confirm')} placeholder={t('auth.placeholder.confirmPassword')} autoComplete="new-password" />
+                  <TextField
+                    field={field}
+                    type="password"
+                    label={t('account.password.confirm')}
+                    placeholder={t('auth.placeholder.confirmPassword')}
+                    autoComplete="new-password"
+                  />
                 )}
               </form.Field>
               <Field data-invalid={status.error ? true : undefined}>
@@ -78,7 +97,9 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
                   )}
                 </form.Subscribe>
                 <FieldDescription className="text-center">
-                  <Link to="/{-$locale}/login" params={params}>{t('auth.forgot.back')}</Link>
+                  <Link to="/{-$locale}/login" params={params}>
+                    {t('auth.forgot.back')}
+                  </Link>
                 </FieldDescription>
               </Field>
             </FieldGroup>

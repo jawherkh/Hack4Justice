@@ -22,12 +22,7 @@ export function Navbar() {
 
         <ul className="hidden items-center gap-4 md:flex">
           <li>
-            <Link
-              to="/{-$locale}"
-              params={params}
-              activeOptions={{ exact: true }}
-              className={navLinkClass}
-            >
+            <Link to="/{-$locale}" params={params} activeOptions={{ exact: true }} className={navLinkClass}>
               {t('nav.home')}
             </Link>
           </li>
@@ -90,9 +85,7 @@ function SessionActions() {
       <Button variant="ghost" render={<Link to="/{-$locale}/login" params={params} />}>
         {t('nav.login')}
       </Button>
-      <Button render={<Link to="/{-$locale}/register" params={params} />}>
-        {t('nav.register')}
-      </Button>
+      <Button render={<Link to="/{-$locale}/register" params={params} />}>{t('nav.register')}</Button>
     </div>
   )
 }

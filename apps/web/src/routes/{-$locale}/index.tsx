@@ -22,8 +22,10 @@ function Home() {
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-16 px-4 py-16 md:py-24">
       <section className="flex flex-col items-start gap-6 md:items-center md:text-center">
         <Badge variant="secondary">{t('home.hero.eyebrow')}</Badge>
-        <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-balance md:text-5xl">{t('home.hero.title')}</h1>
-        <p className="max-w-2xl text-lg text-muted-foreground text-pretty">{t('home.hero.subtitle')}</p>
+        <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-balance md:text-5xl">
+          {t('home.hero.title')}
+        </h1>
+        <p className="max-w-2xl text-lg text-pretty text-muted-foreground">{t('home.hero.subtitle')}</p>
         <div className="flex flex-wrap gap-3">
           {session ? (
             <Button size="lg" render={<Link to="/{-$locale}/uploads" params={params} />}>

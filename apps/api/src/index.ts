@@ -43,8 +43,13 @@ const app = new Elysia({ adapter: node() })
     },
     { detail: { hide: true } },
   )
-  .use(v1)
-  .listen({ port: PORT, hostname: env.DEMO_ACCESS_ENABLED ? "127.0.0.1" : "0.0.0.0", maxRequestBodySize: 21 * 1024 * 1024 });
+  .use(v1);
+
+app.listen({
+  port: PORT,
+  hostname: env.DEMO_ACCESS_ENABLED ? "127.0.0.1" : "0.0.0.0",
+  maxRequestBodySize: 21 * 1024 * 1024,
+});
 
 logger.info({ port: PORT, docs: `http://localhost:${PORT}/openapi` }, "API listening");
 

@@ -3,7 +3,13 @@ import { useForm } from '@tanstack/react-form'
 import { Button } from '@hack4justice/ui/components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@hack4justice/ui/components/card'
 import { Checkbox } from '@hack4justice/ui/components/checkbox'
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@hack4justice/ui/components/field'
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@hack4justice/ui/components/field'
 import { Spinner } from '@hack4justice/ui/components/spinner'
 import { useI18n } from '#/i18n'
 import { authClient } from '#/lib/auth'
@@ -45,21 +51,46 @@ export function ChangePasswordForm() {
         <CardDescription>{t('account.password.description')}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form noValidate onSubmit={(e) => { e.preventDefault(); void form.handleSubmit() }}>
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault()
+            void form.handleSubmit()
+          }}
+        >
           <FieldGroup>
             <form.Field name="currentPassword">
               {(field) => (
-                <TextField field={field} type="password" label={t('account.password.current')} placeholder={t('auth.placeholder.password')} autoComplete="current-password" />
+                <TextField
+                  field={field}
+                  type="password"
+                  label={t('account.password.current')}
+                  placeholder={t('auth.placeholder.password')}
+                  autoComplete="current-password"
+                />
               )}
             </form.Field>
             <form.Field name="newPassword">
               {(field) => (
-                <TextField field={field} type="password" label={t('account.password.new')} placeholder={t('auth.placeholder.newPassword')} hint={t('auth.field.passwordHint')} autoComplete="new-password" />
+                <TextField
+                  field={field}
+                  type="password"
+                  label={t('account.password.new')}
+                  placeholder={t('auth.placeholder.newPassword')}
+                  hint={t('auth.field.passwordHint')}
+                  autoComplete="new-password"
+                />
               )}
             </form.Field>
             <form.Field name="confirmPassword">
               {(field) => (
-                <TextField field={field} type="password" label={t('account.password.confirm')} placeholder={t('auth.placeholder.confirmPassword')} autoComplete="new-password" />
+                <TextField
+                  field={field}
+                  type="password"
+                  label={t('account.password.confirm')}
+                  placeholder={t('auth.placeholder.confirmPassword')}
+                  autoComplete="new-password"
+                />
               )}
             </form.Field>
             <form.Field name="revokeOtherSessions">

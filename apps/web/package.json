@@ -11,7 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check-types": "tsc --noEmit",
-    "lint": "echo \"lint not configured yet\" && exit 0",
+    "lint": "eslint .",
     "test": "echo \"no tests yet\" && exit 0"
   },
   "dependencies": {

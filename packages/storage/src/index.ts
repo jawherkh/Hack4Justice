@@ -53,7 +53,13 @@ export function createStorage(options: StorageOptions) {
 
     async put({ key, body, contentType, metadata }: PutObjectInput): Promise<void> {
       await client.send(
-        new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType, Metadata: metadata }),
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: body,
+          ContentType: contentType,
+          Metadata: metadata,
+        }),
       );
     },
 
@@ -65,7 +71,12 @@ export function createStorage(options: StorageOptions) {
 
     async head(key: string): Promise<ObjectInfo> {
       const res = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-      return { key, size: res.ContentLength ?? 0, contentType: res.ContentType, lastModified: res.LastModified };
+      return {
+        key,
+        size: res.ContentLength ?? 0,
+        contentType: res.ContentType,
+        lastModified: res.LastModified,
+      };
     },
 
     async delete(key: string): Promise<void> {

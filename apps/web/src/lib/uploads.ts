@@ -27,7 +27,9 @@ export async function deleteUpload(id: string) {
 
 export async function retryExtraction(input: { id: string; languages?: OcrLanguages }) {
   return unwrap(
-    await api.api.v1.uploads({ id: input.id }).extract.post(input.languages ? { languages: input.languages } : {}),
+    await api.api.v1
+      .uploads({ id: input.id })
+      .extract.post(input.languages ? { languages: input.languages } : {}),
     'Retry failed',
   )
 }

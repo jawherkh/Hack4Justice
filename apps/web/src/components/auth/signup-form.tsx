@@ -2,13 +2,7 @@ import * as React from 'react'
 import { useForm } from '@tanstack/react-form'
 import { Link, useNavigate, useRouter } from '@tanstack/react-router'
 import { Button } from '@hack4justice/ui/components/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@hack4justice/ui/components/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@hack4justice/ui/components/card'
 import {
   Field,
   FieldDescription,
@@ -36,8 +30,20 @@ type TextField = {
 }
 
 const FIELDS: TextField[] = [
-  { name: 'name', label: 'auth.field.name', placeholder: 'auth.placeholder.name', type: 'text', autoComplete: 'name' },
-  { name: 'email', label: 'auth.field.email', placeholder: 'auth.placeholder.email', type: 'email', autoComplete: 'email' },
+  {
+    name: 'name',
+    label: 'auth.field.name',
+    placeholder: 'auth.placeholder.name',
+    type: 'text',
+    autoComplete: 'name',
+  },
+  {
+    name: 'email',
+    label: 'auth.field.email',
+    placeholder: 'auth.placeholder.email',
+    type: 'email',
+    autoComplete: 'email',
+  },
   {
     name: 'password',
     label: 'auth.field.password',
@@ -138,7 +144,11 @@ export function SignupForm({ redirectTo, className, ...props }: SignupFormProps)
                 </form.Subscribe>
                 <FieldDescription className="text-center">
                   {t('auth.register.hasAccount')}{' '}
-                  <Link to="/{-$locale}/login" params={{ locale: toLocaleParam(locale) }} search={{ redirect: redirectTo }}>
+                  <Link
+                    to="/{-$locale}/login"
+                    params={{ locale: toLocaleParam(locale) }}
+                    search={{ redirect: redirectTo }}
+                  >
                     {t('auth.register.signIn')}
                   </Link>
                 </FieldDescription>

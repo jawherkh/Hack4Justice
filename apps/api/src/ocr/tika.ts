@@ -56,7 +56,10 @@ export function createTikaClient(baseUrl: string) {
       ]);
 
       if (!textRes.ok) {
-        throw new TikaError(`Tika extraction failed: ${textRes.status} ${await textRes.text()}`, textRes.status);
+        throw new TikaError(
+          `Tika extraction failed: ${textRes.status} ${await textRes.text()}`,
+          textRes.status,
+        );
       }
 
       const text = normalize(await textRes.text());

@@ -2,13 +2,7 @@ import * as React from 'react'
 import { useForm } from '@tanstack/react-form'
 import { Link, useNavigate, useRouter } from '@tanstack/react-router'
 import { Button } from '@hack4justice/ui/components/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@hack4justice/ui/components/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@hack4justice/ui/components/card'
 import {
   Field,
   FieldDescription,
@@ -135,7 +129,11 @@ export function LoginForm({ redirectTo, className, ...props }: LoginFormProps) {
                 </form.Subscribe>
                 <FieldDescription className="text-center">
                   {t('auth.login.noAccount')}{' '}
-                  <Link to="/{-$locale}/register" params={{ locale: toLocaleParam(locale) }} search={{ redirect: redirectTo }}>
+                  <Link
+                    to="/{-$locale}/register"
+                    params={{ locale: toLocaleParam(locale) }}
+                    search={{ redirect: redirectTo }}
+                  >
                     {t('auth.login.signUp')}
                   </Link>
                 </FieldDescription>

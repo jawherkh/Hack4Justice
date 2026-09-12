@@ -12,5 +12,8 @@ export interface Mail {
  * Email Service, ...) without touching callers.
  */
 export async function sendMail(mail: Mail): Promise<void> {
-  logger.info({ to: mail.to.email, subject: mail.subject, body: mail.text }, "mail (logged, no provider configured)");
+  logger.info(
+    { to: mail.to.email, subject: mail.subject, body: mail.text },
+    "mail (logged, no provider configured)",
+  );
 }

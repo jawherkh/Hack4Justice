@@ -5,14 +5,7 @@ import { Toaster } from '@hack4justice/ui/components/toast'
 import { Footer } from '#/components/footer'
 import { Navbar } from '#/components/navbar'
 import { getSession } from '#/lib/session'
-import {
-  DEFAULT_LOCALE,
-  I18nProvider,
-  createTranslator,
-  isLocale,
-  resolveLocale,
-  type Locale,
-} from '#/i18n'
+import { DEFAULT_LOCALE, I18nProvider, createTranslator, isLocale, resolveLocale, type Locale } from '#/i18n'
 
 const OG_LOCALE: Record<Locale, string> = { fr: 'fr_FR', en: 'en_GB', ar: 'ar_TN' }
 

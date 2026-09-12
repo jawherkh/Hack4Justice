@@ -85,7 +85,11 @@ export function UploadDropzone() {
             dragging ? 'border-primary bg-accent' : 'border-border hover:bg-muted/50',
           )}
         >
-          {file ? <FileText className="size-8 text-primary" /> : <UploadCloud className="size-8 text-muted-foreground" />}
+          {file ? (
+            <FileText className="size-8 text-primary" />
+          ) : (
+            <UploadCloud className="size-8 text-muted-foreground" />
+          )}
           {file ? (
             <>
               <p className="text-sm font-medium">{file.name}</p>
@@ -131,7 +135,11 @@ export function UploadDropzone() {
             disabled={!file || upload.isPending}
             onClick={() => file && upload.mutate({ file, languages })}
           >
-            {upload.isPending ? <Spinner data-icon="inline-start" /> : <UploadCloud data-icon="inline-start" />}
+            {upload.isPending ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <UploadCloud data-icon="inline-start" />
+            )}
             {t('uploads.drop.submit')}
           </Button>
         </div>

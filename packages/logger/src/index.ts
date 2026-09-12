@@ -25,7 +25,12 @@ const REDACT_PATHS = [
 ];
 
 /** Pino logger. JSON to stdout by default, pretty-printed when `pretty` is set. */
-export function createLogger({ name, level = "info", pretty: usePretty = false, base }: CreateLoggerOptions): Logger {
+export function createLogger({
+  name,
+  level = "info",
+  pretty: usePretty = false,
+  base,
+}: CreateLoggerOptions): Logger {
   const options: LoggerOptions = {
     name,
     level,

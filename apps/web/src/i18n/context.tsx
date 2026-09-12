@@ -27,13 +27,7 @@ export function createTranslator(locale: Locale): Translate {
   return (key, vars) => interpolate(dict[key], vars)
 }
 
-export function I18nProvider({
-  locale,
-  children,
-}: {
-  locale: Locale
-  children: React.ReactNode
-}) {
+export function I18nProvider({ locale, children }: { locale: Locale; children: React.ReactNode }) {
   const value = React.useMemo<I18n>(
     () => ({ locale, dir: getDirection(locale), t: createTranslator(locale) }),
     [locale],

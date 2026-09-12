@@ -11,5 +11,7 @@ export default defineConfig({
   // Workspace packages ship TypeScript source, so they must be bundled.
   noExternal: [/^@hack4justice\//],
   // Their CommonJS deps (pino, ...) end up in the bundle too and call require().
-  banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
+  banner: {
+    js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+  },
 });

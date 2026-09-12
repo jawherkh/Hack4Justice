@@ -35,11 +35,22 @@ export function ProfileForm({ name }: { name: string }) {
         <CardDescription>{t('account.profile.description')}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form noValidate onSubmit={(e) => { e.preventDefault(); void form.handleSubmit() }}>
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault()
+            void form.handleSubmit()
+          }}
+        >
           <FieldGroup>
             <form.Field name="name">
               {(field) => (
-                <TextField field={field} label={t('auth.field.name')} placeholder={t('auth.placeholder.name')} autoComplete="name" />
+                <TextField
+                  field={field}
+                  label={t('auth.field.name')}
+                  placeholder={t('auth.placeholder.name')}
+                  autoComplete="name"
+                />
               )}
             </form.Field>
             <Field data-invalid={status.error ? true : undefined}>

@@ -13,10 +13,7 @@ export const LOCALE_LABELS: Record<Locale, string> = {
 const RTL_LOCALES: ReadonlySet<Locale> = new Set<Locale>(['ar'])
 
 export function isLocale(value: unknown): value is Locale {
-  return (
-    typeof value === 'string' &&
-    (SUPPORTED_LOCALES as readonly string[]).includes(value)
-  )
+  return typeof value === 'string' && (SUPPORTED_LOCALES as readonly string[]).includes(value)
 }
 
 export function getDirection(locale: Locale): 'ltr' | 'rtl' {

@@ -71,7 +71,8 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
     "/:id/extract",
     async ({ params, body, user, set }) => {
       const row = await findOwned(params.id, user.id);
-      if (row.status === UploadStatus.PROCESSING) throw new AppError({ status: 409, code: "extraction_in_progress" });
+      if (row.status === UploadStatus.PROCESSING)
+        throw new AppError({ status: 409, code: "extraction_in_progress" });
 
       const bytes = await storage.get(row.storageKey);
       const updated = await updateUpload(row.id, { status: UploadStatus.PROCESSING, error: null });
@@ -91,7 +92,11 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
   .get(
     "/",
     async ({ user }) => {
-      const rows = await db.select().from(upload).where(eq(upload.userId, user.id)).orderBy(desc(upload.createdAt));
+      const rows = await db
+        .select()
+        .from(upload)
+        .where(eq(upload.userId, user.id))
+        .orderBy(desc(upload.createdAt));
       return rows.map(toView);
     },
     { auth: true, detail: { summary: "List my uploads" } },
@@ -124,8 +129,17 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
  */
 async function extractInBackground(id: string, bytes: Uint8Array, languages?: string): Promise<void> {
   try {
-    const { text, pageCount } = await tika.extract(bytes, { contentType: PDF_CONTENT_TYPE, ocrLanguages: languages });
-    await updateUpload(id, { status: UploadStatus.EXTRACTED, text, pageCount, extractedAt: new Date(), error: null });
+    const { text, pageCount } = await tika.extract(bytes, {
+      contentType: PDF_CONTENT_TYPE,
+      ocrLanguages: languages,
+    });
+    await updateUpload(id, {
+      status: UploadStatus.EXTRACTED,
+      text,
+      pageCount,
+      extractedAt: new Date(),
+      error: null,
+    });
   } catch (cause) {
     const error = cause instanceof TikaError ? cause.message : "Text extraction failed";
     logger.error({ err: cause, uploadId: id }, "extraction failed");

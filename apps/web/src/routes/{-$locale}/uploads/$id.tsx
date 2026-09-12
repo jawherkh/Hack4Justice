@@ -76,7 +76,11 @@ function UploadDetail() {
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-8">
-      <Link to="/{-$locale}/uploads" params={params} className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <Link
+        to="/{-$locale}/uploads"
+        params={params}
+        className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft className="size-4 rtl:rotate-180" />
         {t('uploads.detail.back')}
       </Link>
@@ -98,7 +102,9 @@ function UploadDetail() {
               <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 <UploadStatusBadge status={upload.data.status} />
                 <span>{formatBytes(upload.data.size, locale)}</span>
-                {upload.data.pageCount ? <span>{t('uploads.detail.pages', { count: upload.data.pageCount })}</span> : null}
+                {upload.data.pageCount ? (
+                  <span>{t('uploads.detail.pages', { count: upload.data.pageCount })}</span>
+                ) : null}
                 <span>{formatDate(upload.data.createdAt, locale)}</span>
               </div>
             </div>
@@ -109,7 +115,10 @@ function UploadDetail() {
                   {t('uploads.detail.retry')}
                 </Button>
               ) : null}
-              <Button variant="outline" render={<a href={upload.data.downloadUrl} download={upload.data.filename} />}>
+              <Button
+                variant="outline"
+                render={<a href={upload.data.downloadUrl} download={upload.data.filename} />}
+              >
                 <Download data-icon="inline-start" />
                 {t('uploads.detail.download')}
               </Button>
@@ -125,7 +134,11 @@ function UploadDetail() {
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>{t('uploads.detail.cancel')}</AlertDialogCancel>
-                    <AlertDialogAction variant="destructive" disabled={remove.isPending} onClick={() => remove.mutate()}>
+                    <AlertDialogAction
+                      variant="destructive"
+                      disabled={remove.isPending}
+                      onClick={() => remove.mutate()}
+                    >
                       {t('uploads.detail.delete')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -156,7 +169,9 @@ function UploadDetail() {
                   <Skeleton className="h-4 w-2/3" />
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">{upload.data.error ?? t('uploads.detail.noText')}</p>
+                <p className="text-sm text-muted-foreground">
+                  {upload.data.error ?? t('uploads.detail.noText')}
+                </p>
               )}
             </CardContent>
           </Card>
