@@ -1,0 +1,12 @@
+{
+  "meta.title": "Hack4Justice",
+  "nav.home": "Accueil",
+  "nav.about": "À propos",
+  "nav.login": "Connexion",
+  "home.title": "Bienvenue sur Hack4Justice",
+  "about.title": "À propos",
+  "login.title": "Connexion",
+  "language.label": "Langue",
+  "notFound.title": "Page introuvable",
+  "notFound.description": "La page que vous cherchez n’existe pas."
+}
