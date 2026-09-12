@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -66,6 +66,23 @@ describe("workspace containment", () => {
     expect(new TextDecoder().decode(await readFile(outside))).toBe("original");
   });
 
+  test("refuses a path that passes through a linked parent directory", async () => {
+    const space = await workspace("dossier4c");
+    const outside = join(base, "linked-parent");
+    await mkdir(outside, { recursive: true });
+    await writeFile(join(outside, "final.txt"), "outside content");
+    try {
+      await symlink(outside, join(space.root, "out"), "dir");
+    } catch {
+      return; // creating links can require a privilege the test runner lacks
+    }
+
+    expect(space.resolvePath("out/final.txt")).rejects.toBeInstanceOf(SandboxPathError);
+    expect(space.readFile("out/final.txt")).rejects.toBeInstanceOf(SandboxPathError);
+    expect(space.writeFile("out/final.txt", "overwritten")).rejects.toBeInstanceOf(SandboxPathError);
+    expect(new TextDecoder().decode(await readFile(join(outside, "final.txt")))).toBe("outside content");
+  });
+
   test("one dossier cannot reach another dossier's files by path", async () => {
     const first = await workspace("dossieralpha", "runa");
     const second = await workspace("dossierbeta", "runb");
@@ -89,6 +106,16 @@ describe("workspace containment", () => {
     await space.writeFile("a.txt", "x".repeat(64));
     await space.writeFile("b.txt", "x".repeat(64));
     expect(space.writeFile("c.txt", "x")).rejects.toBeInstanceOf(SandboxLimitError);
+  });
+
+  test("refuses to read anything that is not a plain file", async () => {
+    const space = await workspace("dossier5b");
+    await mkdir(join(space.root, "adirectory"), { recursive: true });
+
+    // The type is checked before the open, so a pipe left by a run cannot make the reader
+    // wait for a writer that never arrives. A directory stands in for that check here,
+    // since it is a non-regular file on every platform.
+    expect(space.readFile("adirectory")).rejects.toThrow("path is not a regular file");
   });
 
   test("an exported artifact carries its checksum and origin", async () => {
@@ -220,6 +247,39 @@ live("container isolation against a real daemon", () => {
     expect(result.stdout).not.toContain("64+0 records out");
     const written = await stat(join(space.root, "big")).then((info) => info.size).catch(() => 0);
     expect(written).toBeLessThanOrEqual(1024 * 1024);
+  }, 180_000);
+
+  test("a pipe left where an artifact is expected does not hang the reader", async () => {
+    const space = await Workspace.create(base, "live10", `run${randomUUID().slice(0, 8)}`);
+    const made = await runner.run(space, ["sh", "-c", "mkfifo /work/report.pdf && ls -l /work"]);
+    expect(made.exitCode).toBe(0);
+
+    // Without the type check this waits for a writer that never comes.
+    const read = space.readFile("report.pdf");
+    const outcome = await Promise.race([
+      read.then(() => "read").catch(() => "refused"),
+      new Promise((resolve) => setTimeout(() => resolve("hung"), 5_000)),
+    ]);
+    expect(outcome).toBe("refused");
+  }, 120_000);
+
+  test("a run that fills its workspace past the total is stopped", async () => {
+    const space = await Workspace.create(base, "live11", `run${randomUUID().slice(0, 8)}`, {
+      fileBytes: 10 * 1024 * 1024,
+      totalBytes: 4 * 1024 * 1024,
+    });
+    const capped = new DockerRunner(image, { ...defaultRunLimits, fileBytes: 2 * 1024 * 1024, timeoutMs: 60_000 });
+
+    // Each file stays under the per-file limit, so only the total can stop this.
+    const result = await capped.run(space, [
+      "sh", "-c", "i=0; while [ $i -lt 60 ]; do dd if=/dev/zero of=/work/f$i bs=1M count=2 2>/dev/null; i=$((i+1)); done; echo FINISHED",
+    ]);
+
+    // The guarantee is that the run is stopped and reported, not a precise quota: polling
+    // cannot catch a fast writer at the exact byte. It attempted 120MB.
+    expect(result.limitExceeded).toBe(true);
+    expect(result.stdout).not.toContain("FINISHED");
+    expect(await space.usage()).toBeLessThan(120 * 1024 * 1024);
   }, 180_000);
 
   test("output beyond the limit is dropped and flagged", async () => {

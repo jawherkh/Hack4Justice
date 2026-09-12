@@ -36,8 +36,23 @@ export interface RunResult {
   stderr: string;
   truncated: boolean;
   timedOut: boolean;
+  /** Set when the run was stopped for filling its workspace past the allowed total. */
+  limitExceeded: boolean;
   durationMs: number;
 }
+
+/**
+ * How often the workspace is measured while a run is going.
+ *
+ * The per-file limit does not bound the total, because a run can write many files, so the
+ * total is watched instead. This stops a run from filling the disk, but it is not a precise
+ * quota: a run writing at full disk speed can pass the limit by whatever it manages between
+ * two measurements, which is tens of megabytes on a fast disk. Treat the limit as a
+ * backstop. A workspace on a filesystem created with a fixed size is the way to make the
+ * bound exact, and is worth doing if untrusted runs ever share a disk with anything that
+ * matters.
+ */
+const usagePollMs = 100;
 
 export class SandboxRunError extends Error {
   readonly code = "sandbox_run_failed";
@@ -111,6 +126,7 @@ export class DockerRunner {
       let stderr = "";
       let truncated = false;
       let timedOut = false;
+      let limitExceeded = false;
       let finished = false;
 
       const collect = (stream: NodeJS.ReadableStream, append: (chunk: string) => void) => {
@@ -132,18 +148,33 @@ export class DockerRunner {
       collect(child.stdout, (text) => { stdout += text; });
       collect(child.stderr, (text) => { stderr += text; });
 
+      const stop = () => {
+        spawn(this.dockerBinary, ["rm", "--force", name], { stdio: "ignore" });
+        child.kill("SIGKILL");
+      };
+
+      // A run can write many files, so the workspace total is watched while it executes.
+      const watcher = setInterval(() => {
+        void workspace.usage().then((used) => {
+          if (used > workspace.limits.totalBytes && !finished) {
+            limitExceeded = true;
+            stop();
+          }
+        }).catch(() => {});
+      }, usagePollMs);
+
       const timer = setTimeout(() => {
         timedOut = true;
         // Removing the container by name stops the workload even when the client is wedged.
-        spawn(this.dockerBinary, ["rm", "--force", name], { stdio: "ignore" });
-        child.kill("SIGKILL");
+        stop();
       }, this.limits.timeoutMs);
 
       const done = (exitCode: number | null) => {
         if (finished) return;
         finished = true;
         clearTimeout(timer);
-        settle({ exitCode, stdout, stderr, truncated, timedOut, durationMs: Date.now() - startedAt });
+        clearInterval(watcher);
+        settle({ exitCode, stdout, stderr, truncated, timedOut, limitExceeded, durationMs: Date.now() - startedAt });
       };
 
       child.on("error", (error) => {

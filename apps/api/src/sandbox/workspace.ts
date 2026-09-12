@@ -11,7 +11,9 @@ import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 // modes and relies on the explicit link check below. Runs execute on Linux, where the flag
 // applies.
 const onWindows = process.platform === "win32";
-const readFlags: string | number = onWindows ? "r" : constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0);
+const readFlags: string | number = onWindows
+  ? "r"
+  : constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
 const writeFlags: string | number = onWindows
   ? "w"
   : constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0);
@@ -102,6 +104,22 @@ export class Workspace {
     const target = resolve(this.root, relativePath);
     if (!isInside(this.root, target)) throw new SandboxPathError("path escapes the workspace");
 
+    // Each component is checked, because refusing a link only at the end still allows a
+    // parent directory to be swapped for one.
+    let walked = this.root;
+    for (const part of relativePath.split(/[\/]+/)) {
+      if (part === "" || part === ".") continue;
+      if (part === "..") throw new SandboxPathError("path escapes the workspace");
+      walked = join(walked, part);
+      try {
+        const info = await lstat(walked);
+        if (info.isSymbolicLink()) throw new SandboxPathError("path passes through a symbolic link");
+      } catch (error) {
+        if (error instanceof SandboxPathError) throw error;
+        break; // the rest of the path does not exist yet
+      }
+    }
+
     let existing = target;
     while (true) {
       try {
@@ -119,15 +137,40 @@ export class Workspace {
     return target;
   }
 
-  /** Refuses a path whose final component is a link, before it is opened. */
-  private async assertNotLink(target: string): Promise<void> {
+  /**
+   * Refuses anything at the target that is not a plain file.
+   *
+   * This runs before the open, because opening a pipe waits for a writer that may never
+   * arrive. A run can leave a pipe where an artifact is expected, and checking the type
+   * only after opening would hang the caller for good.
+   */
+  private async assertRegularFile(target: string): Promise<void> {
     try {
       const info = await lstat(target);
       if (info.isSymbolicLink()) throw new SandboxPathError("path is a symbolic link");
+      if (!info.isFile()) throw new SandboxPathError("path is not a regular file");
     } catch (error) {
       if (error instanceof SandboxPathError) throw error;
       // The file not existing yet is fine; a write creates it.
     }
+  }
+
+  /**
+   * Confirms the opened file is the one inside this workspace.
+   *
+   * Refusing to follow a link covers only the last part of a path. A run could swap a
+   * parent directory for a link instead, so where the kernel can report what a descriptor
+   * points at, that is checked after opening and before any content moves.
+   */
+  private async assertHandleInside(handle: { fd: number }): Promise<void> {
+    if (onWindows) return;
+    let actual: string;
+    try {
+      actual = await realpath(`/proc/self/fd/${handle.fd}`);
+    } catch {
+      return; // no descriptor directory on this platform
+    }
+    if (!isInside(this.root, actual)) throw new SandboxPathError("path escapes the workspace");
   }
 
   async writeFile(relativePath: string, contents: Uint8Array | string): Promise<void> {
@@ -141,9 +184,10 @@ export class Workspace {
       throw new SandboxLimitError("workspace exceeds its total size limit");
     }
     await mkdir(dirname(target), { recursive: true });
-    await this.assertNotLink(target);
+    await this.assertRegularFile(target);
     const handle = await open(target, writeFlags as never);
     try {
+      await this.assertHandleInside(handle);
       await handle.writeFile(bytes);
     } finally {
       await handle.close();
@@ -152,9 +196,10 @@ export class Workspace {
 
   async readFile(relativePath: string): Promise<Uint8Array> {
     const target = await this.resolvePath(relativePath);
-    await this.assertNotLink(target);
+    await this.assertRegularFile(target);
     const handle = await open(target, readFlags as never);
     try {
+      await this.assertHandleInside(handle);
       // Stat through the open handle, so the size checked is the file being read.
       const info = await handle.stat();
       if (!info.isFile()) throw new SandboxPathError("path is not a file");
@@ -181,9 +226,11 @@ export class Workspace {
     };
   }
 
-  // Walks the tree on every write. Fine for the handful of files a run produces; track a
-  // running total if a run ever writes enough for the walk to show up.
-  private async usage(): Promise<number> {
+  /**
+   * Total bytes held in the workspace. Walks the tree on every call, which suits the
+   * handful of files a run produces; keep a running total if that stops being true.
+   */
+  async usage(): Promise<number> {
     let total = 0;
     const walk = async (directory: string) => {
       for (const entry of await readdir(directory, { withFileTypes: true })) {

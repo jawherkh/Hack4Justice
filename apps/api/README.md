@@ -170,9 +170,20 @@ host path other than the run's own directory is exposed, so one run cannot read 
 dossier's files or reach the host.
 
 Paths supplied by callers are resolved against the run directory and refused if they land
-outside it, including by way of a symbolic link. Reads and writes are capped per file and
-per workspace, and command output beyond its limit is dropped and flagged rather than
-buffered without bound.
+outside it. Every component of a path is checked, not only the last, so a parent directory
+swapped for a link cannot redirect a read or a write, and on Linux the opened descriptor is
+confirmed to point inside the directory before any content moves. Anything that is not a
+plain file is refused before it is opened, so a pipe left where an artifact is expected
+cannot make the reader wait for a writer that never arrives.
+
+Reads and writes are capped per file and per workspace, and command output beyond its limit
+is dropped and flagged rather than buffered without bound.
+
+The per-file limit is enforced by the kernel. The workspace total is enforced by measuring
+the directory while a run executes and stopping a run that passes it, which bounds disk use
+but is not a precise quota: a run writing at full disk speed can overshoot by whatever it
+manages between two measurements. Put the workspace on a filesystem created with a fixed
+size when untrusted runs share a disk with anything that matters.
 
 Cleanup and retention:
 
