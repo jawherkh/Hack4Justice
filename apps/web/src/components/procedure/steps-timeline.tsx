@@ -51,7 +51,7 @@ export function StepsTimeline({ project, onSelectRequirement }: StepsTimelinePro
             <span
               aria-hidden
               className={cn(
-                'relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full border-2 bg-background text-xs font-semibold',
+                'relative z-[1] flex size-8 shrink-0 items-center justify-center rounded-full border-2 bg-background text-xs font-semibold',
                 state === 'done' && 'border-primary bg-primary text-primary-foreground',
                 state === 'current' && 'border-primary text-primary',
                 state === 'upcoming' && 'border-border text-muted-foreground',

@@ -101,7 +101,7 @@ function Overview() {
       </header>
 
       {/* Sticky strip: keeps progress and the step list in view while the timeline scrolls. */}
-      <div className="sticky top-0 z-10 -mx-4 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 md:-mx-6 md:px-6">
+      <div className="sticky top-0 z-20 -mx-4 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 md:-mx-6 md:px-6">
         <StepRail project={data} done={done} total={total} />
       </div>
 
