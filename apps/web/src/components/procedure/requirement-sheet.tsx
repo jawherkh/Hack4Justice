@@ -16,6 +16,7 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
 } from '@hack4justice/ui/components/sheet'
@@ -92,9 +93,9 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
     <Sheet open onOpenChange={onOpenChange}>
       <SheetContent
         side={locale === 'ar' ? 'left' : 'right'}
-        className="flex w-full flex-col gap-6 overflow-y-auto sm:max-w-lg"
+        className="flex w-full flex-col gap-0 data-[side=left]:sm:max-w-lg data-[side=right]:sm:max-w-lg"
       >
-        <SheetHeader>
+        <SheetHeader className="border-b">
           <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
             <Icon className="size-3.5" />
             {t(requirementTypeLabel(def.type))}
@@ -111,109 +112,116 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
           </div>
         </SheetHeader>
 
-        {def.type === 'document' ? (
-          <div className="flex flex-col gap-4">
-            <Field>
-              <FieldLabel>{t('procedure.requirement.file')}</FieldLabel>
-              {requirement.upload ? (
-                <div className="flex items-center gap-3 rounded-lg border px-3 py-2">
-                  <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                    {requirement.upload.filename}
-                  </span>
-                  <UploadStatusBadge status={requirement.upload.status} />
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={t('procedure.requirement.detach')}
-                    disabled={update.isPending}
-                    onClick={() => update.mutate({ uploadId: null })}
+        <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
+          {def.type === 'document' ? (
+            <div className="flex flex-col gap-4">
+              <Field>
+                <FieldLabel>{t('procedure.requirement.file')}</FieldLabel>
+                {requirement.upload ? (
+                  <div className="flex items-center gap-3 rounded-lg border px-3 py-2">
+                    <Paperclip className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                      {requirement.upload.filename}
+                    </span>
+                    <UploadStatusBadge status={requirement.upload.status} />
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={t('procedure.requirement.detach')}
+                      disabled={update.isPending}
+                      onClick={() => update.mutate({ uploadId: null })}
+                    >
+                      <X />
+                    </Button>
+                  </div>
+                ) : fileItems.length > 0 ? (
+                  <Select
+                    items={fileItems}
+                    value={null}
+                    onValueChange={(value) => value && update.mutate({ uploadId: String(value) })}
                   >
-                    <X />
-                  </Button>
-                </div>
-              ) : fileItems.length > 0 ? (
-                <Select
-                  items={fileItems}
-                  value={null}
-                  onValueChange={(value) => value && update.mutate({ uploadId: String(value) })}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={t('procedure.requirement.chooseFile')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {fileItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={t('procedure.requirement.chooseFile')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fileItems.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <FieldDescription>{t('procedure.requirement.noFiles')}</FieldDescription>
+                )}
+              </Field>
+              {showUpload ? (
+                <UploadDropzone
+                  projectId={projectId}
+                  onUploaded={(file) => update.mutate({ uploadId: file.id })}
+                />
               ) : (
-                <FieldDescription>{t('procedure.requirement.noFiles')}</FieldDescription>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  onClick={() => setShowUpload(true)}
+                >
+                  {t('procedure.requirement.uploadNew')}
+                </Button>
               )}
-            </Field>
-            {showUpload ? (
-              <UploadDropzone
-                projectId={projectId}
-                onUploaded={(file) => update.mutate({ uploadId: file.id })}
-              />
-            ) : (
-              <Button variant="outline" size="sm" className="self-start" onClick={() => setShowUpload(true)}>
-                {t('procedure.requirement.uploadNew')}
-              </Button>
-            )}
-          </div>
-        ) : null}
+            </div>
+          ) : null}
 
-        {def.type === 'data' ? (
+          {def.type === 'data' ? (
+            <Field>
+              <FieldLabel htmlFor="requirement-details">{t('procedure.requirement.details')}</FieldLabel>
+              <Textarea
+                id="requirement-details"
+                rows={5}
+                value={details}
+                onChange={(event) => setDetails(event.target.value)}
+                placeholder={t('procedure.requirement.detailsPlaceholder')}
+              />
+            </Field>
+          ) : null}
+
+          {def.type === 'authentication' || def.type === 'action' ? (
+            <FieldLabel className="items-center gap-3 rounded-lg border px-3 py-3">
+              <Checkbox
+                checked={confirmed}
+                onCheckedChange={(checked) =>
+                  update.mutate({ status: checked ? RequirementStatus.VALID : RequirementStatus.MISSING })
+                }
+              />
+              <span className="text-sm">{t('procedure.requirement.confirm')}</span>
+            </FieldLabel>
+          ) : null}
+
           <Field>
-            <FieldLabel htmlFor="requirement-details">{t('procedure.requirement.details')}</FieldLabel>
+            <FieldLabel htmlFor="requirement-note">{t('procedure.requirement.note')}</FieldLabel>
             <Textarea
-              id="requirement-details"
-              rows={5}
-              value={details}
-              onChange={(event) => setDetails(event.target.value)}
-              placeholder={t('procedure.requirement.detailsPlaceholder')}
+              id="requirement-note"
+              rows={2}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder={t('procedure.requirement.notePlaceholder')}
             />
           </Field>
-        ) : null}
 
-        {def.type === 'authentication' || def.type === 'action' ? (
-          <FieldLabel className="items-center gap-3 rounded-lg border px-3 py-3">
-            <Checkbox
-              checked={confirmed}
-              onCheckedChange={(checked) =>
-                update.mutate({ status: checked ? RequirementStatus.VALID : RequirementStatus.MISSING })
-              }
-            />
-            <span className="text-sm">{t('procedure.requirement.confirm')}</span>
-          </FieldLabel>
-        ) : null}
+          {def.type === 'data' || note !== (requirement.note ?? '') ? (
+            <Button
+              className="self-start"
+              disabled={update.isPending}
+              onClick={() => update.mutate(def.type === 'data' ? { value: { details }, note } : { note })}
+            >
+              {update.isPending ? <Spinner data-icon="inline-start" /> : null}
+              {t('procedure.requirement.save')}
+            </Button>
+          ) : null}
+        </div>
 
-        <Field>
-          <FieldLabel htmlFor="requirement-note">{t('procedure.requirement.note')}</FieldLabel>
-          <Textarea
-            id="requirement-note"
-            rows={2}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            placeholder={t('procedure.requirement.notePlaceholder')}
-          />
-        </Field>
-
-        {def.type === 'data' || note !== (requirement.note ?? '') ? (
-          <Button
-            className="self-start"
-            disabled={update.isPending}
-            onClick={() => update.mutate(def.type === 'data' ? { value: { details }, note } : { note })}
-          >
-            {update.isPending ? <Spinner data-icon="inline-start" /> : null}
-            {t('procedure.requirement.save')}
-          </Button>
-        ) : null}
-
-        <div className="mt-auto flex flex-col gap-2 border-t pt-4">
+        <SheetFooter className="border-t">
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
             {t('procedure.requirement.status')}
           </p>
@@ -261,7 +269,7 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
               {t('procedure.requirement.reset')}
             </Button>
           </div>
-        </div>
+        </SheetFooter>
       </SheetContent>
     </Sheet>
   )
