@@ -153,9 +153,6 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link to="/{-$locale}/projects/$id" params={idParams} />}>
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg border bg-white p-1">
-                <img src={meta.logo} alt="" draggable={false} className="size-full object-contain" />
-              </div>
               <div className="flex min-w-0 flex-col gap-0.5 leading-none">
                 <span className="truncate font-medium">{project.name}</span>
                 <span className="truncate text-xs text-muted-foreground">{t(meta.full)}</span>
