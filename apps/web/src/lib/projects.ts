@@ -1,6 +1,7 @@
 import type { ProjectDestination, SubmissionStatus } from '@hack4justice/shared'
 import { api } from '#/lib/api'
 import { unwrap } from '#/lib/api-error'
+import { uploadPdf } from '#/lib/uploads'
 
 export type ProjectSummary = Awaited<ReturnType<typeof listProjects>>[number]
 export type ProjectDetail = Awaited<ReturnType<typeof getProject>>
@@ -49,6 +50,12 @@ export async function updateRequirement(id: string, requirementId: string, patch
     await api.api.v1.projects({ id }).requirements({ requirementId }).put(patch),
     'Could not update requirement',
   )
+}
+
+/** Upload a PDF into the project and attach it to a document requirement in one go. */
+export async function uploadAndAttach(projectId: string, requirementId: string, file: File) {
+  const upload = await uploadPdf({ file, languages: 'fra+eng', projectId })
+  return updateRequirement(projectId, requirementId, { uploadId: upload.id })
 }
 
 export async function setSubmissionStatus(id: string, status: SubmissionStatus | null) {

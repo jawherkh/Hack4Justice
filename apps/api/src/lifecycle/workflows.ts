@@ -1,4 +1,11 @@
-import { condition, continueAsNew, defineQuery, defineSignal, proxyActivities, setHandler } from "@temporalio/workflow";
+import {
+  condition,
+  continueAsNew,
+  defineQuery,
+  defineSignal,
+  proxyActivities,
+  setHandler,
+} from "@temporalio/workflow";
 import { COMMAND_SIGNAL, STATUS_QUERY, type CommandReference, type LifecycleActivities } from "./contracts";
 import { transition } from "./state";
 
@@ -14,7 +21,12 @@ export async function dossierWorkflow(dossierId: string): Promise<void> {
   let current: string | null = null;
   let processed = 0;
   setHandler(commandSignal, (reference) => {
-    if (reference.dossierId === dossierId && reference.commandId !== current && !queue.some((r) => r.commandId === reference.commandId)) queue.push(reference);
+    if (
+      reference.dossierId === dossierId &&
+      reference.commandId !== current &&
+      !queue.some((r) => r.commandId === reference.commandId)
+    )
+      queue.push(reference);
   });
   setHandler(statusQuery, () => ({ pending: queue.length, current }));
   for (;;) {

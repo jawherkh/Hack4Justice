@@ -1,6 +1,10 @@
 import { proxyActivities } from "@temporalio/workflow";
 
-import type { AgentActivities, AgentTurnWorkflowInput, AgentTurnWorkflowResult } from "../lifecycle/contracts";
+import type {
+  AgentActivities,
+  AgentTurnWorkflowInput,
+  AgentTurnWorkflowResult,
+} from "../lifecycle/contracts";
 
 const activities = proxyActivities<AgentActivities>({
   startToCloseTimeout: "5 minutes",

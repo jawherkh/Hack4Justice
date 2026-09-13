@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@elysiajs/eden": "^1.4.9",
+    "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
     "@hack4justice/api": "workspace:*",
     "@hack4justice/auth": "workspace:*",
     "@hack4justice/shared": "workspace:*",

@@ -6,8 +6,15 @@ import { MAX_UPLOAD_BYTES } from "../dossiers/files";
 import { lifecycleCommandBody } from "../lifecycle/validation";
 import { type ResolvePrincipal } from "./identity";
 import {
-  AccessError, canEditEvidence, canMaintainRules, canReadDependency, canReadDocument,
-  canReadDossier, canReview, isMember, requireAccess,
+  AccessError,
+  canEditEvidence,
+  canMaintainRules,
+  canReadDependency,
+  canReadDocument,
+  canReadDossier,
+  canReview,
+  isMember,
+  requireAccess,
 } from "./policy";
 
 const decisionBody = z.strictObject({
@@ -32,7 +39,9 @@ const uploadDocumentBody = z.object({
 
 const factsBody = z.object({
   expectedVersion: z.number().int().min(1),
-  changes: z.record(z.string(), z.unknown()).refine((value) => Object.keys(value).length > 0, "changes cannot be empty"),
+  changes: z
+    .record(z.string(), z.unknown())
+    .refine((value) => Object.keys(value).length > 0, "changes cannot be empty"),
 });
 
 const multipartBody = z.object({
@@ -50,7 +59,11 @@ function found<T>(value: T | undefined): T {
 export function createAccessRoutes(repository: AsyncAccessRepository, resolvePrincipal: ResolvePrincipal) {
   return new Elysia({ name: "scoped-resources" })
     .resolve(async ({ request }) => ({ principal: await resolvePrincipal(request) }))
-    .get("/me", ({ principal }) => ({ id: principal.id, roles: principal.roles, companyIds: principal.companyIds }))
+    .get("/me", ({ principal }) => ({
+      id: principal.id,
+      roles: principal.roles,
+      companyIds: principal.companyIds,
+    }))
     .get("/procedures", async ({ principal }) => {
       requireAccess(principal.roles.length > 0);
       return repository.procedures();
@@ -88,17 +101,26 @@ export function createAccessRoutes(repository: AsyncAccessRepository, resolvePri
     .get("/documents/:documentId/content", async ({ params, principal }) => {
       const document = found(await repository.document(params.documentId));
       requireAccess(canReadDocument(principal, document, document.id, await repository.grants(), Date.now()));
-      const bytes = repository.readContent ? await repository.readContent(document.id) : new TextEncoder().encode(document.originalText);
-      return new Response(new Uint8Array(bytes), { headers: {
-        "content-type": document.mimeType,
-        "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(document.filename)}`,
-        "cache-control": "no-store", "x-content-type-options": "nosniff",
-      } });
+      const bytes = repository.readContent
+        ? await repository.readContent(document.id)
+        : new TextEncoder().encode(document.originalText);
+      return new Response(new Uint8Array(bytes), {
+        headers: {
+          "content-type": document.mimeType,
+          "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(document.filename)}`,
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+        },
+      });
     })
     .get("/dossiers/:dossierId/documents/:documentId", async ({ params, principal }) => {
       const dossier = found(await repository.dossier(params.dossierId));
       const document = found(await repository.document(params.documentId));
-      if (document.dossierId !== dossier.id || document.companyId !== dossier.companyId || document.agency !== dossier.agency) {
+      if (
+        document.dossierId !== dossier.id ||
+        document.companyId !== dossier.companyId ||
+        document.agency !== dossier.agency
+      ) {
         throw new AccessError(404, "not_found");
       }
       requireAccess(canReadDocument(principal, document, document.id, await repository.grants(), Date.now()));
@@ -109,13 +131,19 @@ export function createAccessRoutes(repository: AsyncAccessRepository, resolvePri
       const dossier = detail.dossier;
       requireAccess(canReadDossier(principal, dossier));
       const node = found(detail.nodes.find((node) => node.id === params.nodeId));
-      if (node.dossierId !== dossier.id || node.companyId !== dossier.companyId || node.agency !== dossier.agency) {
+      if (
+        node.dossierId !== dossier.id ||
+        node.companyId !== dossier.companyId ||
+        node.agency !== dossier.agency
+      ) {
         throw new AccessError(404, "not_found");
       }
       return {
         ...node,
         sources: detail.sources.filter((source) => node.sourceIds.includes(source.id)),
-        requirements: detail.requirements.filter((requirement) => node.requirementIds.includes(requirement.id)),
+        requirements: detail.requirements.filter((requirement) =>
+          node.requirementIds.includes(requirement.id),
+        ),
         findings: detail.findings.filter((finding) => node.findingIds.includes(finding.id)),
       };
     })
@@ -131,7 +159,8 @@ export function createAccessRoutes(repository: AsyncAccessRepository, resolvePri
       const dossier = found(await repository.dossier(params.dossierId));
       requireAccess(canEditEvidence(principal, dossier));
       const key = request.headers.get("idempotency-key") ?? undefined;
-      if (key !== undefined && (!key || key.length > 200)) throw new AccessError(422, "invalid_idempotency_key");
+      if (key !== undefined && (!key || key.length > 200))
+        throw new AccessError(422, "invalid_idempotency_key");
       if (request.headers.get("content-type")?.startsWith("multipart/form-data")) {
         if (!repository.uploadFile) throw new AccessError(503, "document_storage_not_configured");
         const form = (body ?? {}) as Record<string, unknown>;
@@ -142,25 +171,44 @@ export function createAccessRoutes(repository: AsyncAccessRepository, resolvePri
         if (!fields.success) throw new AccessError(422, "validation_error");
         let requirementIds: unknown = fields.data.requirementIds;
         if (typeof requirementIds === "string") {
-          try { requirementIds = JSON.parse(requirementIds); } catch { throw new AccessError(422, "invalid_requirement_ids"); }
+          try {
+            requirementIds = JSON.parse(requirementIds);
+          } catch {
+            throw new AccessError(422, "invalid_requirement_ids");
+          }
         }
         const requirements = z.array(z.string().min(1)).min(1).max(50).optional().safeParse(requirementIds);
         if (!requirements.success) throw new AccessError(422, "invalid_requirement_ids");
         const result = await repository.uploadFile({
-          ...fields.data, requirementIds: requirements.data,
-          dossierId: dossier.id, uploadedBy: principal.id, idempotencyKey: key,
-          filename: file.name.replace(/[\\/\r\n]/g, "_").slice(0, 255), mimeType: file.type,
+          ...fields.data,
+          requirementIds: requirements.data,
+          dossierId: dossier.id,
+          uploadedBy: principal.id,
+          idempotencyKey: key,
+          filename: file.name.replace(/[\\/\r\n]/g, "_").slice(0, 255),
+          mimeType: file.type,
           bytes: new Uint8Array(await file.arrayBuffer()),
         });
         set.status = 201;
-        return { document: result.document, dossier: result.detail.dossier, invalidatedFindingIds: result.invalidatedFindingIds };
+        return {
+          document: result.document,
+          dossier: result.detail.dossier,
+          invalidatedFindingIds: result.invalidatedFindingIds,
+        };
       }
       const parsed = uploadDocumentBody.safeParse(body);
       if (!parsed.success) {
         set.status = body === undefined ? 501 : 422;
-        return { error: { code: body === undefined ? "document_storage_not_configured" : "validation_error" } };
+        return {
+          error: { code: body === undefined ? "document_storage_not_configured" : "validation_error" },
+        };
       }
-      const result = await repository.uploadDocument({ ...parsed.data, dossierId: dossier.id, uploadedBy: principal.id, idempotencyKey: key });
+      const result = await repository.uploadDocument({
+        ...parsed.data,
+        dossierId: dossier.id,
+        uploadedBy: principal.id,
+        idempotencyKey: key,
+      });
       set.status = 201;
       return {
         document: result.document,
@@ -176,7 +224,11 @@ export function createAccessRoutes(repository: AsyncAccessRepository, resolvePri
         set.status = 422;
         return { error: { code: "validation_error" } };
       }
-      const result = await repository.updateConfirmedFacts({ ...parsed.data, dossierId: dossier.id, actorId: principal.id });
+      const result = await repository.updateConfirmedFacts({
+        ...parsed.data,
+        dossierId: dossier.id,
+        actorId: principal.id,
+      });
       return { dossier: result.detail.dossier, invalidatedFindingIds: result.invalidatedFindingIds };
     })
     .post("/dossiers/:dossierId/commands", async ({ params, body, principal, set }) => {
@@ -186,11 +238,16 @@ export function createAccessRoutes(repository: AsyncAccessRepository, resolvePri
         set.status = 422;
         return { error: { code: "validation_error" } };
       }
-      const authorized = parsed.data.type === "decision_recorded"
-        ? canReview(principal, dossier)
-        : canEditEvidence(principal, dossier);
+      const authorized =
+        parsed.data.type === "decision_recorded"
+          ? canReview(principal, dossier)
+          : canEditEvidence(principal, dossier);
       requireAccess(authorized);
-      const acknowledgement = await repository.dispatchCommand({ ...parsed.data, dossierId: dossier.id, actorId: principal.id });
+      const acknowledgement = await repository.dispatchCommand({
+        ...parsed.data,
+        dossierId: dossier.id,
+        actorId: principal.id,
+      });
       set.status = 202;
       return acknowledgement;
     })
@@ -203,23 +260,35 @@ export function createAccessRoutes(repository: AsyncAccessRepository, resolvePri
     .get("/dossiers/:dossierId/lifecycle-events", async ({ params, query, principal }) => {
       const dossier = found(await repository.dossier(params.dossierId));
       requireAccess(canReadDossier(principal, dossier));
-      const after = z.coerce.number().int().nonnegative().safeParse(query.after ?? 0);
+      const after = z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .safeParse(query.after ?? 0);
       if (!after.success) throw new AccessError(422, "invalid_event_cursor");
       if (!repository.lifecycleEvents) throw new AccessError(503, "workflow_not_configured");
       return repository.lifecycleEvents(dossier.id, after.data);
     })
-    .post("/dossiers/:dossierId/decisions", async ({ params, principal }) => {
-      const dossier = found(await repository.dossier(params.dossierId));
-      requireAccess(canReview(principal, dossier));
-      throw new AccessError(501, "workflow_not_configured");
-    }, { body: decisionBody })
+    .post(
+      "/dossiers/:dossierId/decisions",
+      async ({ params, principal }) => {
+        const dossier = found(await repository.dossier(params.dossierId));
+        requireAccess(canReview(principal, dossier));
+        throw new AccessError(501, "workflow_not_configured");
+      },
+      { body: decisionBody },
+    )
     .get("/dependencies/:dependencyId", async ({ params, principal }) => {
       const dependency = found(await repository.dependency(params.dependencyId));
       requireAccess(canReadDependency(principal, dependency));
       // Explicit projection: grants do not expose raw records or document references.
       return {
-        id: dependency.id, companyId: dependency.companyId, agency: dependency.agency,
-        status: dependency.status, observedAt: dependency.observedAt, simulated: dependency.simulated,
+        id: dependency.id,
+        companyId: dependency.companyId,
+        agency: dependency.agency,
+        status: dependency.status,
+        observedAt: dependency.observedAt,
+        simulated: dependency.simulated,
       };
     })
     .get("/rules/access", async ({ principal }) => {

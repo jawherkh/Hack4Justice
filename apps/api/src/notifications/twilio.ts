@@ -28,7 +28,8 @@ export function createTwilioTransport(
     async send({ recipient, channel, body }): Promise<DeliveryOutcome> {
       const { accountSid, authToken } = credentials;
       const from = channel === "whatsapp" ? credentials.whatsappFrom : credentials.smsFrom;
-      if (!accountSid || !authToken || !from) return { status: "simulated", reason: "provider_not_configured" };
+      if (!accountSid || !authToken || !from)
+        return { status: "simulated", reason: "provider_not_configured" };
       if (!recipient.phone) return { status: "simulated", reason: "recipient_has_no_phone" };
 
       const address = (value: string) => (channel === "whatsapp" ? `whatsapp:${value}` : value);
@@ -53,7 +54,10 @@ export function createTwilioTransport(
       // Trial accounts reject unverified recipients and unjoined sandbox numbers. That is a
       // configuration limit rather than a defect, so the message is recorded as simulated.
       if (isTrialRestriction(response.status, detail.code)) {
-        return { status: "simulated", reason: `provider_trial_restriction_${detail.code ?? response.status}` };
+        return {
+          status: "simulated",
+          reason: `provider_trial_restriction_${detail.code ?? response.status}`,
+        };
       }
       return { status: "failed", reason: `provider_error_${detail.code ?? response.status}` };
     },

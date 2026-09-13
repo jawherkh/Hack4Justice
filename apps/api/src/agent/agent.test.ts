@@ -12,12 +12,24 @@ import { PrincipalAgentService } from "./service";
 import { createGeminiAgentModel } from "./model";
 import { ProjectDockerSandboxClient } from "../sandbox/client";
 
-const member = { id: "demo-member-alpha", roles: ["business_member"] as const, companyIds: ["company-alpha"] };
+const member = {
+  id: "demo-member-alpha",
+  roles: ["business_member"] as const,
+  companyIds: ["company-alpha"],
+};
 const evidenceNodeId = "node-alpha-dgi-document_evidence";
 const preparationNodeId = "node-alpha-dgi-document_preparation";
 
-async function invoke(tool: Parameters<typeof invokeFunctionTool>[0]["tool"], context: Record<string, unknown>, input: unknown) {
-  return await invokeFunctionTool({ tool, runContext: new RunContext(context), input: JSON.stringify(input) });
+async function invoke(
+  tool: Parameters<typeof invokeFunctionTool>[0]["tool"],
+  context: Record<string, unknown>,
+  input: unknown,
+) {
+  return await invokeFunctionTool({
+    tool,
+    runContext: new RunContext(context),
+    input: JSON.stringify(input),
+  });
 }
 
 describe("principal agent tools", () => {
@@ -71,7 +83,10 @@ describe("principal agent tools", () => {
 
   test("keeps evidence uploads idempotent and preserves replacement invalidation", async () => {
     const repository = createDemoRepository();
-    const session = await repository.createAgentSession({ dossierId: "dossier-alpha-dgi", principalId: member.id });
+    const session = await repository.createAgentSession({
+      dossierId: "dossier-alpha-dgi",
+      principalId: member.id,
+    });
     const context = { repository, principal: member, dossierId: "dossier-alpha-dgi", sessionId: session.id };
     const input = {
       nodeId: evidenceNodeId,
@@ -82,8 +97,14 @@ describe("principal agent tools", () => {
       idempotencyKey: "agent-upload-1",
     };
 
-    const first = await invoke(attachEvidenceTool, context, input) as { document: { id: string }; dossier: { version: number } };
-    const retry = await invoke(attachEvidenceTool, context, input) as { document: { id: string }; dossier: { version: number } };
+    const first = (await invoke(attachEvidenceTool, context, input)) as {
+      document: { id: string };
+      dossier: { version: number };
+    };
+    const retry = (await invoke(attachEvidenceTool, context, input)) as {
+      document: { id: string };
+      dossier: { version: number };
+    };
     expect(retry.document.id).toBe(first.document.id);
     expect(retry.dossier.version).toBe(first.dossier.version);
     expect((await repository.dossierDetail("dossier-alpha-dgi"))?.evidence).toHaveLength(2);
@@ -91,18 +112,25 @@ describe("principal agent tools", () => {
 
   test("refuses unscoped transitions and publishes immutable sandbox drafts", async () => {
     const repository = createDemoRepository();
-    const session = await repository.createAgentSession({ dossierId: "dossier-alpha-dgi", principalId: member.id });
+    const session = await repository.createAgentSession({
+      dossierId: "dossier-alpha-dgi",
+      principalId: member.id,
+    });
     const context = { repository, principal: member, dossierId: "dossier-alpha-dgi", sessionId: session.id };
 
     const rejected = await invoke(requestTransitionTool, context, {
-      type: "review_requested", expectedVersion: 1, idempotencyKey: "review-1",
+      type: "review_requested",
+      expectedVersion: 1,
+      idempotencyKey: "review-1",
     });
     expect(rejected).toContain("Node required");
 
     const baseDir = await mkdtemp(join(tmpdir(), "h4j-agent-tools-"));
     try {
       const sandbox = await new ProjectDockerSandboxClient({
-        workspaceBaseDir: baseDir, dossierId: "dossier-alpha-dgi", runId: session.id,
+        workspaceBaseDir: baseDir,
+        dossierId: "dossier-alpha-dgi",
+        runId: session.id,
       }).create({ options: { dossierId: "dossier-alpha-dgi", runId: session.id } });
       try {
         const sandboxContext = { ...context, sandbox };
@@ -113,7 +141,7 @@ describe("principal agent tools", () => {
           filename: "draft.json",
           values: [{ key: "legalForm", value: "SARL" }],
         });
-        const first = await invoke(publishArtifactTool, sandboxContext, {
+        const first = (await invoke(publishArtifactTool, sandboxContext, {
           nodeId: preparationNodeId,
           path: "draft/draft.json",
           draftKey: "registration",
@@ -121,8 +149,8 @@ describe("principal agent tools", () => {
           mimeType: "application/json",
           sourceDocumentIds: [],
           idempotencyKey: "artifact-1",
-        }) as { artifact: { id: string; version: number; immutable: boolean } };
-        const retry = await invoke(publishArtifactTool, sandboxContext, {
+        })) as { artifact: { id: string; version: number; immutable: boolean } };
+        const retry = (await invoke(publishArtifactTool, sandboxContext, {
           nodeId: preparationNodeId,
           path: "draft/draft.json",
           draftKey: "registration",
@@ -130,7 +158,7 @@ describe("principal agent tools", () => {
           mimeType: "application/json",
           sourceDocumentIds: [],
           idempotencyKey: "artifact-1",
-        }) as { artifact: { id: string; version: number } };
+        })) as { artifact: { id: string; version: number } };
         expect(first.artifact.immutable).toBe(true);
         expect(first.artifact.version).toBe(1);
         expect(retry.artifact.id).toBe(first.artifact.id);

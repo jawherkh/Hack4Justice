@@ -62,11 +62,21 @@ class MemoryJobStore implements JobStore {
 }
 
 /** Stands in for the worker's document store. */
-const documents = (contents: Record<string, string> = { "doc-1": "%PDF stored bytes", "doc-long": "%PDF long", "doc-missing-not": "x" }) => ({
+const documents = (
+  contents: Record<string, string> = {
+    "doc-1": "%PDF stored bytes",
+    "doc-long": "%PDF long",
+    "doc-missing-not": "x",
+  },
+) => ({
   async read({ documentId }: { documentId: string }) {
     const text = contents[documentId];
     if (text === undefined) throw new Error(`document ${documentId} not found`);
-    return { bytes: new TextEncoder().encode(text), filename: `${documentId}.pdf`, contentType: "application/pdf" };
+    return {
+      bytes: new TextEncoder().encode(text),
+      filename: `${documentId}.pdf`,
+      contentType: "application/pdf",
+    };
   },
 });
 
@@ -76,7 +86,10 @@ describe("durable jobs", () => {
   test("records a result and returns it without running the work twice", async () => {
     const store = new MemoryJobStore();
     let runs = 0;
-    const work = async () => { runs += 1; return { output: { produced: "report.pdf" } }; };
+    const work = async () => {
+      runs += 1;
+      return { output: { produced: "report.pdf" } };
+    };
 
     const first = await runJob(store, request(), work);
     const second = await runJob(store, request(), work);
@@ -90,7 +103,10 @@ describe("durable jobs", () => {
   test("two workers handed the same job perform its effect once", async () => {
     const store = new MemoryJobStore();
     let runs = 0;
-    const work = async () => { runs += 1; return {}; };
+    const work = async () => {
+      runs += 1;
+      return {};
+    };
 
     await Promise.all([runJob(store, request(), work), runJob(store, request(), work)]);
 
@@ -101,7 +117,9 @@ describe("durable jobs", () => {
   test("a failure is recorded and returned rather than thrown at the workflow", async () => {
     const store = new MemoryJobStore();
 
-    const receipt = await runJob(store, request(), async () => { throw new Error("tool_exploded"); });
+    const receipt = await runJob(store, request(), async () => {
+      throw new Error("tool_exploded");
+    });
 
     expect(receipt.status).toBe("failed");
     expect(receipt.error).toBe("tool_exploded");
@@ -128,7 +146,15 @@ describe("durable jobs", () => {
     controller.abort();
     let runs = 0;
 
-    const receipt = await runJob(store, request(), async () => { runs += 1; return {}; }, { signal: controller.signal });
+    const receipt = await runJob(
+      store,
+      request(),
+      async () => {
+        runs += 1;
+        return {};
+      },
+      { signal: controller.signal },
+    );
 
     expect(runs).toBe(0);
     expect(receipt.status).toBe("failed");
@@ -142,7 +168,10 @@ describe("durable jobs", () => {
     const controller = new AbortController();
     controller.abort();
     let runs = 0;
-    const work = async () => { runs += 1; return {}; };
+    const work = async () => {
+      runs += 1;
+      return {};
+    };
 
     await runJob(store, request("cancelled-once"), work, { signal: controller.signal });
     // A retry arrives after the cancellation, with no signal of its own.
@@ -155,7 +184,9 @@ describe("durable jobs", () => {
   test("cancellation raised inside the work is reported as cancelled, not as a defect", async () => {
     const store = new MemoryJobStore();
 
-    const receipt = await runJob(store, request(), async () => { throw new JobCancelled("stopped midway"); });
+    const receipt = await runJob(store, request(), async () => {
+      throw new JobCancelled("stopped midway");
+    });
 
     expect(receipt.error).toBe("job_cancelled");
     expect(receipt.retryable).toBe(false);
@@ -165,17 +196,26 @@ describe("durable jobs", () => {
     const store = new MemoryJobStore();
     const beats: unknown[] = [];
 
-    await runJob(store, request(), async ({ heartbeat }) => {
-      heartbeat({ phase: "halfway" });
-      return {};
-    }, { heartbeat: (details) => beats.push(details) });
+    await runJob(
+      store,
+      request(),
+      async ({ heartbeat }) => {
+        heartbeat({ phase: "halfway" });
+        return {};
+      },
+      { heartbeat: (details) => beats.push(details) },
+    );
 
     expect(beats.length).toBeGreaterThanOrEqual(2);
   });
 
   test("a reused id that names different work is refused", async () => {
     const store = new MemoryJobStore();
-    await runJob(store, { jobId: "shared", dossierId: "dossier-1", kind: "sandbox_command" }, async () => ({}));
+    await runJob(
+      store,
+      { jobId: "shared", dossierId: "dossier-1", kind: "sandbox_command" },
+      async () => ({}),
+    );
 
     // The same id for another dossier must not be answered with the first one's record.
     await expect(
@@ -186,7 +226,11 @@ describe("durable jobs", () => {
   test("a long job keeps its record fresh so it is not read as abandoned", async () => {
     const store = new MemoryJobStore();
     const touched: string[] = [];
-    const tracking = Object.assign(store, { touch: async (jobId: string) => { touched.push(jobId); } });
+    const tracking = Object.assign(store, {
+      touch: async (jobId: string) => {
+        touched.push(jobId);
+      },
+    });
 
     await runJob(tracking, request("long"), async ({ heartbeat }) => {
       heartbeat({ phase: "still working" });
@@ -210,14 +254,18 @@ describe("durable jobs", () => {
 
 describe("document text extraction", () => {
   const extractor: TextExtractor = {
-    async extract() { return { text: "Quittance fiscale", pageCount: 2 }; },
+    async extract() {
+      return { text: "Quittance fiscale", pageCount: 2 };
+    },
   };
 
   test("keeps the text out of the result and records its size and checksum", async () => {
     const store = new MemoryJobStore();
 
     const { receipt, text } = await extractDocumentText(store, extractor, documents(), {
-      jobId: "extract-1", dossierId: "dossier-1", document: { documentId: "doc-1" },
+      jobId: "extract-1",
+      dossierId: "dossier-1",
+      document: { documentId: "doc-1" },
     });
 
     expect(receipt.status).toBe("succeeded");
@@ -232,10 +280,15 @@ describe("document text extraction", () => {
     const store = new MemoryJobStore();
     let calls = 0;
     const counting: TextExtractor = {
-      async extract() { calls += 1; return { text: "once" }; },
+      async extract() {
+        calls += 1;
+        return { text: "once" };
+      },
     };
     const input = {
-      jobId: "extract-2", dossierId: "dossier-1", document: { documentId: "doc-1" },
+      jobId: "extract-2",
+      dossierId: "dossier-1",
+      document: { documentId: "doc-1" },
     };
 
     await extractDocumentText(store, counting, documents(), input);
@@ -250,10 +303,15 @@ describe("document text extraction", () => {
     const long = "Article 12. ".repeat(40_000); // well past any reasonable inline limit
     let calls = 0;
     const counting: TextExtractor = {
-      async extract() { calls += 1; return { text: long, pageCount: 120 }; },
+      async extract() {
+        calls += 1;
+        return { text: long, pageCount: 120 };
+      },
     };
     const input = {
-      jobId: "extract-long", dossierId: "dossier-1", document: { documentId: "doc-long" },
+      jobId: "extract-long",
+      dossierId: "dossier-1",
+      document: { documentId: "doc-long" },
     };
 
     const first = await extractDocumentText(store, counting, documents(), input);
@@ -269,10 +327,15 @@ describe("document text extraction", () => {
     const store = new MemoryJobStore();
     let calls = 0;
     const counting: TextExtractor = {
-      async extract() { calls += 1; return { text: "Quittance fiscale", pageCount: 1 }; },
+      async extract() {
+        calls += 1;
+        return { text: "Quittance fiscale", pageCount: 1 };
+      },
     };
     const input = {
-      jobId: "extract-repeat", dossierId: "dossier-1", document: { documentId: "doc-1" },
+      jobId: "extract-repeat",
+      dossierId: "dossier-1",
+      document: { documentId: "doc-1" },
     };
 
     await extractDocumentText(store, counting, documents(), input);
@@ -285,11 +348,15 @@ describe("document text extraction", () => {
   test("an unavailable extraction service is retryable", async () => {
     const store = new MemoryJobStore();
     const broken: TextExtractor = {
-      async extract() { throw new Error("connect ECONNREFUSED"); },
+      async extract() {
+        throw new Error("connect ECONNREFUSED");
+      },
     };
 
     const { receipt } = await extractDocumentText(store, broken, documents(), {
-      jobId: "extract-3", dossierId: "dossier-1", document: { documentId: "doc-1" },
+      jobId: "extract-3",
+      dossierId: "dossier-1",
+      document: { documentId: "doc-1" },
     });
 
     expect(receipt.status).toBe("failed");
@@ -303,13 +370,19 @@ const image = process.env.SANDBOX_IMAGE ?? "alpine:3.20";
 
 live("sandbox work as a durable job", () => {
   let base: string;
-  beforeAll(async () => { base = await mkdtemp(join(tmpdir(), "h4j-jobs-")); });
-  afterAll(async () => { if (base) await rm(base, { recursive: true, force: true }); });
+  beforeAll(async () => {
+    base = await mkdtemp(join(tmpdir(), "h4j-jobs-"));
+  });
+  afterAll(async () => {
+    if (base) await rm(base, { recursive: true, force: true });
+  });
 
   test("produces an artifact with provenance and does not produce it twice", async () => {
     const store = new MemoryJobStore();
     const input = {
-      jobId: "sandbox-1", dossierId: "dossierjobs", runId: `runone${randomUUID().slice(0, 6)}`,
+      jobId: "sandbox-1",
+      dossierId: "dossierjobs",
+      runId: `runone${randomUUID().slice(0, 6)}`,
       command: ["sh", "-c", "cat input.txt > produced.txt"],
       inputs: [{ path: "input.txt", document: { documentId: "doc-1" } }],
       artifacts: ["produced.txt"],
@@ -329,7 +402,10 @@ live("sandbox work as a durable job", () => {
     const store = new MemoryJobStore();
 
     const receipt = await runSandboxCommand(store, { baseDir: base, image }, documents(), {
-      jobId: "sandbox-2", dossierId: "dossierjobs", runId: `runtwo${randomUUID().slice(0, 6)}`, command: ["sh", "-c", "exit 3"],
+      jobId: "sandbox-2",
+      dossierId: "dossierjobs",
+      runId: `runtwo${randomUUID().slice(0, 6)}`,
+      command: ["sh", "-c", "exit 3"],
     });
 
     expect(receipt.status).toBe("succeeded");
@@ -339,11 +415,21 @@ live("sandbox work as a durable job", () => {
   test("a run that passes its time limit is retryable", async () => {
     const store = new MemoryJobStore();
 
-    const receipt = await runSandboxCommand(store, {
-      baseDir: base, image, limits: { ...defaultRunLimits, timeoutMs: 4_000 },
-    }, documents(), {
-      jobId: "sandbox-3", dossierId: "dossierjobs", runId: `runthree${randomUUID().slice(0, 6)}`, command: ["sh", "-c", "while true; do :; done"],
-    });
+    const receipt = await runSandboxCommand(
+      store,
+      {
+        baseDir: base,
+        image,
+        limits: { ...defaultRunLimits, timeoutMs: 4_000 },
+      },
+      documents(),
+      {
+        jobId: "sandbox-3",
+        dossierId: "dossierjobs",
+        runId: `runthree${randomUUID().slice(0, 6)}`,
+        command: ["sh", "-c", "while true; do :; done"],
+      },
+    );
 
     expect(receipt.status).toBe("failed");
     expect(receipt.retryable).toBe(true);
@@ -353,20 +439,34 @@ live("sandbox work as a durable job", () => {
     const store = new MemoryJobStore();
     const runId = `runleak${randomUUID().slice(0, 6)}`;
 
-    const receipt = await runSandboxCommand(store, {
-      baseDir: base, image, limits: { ...defaultRunLimits, timeoutMs: 3_000 },
-    }, documents(), {
-      jobId: `sandbox-leak-${runId}`, dossierId: "dossierjobs", runId,
-      command: ["sh", "-c", "while true; do :; done"],
-    });
+    const receipt = await runSandboxCommand(
+      store,
+      {
+        baseDir: base,
+        image,
+        limits: { ...defaultRunLimits, timeoutMs: 3_000 },
+      },
+      documents(),
+      {
+        jobId: `sandbox-leak-${runId}`,
+        dossierId: "dossierjobs",
+        runId,
+        command: ["sh", "-c", "while true; do :; done"],
+      },
+    );
 
     expect(receipt.status).toBe("failed");
     // The run reports back only once its container is gone, so nothing keeps running here.
     const remaining = await new Promise<string>((settle) => {
-      const check = spawn("docker", ["ps", "--all", "--quiet", "--filter", `name=^h4j-dossierjobs-${runId}$`],
-        { stdio: ["ignore", "pipe", "ignore"] });
+      const check = spawn(
+        "docker",
+        ["ps", "--all", "--quiet", "--filter", `name=^h4j-dossierjobs-${runId}$`],
+        { stdio: ["ignore", "pipe", "ignore"] },
+      );
       let text = "";
-      check.stdout.on("data", (chunk: Buffer) => { text += chunk.toString(); });
+      check.stdout.on("data", (chunk: Buffer) => {
+        text += chunk.toString();
+      });
       check.on("error", () => settle(""));
       check.on("close", () => settle(text.trim()));
     });
@@ -401,14 +501,24 @@ persisted("receipts stored in the database", () => {
   }, 30_000);
 
   test("a receipt outlives the worker that produced it", async () => {
-    const request = { jobId: `job-${randomUUID()}`, dossierId: "dossier-1", kind: "sandbox_command" as const };
+    const request = {
+      jobId: `job-${randomUUID()}`,
+      dossierId: "dossier-1",
+      kind: "sandbox_command" as const,
+    };
     let runs = 0;
 
-    await runJob(store, request, async () => { runs += 1; return { output: { produced: "one.pdf" } }; });
+    await runJob(store, request, async () => {
+      runs += 1;
+      return { output: { produced: "one.pdf" } };
+    });
     // A second worker, with no memory of the first, is handed the same job.
     const second = new PostgresJobStore(url!, schema);
     try {
-      const repeat = await runJob(second, request, async () => { runs += 1; return { output: { produced: "two.pdf" } }; });
+      const repeat = await runJob(second, request, async () => {
+        runs += 1;
+        return { output: { produced: "two.pdf" } };
+      });
       expect(runs).toBe(1);
       expect(repeat.output).toEqual({ produced: "one.pdf" });
     } finally {
@@ -417,7 +527,11 @@ persisted("receipts stored in the database", () => {
   }, 30_000);
 
   test("the database refuses a second claim on one job id", async () => {
-    const request = { jobId: `job-${randomUUID()}`, dossierId: "dossier-1", kind: "document_text_extraction" as const };
+    const request = {
+      jobId: `job-${randomUUID()}`,
+      dossierId: "dossier-1",
+      kind: "document_text_extraction" as const,
+    };
     await store.claim(request, new Date().toISOString());
 
     let rejected = false;
@@ -430,7 +544,11 @@ persisted("receipts stored in the database", () => {
   }, 30_000);
 
   test("a job left running is listed as abandoned", async () => {
-    const request = { jobId: `job-${randomUUID()}`, dossierId: "dossier-1", kind: "sandbox_command" as const };
+    const request = {
+      jobId: `job-${randomUUID()}`,
+      dossierId: "dossier-1",
+      kind: "sandbox_command" as const,
+    };
     await store.claim(request, new Date(Date.now() - 120_000).toISOString());
     await store.markStaleForTest(request.jobId);
 
@@ -439,4 +557,3 @@ persisted("receipts stored in the database", () => {
     expect(stranded.map((receipt) => receipt.jobId)).toContain(request.jobId);
   }, 30_000);
 });
-

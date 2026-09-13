@@ -149,3 +149,25 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Arabic: a proper Arabic typeface (loaded by the app) and a taller line box;
+   Latin letterforms in the system stack stay available for mixed text. */
+@layer base {
+  :lang(ar) {
+    --font-sans:
+      "IBM Plex Sans Arabic", -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, Arial,
+      sans-serif;
+    font-family: var(--font-sans);
+    line-height: 1.6;
+  }
+}
+
+@layer utilities {
+  /* Negative tracking is a Latin display trick; on Arabic script it breaks joined letters. */
+  :lang(ar) .tracking-tight,
+  :lang(ar) .tracking-tighter,
+  :lang(ar) .tracking-wide,
+  :lang(ar) .uppercase {
+    letter-spacing: 0;
+  }
+}

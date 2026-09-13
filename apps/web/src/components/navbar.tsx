@@ -2,6 +2,7 @@ import { Link, useNavigate, useRouteContext, useRouter } from '@tanstack/react-r
 import { Button } from '@hack4justice/ui/components/button'
 import { LanguageSwitcher } from '#/components/language-switcher'
 import { MobileNav } from '#/components/mobile-nav'
+import { NotificationsPopover } from '#/components/notifications/notifications-popover'
 import { ThemeToggle } from '#/components/theme-toggle'
 import { toLocaleParam, useI18n } from '#/i18n'
 import { signOut } from '#/lib/auth'
@@ -50,11 +51,13 @@ export function Navbar() {
         </ul>
 
         <div className="ms-auto hidden items-center gap-2 md:flex">
+          {session ? <NotificationsPopover /> : null}
           <ThemeToggle />
           <LanguageSwitcher />
           <SessionActions />
         </div>
-        <div className="ms-auto md:hidden">
+        <div className="ms-auto flex items-center gap-1 md:hidden">
+          {session ? <NotificationsPopover /> : null}
           <MobileNav session={session} />
         </div>
       </nav>

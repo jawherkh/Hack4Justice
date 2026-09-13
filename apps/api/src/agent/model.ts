@@ -22,7 +22,7 @@ type JsonRecord = Record<string, unknown>;
 
 function record(value: unknown): JsonRecord | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? value as JsonRecord
+    ? (value as JsonRecord)
     : undefined;
 }
 

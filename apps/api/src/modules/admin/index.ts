@@ -12,20 +12,26 @@ const queueQuery = paginationQuerySchema.extend({
   view: z.enum(["recent", "pending", "assigned", "returned"]).default("recent"),
 });
 const assignmentBody = z.strictObject({ expectedVersion: z.number().int().positive() });
-const decisionBody = z.strictObject({
-  expectedVersion: z.number().int().positive(),
-  idempotencyKey: z.string().min(1).max(200),
-  correlationId: z.string().min(1).max(200).optional(),
-  nodeId: z.string().min(1).max(200),
-  action: z.enum(["accept", "refuse", "request_modification"]),
-  reason: z.string().trim().min(1).max(2000),
-  targetNodeIds: z.array(z.string().min(1).max(200)).max(100).default([]),
-  evidenceIds: z.array(z.string().min(1).max(200)).max(100).default([]),
-}).superRefine((decision, context) => {
-  if (decision.action === "request_modification" && decision.targetNodeIds.length === 0) {
-    context.addIssue({ code: "custom", path: ["targetNodeIds"], message: "At least one correction target is required" });
-  }
-});
+const decisionBody = z
+  .strictObject({
+    expectedVersion: z.number().int().positive(),
+    idempotencyKey: z.string().min(1).max(200),
+    correlationId: z.string().min(1).max(200).optional(),
+    nodeId: z.string().min(1).max(200),
+    action: z.enum(["accept", "refuse", "request_modification"]),
+    reason: z.string().trim().min(1).max(2000),
+    targetNodeIds: z.array(z.string().min(1).max(200)).max(100).default([]),
+    evidenceIds: z.array(z.string().min(1).max(200)).max(100).default([]),
+  })
+  .superRefine((decision, context) => {
+    if (decision.action === "request_modification" && decision.targetNodeIds.length === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["targetNodeIds"],
+        message: "At least one correction target is required",
+      });
+    }
+  });
 
 type QueueView = z.infer<typeof queueQuery>["view"];
 
@@ -50,17 +56,29 @@ function actionable(dossier: DossierRecord): boolean {
 
 function inView(dossier: DossierRecord, view: QueueView, officerId: string): boolean {
   if (view === "pending") return actionable(dossier) && dossier.agencyAcceptance === "pending";
-  if (view === "assigned") return actionable(dossier) && dossier.assignedOfficerId === officerId && dossier.agencyAcceptance === "pending";
-  if (view === "returned") return actionable(dossier) && dossier.agencyAcceptance === "modification_requested";
+  if (view === "assigned")
+    return (
+      actionable(dossier) && dossier.assignedOfficerId === officerId && dossier.agencyAcceptance === "pending"
+    );
+  if (view === "returned")
+    return actionable(dossier) && dossier.agencyAcceptance === "modification_requested";
   return true;
 }
 
 function counts(dossiers: readonly DossierRecord[], officerId: string) {
   return {
     recent: dossiers.length,
-    pending: dossiers.filter((dossier) => actionable(dossier) && dossier.agencyAcceptance === "pending").length,
-    assigned: dossiers.filter((dossier) => actionable(dossier) && dossier.assignedOfficerId === officerId && dossier.agencyAcceptance === "pending").length,
-    returned: dossiers.filter((dossier) => actionable(dossier) && dossier.agencyAcceptance === "modification_requested").length,
+    pending: dossiers.filter((dossier) => actionable(dossier) && dossier.agencyAcceptance === "pending")
+      .length,
+    assigned: dossiers.filter(
+      (dossier) =>
+        actionable(dossier) &&
+        dossier.assignedOfficerId === officerId &&
+        dossier.agencyAcceptance === "pending",
+    ).length,
+    returned: dossiers.filter(
+      (dossier) => actionable(dossier) && dossier.agencyAcceptance === "modification_requested",
+    ).length,
     accepted: dossiers.filter((dossier) => dossier.agencyAcceptance === "accepted").length,
     refused: dossiers.filter((dossier) => dossier.agencyAcceptance === "refused").length,
   };
@@ -84,7 +102,10 @@ function queueItem(dossier: DossierRecord) {
   };
 }
 
-function reviewBundle(detail: DossierDetail, procedure: Awaited<ReturnType<AsyncAccessRepository["procedure"]>>) {
+function reviewBundle(
+  detail: DossierDetail,
+  procedure: Awaited<ReturnType<AsyncAccessRepository["procedure"]>>,
+) {
   return {
     dossier: detail.dossier,
     procedure,
@@ -114,8 +135,12 @@ export function createAdminRoutes(repository: AsyncAccessRepository, resolvePrin
         agency: selected,
         view: parsed.data.view,
         statusCounts: counts(agencyDossiers, principal.id),
-        ...buildPaginatedResponse({ data: filtered.slice(offset, offset + parsed.data.limit).map(queueItem),
-          page: parsed.data.page, limit: parsed.data.limit, total: filtered.length }),
+        ...buildPaginatedResponse({
+          data: filtered.slice(offset, offset + parsed.data.limit).map(queueItem),
+          page: parsed.data.page,
+          limit: parsed.data.limit,
+          total: filtered.length,
+        }),
       };
     })
     .get("/:agency/dossiers/:dossierId", async ({ params, principal }) => {
@@ -132,8 +157,13 @@ export function createAdminRoutes(repository: AsyncAccessRepository, resolvePrin
       if (!parsed.success) throw new AccessError(422, "validation_error");
       const dossier = found(await repository.dossier(params.dossierId));
       if (dossier.agency !== selected) throw new AccessError(404, "not_found");
-      return { dossier: await repository.assignDossier({ dossierId: dossier.id,
-        expectedVersion: parsed.data.expectedVersion, officerId: principal.id }) };
+      return {
+        dossier: await repository.assignDossier({
+          dossierId: dossier.id,
+          expectedVersion: parsed.data.expectedVersion,
+          officerId: principal.id,
+        }),
+      };
     })
     .post("/:agency/dossiers/:dossierId/decisions", async ({ params, body, principal, set }) => {
       const selected = agency(params.agency);
@@ -142,16 +172,28 @@ export function createAdminRoutes(repository: AsyncAccessRepository, resolvePrin
       if (!parsed.success) throw new AccessError(422, "validation_error");
       const detail = found(await repository.dossierDetail(params.dossierId));
       if (detail.dossier.agency !== selected) throw new AccessError(404, "not_found");
-      if (detail.dossier.assignedOfficerId !== principal.id) throw new AccessError(409, "dossier_not_assigned");
+      if (detail.dossier.assignedOfficerId !== principal.id)
+        throw new AccessError(409, "dossier_not_assigned");
       const node = detail.nodes.find((candidate) => candidate.id === parsed.data.nodeId);
-      if (!node || (node.type !== "decision" && node.type !== "human_review")) throw new AccessError(422, "invalid_review_node");
-      if (parsed.data.targetNodeIds.some((id) => !detail.nodes.some((candidate) => candidate.id === id)) ||
-          parsed.data.evidenceIds.some((id) => !detail.evidence.some((document) => document.id === id))) {
+      if (!node || (node.type !== "decision" && node.type !== "human_review"))
+        throw new AccessError(422, "invalid_review_node");
+      if (
+        parsed.data.targetNodeIds.some((id) => !detail.nodes.some((candidate) => candidate.id === id)) ||
+        parsed.data.evidenceIds.some((id) => !detail.evidence.some((document) => document.id === id))
+      ) {
         throw new AccessError(422, "invalid_evidence_scope");
       }
       const { expectedVersion, idempotencyKey, correlationId, nodeId, ...decision } = parsed.data;
-      const acknowledgement = await repository.dispatchCommand({ dossierId: detail.dossier.id, type: "decision_recorded",
-        expectedVersion, idempotencyKey, ...(correlationId ? { correlationId } : {}), nodeId, decision, actorId: principal.id });
+      const acknowledgement = await repository.dispatchCommand({
+        dossierId: detail.dossier.id,
+        type: "decision_recorded",
+        expectedVersion,
+        idempotencyKey,
+        ...(correlationId ? { correlationId } : {}),
+        nodeId,
+        decision,
+        actorId: principal.id,
+      });
       set.status = 202;
       return acknowledgement;
     });

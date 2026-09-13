@@ -117,8 +117,15 @@ export function createKnowledgeSearch(baseUrl: string, timeoutMs = defaultTimeou
       try {
         response = await fetch(`${url}/api/v1/knowledge/search`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json", "X-Agency-Code": agency },
-          body: JSON.stringify({ query: trimmed, max_results: Math.min(maxResults ?? maxSearchResults, maxSearchResults) }),
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "X-Agency-Code": agency,
+          },
+          body: JSON.stringify({
+            query: trimmed,
+            max_results: Math.min(maxResults ?? maxSearchResults, maxSearchResults),
+          }),
           signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
         });
       } catch (error) {
@@ -127,7 +134,10 @@ export function createKnowledgeSearch(baseUrl: string, timeoutMs = defaultTimeou
       }
 
       if (!response.ok) {
-        throw new KnowledgeError(`knowledge_search_failed: ${(await response.text()).slice(0, 200)}`, response.status);
+        throw new KnowledgeError(
+          `knowledge_search_failed: ${(await response.text()).slice(0, 200)}`,
+          response.status,
+        );
       }
 
       return asLegalContext(agency, trimmed, (await response.json()) as SearchResponse);

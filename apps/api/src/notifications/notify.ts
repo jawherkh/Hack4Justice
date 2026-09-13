@@ -81,7 +81,12 @@ export type DeliveryOutcome =
 /** Delivery port. One implementation per outbound provider. */
 export interface Transport {
   readonly channels: readonly NotificationChannel[];
-  send(message: { recipient: Recipient; channel: NotificationChannel; title: string; body: string }): Promise<DeliveryOutcome>;
+  send(message: {
+    recipient: Recipient;
+    channel: NotificationChannel;
+    title: string;
+    body: string;
+  }): Promise<DeliveryOutcome>;
 }
 
 const maxAttempts = 3;
@@ -161,23 +166,37 @@ export class Notifier {
     }
 
     if (!recipient.acceptsExternalMessages) {
-      return await this.store.markResult(record.id, { status: "simulated", failureReason: "recipient_opted_out" });
+      return await this.store.markResult(record.id, {
+        status: "simulated",
+        failureReason: "recipient_opted_out",
+      });
     }
 
     const transport = this.transports.find((candidate) => candidate.channels.includes(request.channel));
     if (!transport) {
-      return await this.store.markResult(record.id, { status: "simulated", failureReason: "channel_not_configured" });
+      return await this.store.markResult(record.id, {
+        status: "simulated",
+        failureReason: "channel_not_configured",
+      });
     }
 
     let outcome: DeliveryOutcome;
     try {
-      outcome = await transport.send({ recipient, channel: request.channel, title: request.title, body: request.body });
+      outcome = await transport.send({
+        recipient,
+        channel: request.channel,
+        title: request.title,
+        body: request.body,
+      });
     } catch (error) {
       outcome = { status: "failed", reason: error instanceof Error ? error.message : "transport_error" };
     }
 
     if (outcome.status === "sent") {
-      return await this.store.markResult(record.id, { status: "sent", providerMessageId: outcome.providerMessageId });
+      return await this.store.markResult(record.id, {
+        status: "sent",
+        providerMessageId: outcome.providerMessageId,
+      });
     }
     return await this.store.markResult(record.id, { status: outcome.status, failureReason: outcome.reason });
   }
@@ -250,7 +269,10 @@ export interface TemplateInput {
 
 type TemplateKind = "decision" | "obligation";
 
-const templates: Record<Language, Record<TemplateKind, (input: TemplateInput) => { title: string; body: string }>> = {
+const templates: Record<
+  Language,
+  Record<TemplateKind, (input: TemplateInput) => { title: string; body: string }>
+> = {
   fr: {
     decision: ({ dossierReference, subject, nextAction }) => ({
       title: `Dossier ${dossierReference} : ${subject}`,

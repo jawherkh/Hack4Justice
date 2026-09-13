@@ -8,6 +8,7 @@ import {
 } from "@hack4justice/db";
 import {
   AppError,
+  NotificationType,
   PROJECT_DESCRIPTION_MAX_LENGTH,
   PROJECT_DESTINATIONS,
   PROJECT_NAME_MAX_LENGTH,
@@ -31,6 +32,7 @@ import { Elysia, t } from "elysia";
 import { authGuard } from "../../auth";
 import { db } from "../../db";
 import { i18n } from "../../i18n/plugin";
+import { notify } from "../../notifications/inbox";
 
 const idParam = t.Object({ id: t.String({ format: "uuid" }) });
 const destinationSchema = t.UnionEnum(PROJECT_DESTINATIONS);
@@ -102,6 +104,13 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
       };
       const [row] = await db.insert(project).values(values).returning();
       if (!row) throw new AppError({ status: 500, code: "internal_error" });
+      await notify({
+        userId: user.id,
+        type: NotificationType.PROJECT_CREATED,
+        idempotencyKey: `project:${row.id}:created`,
+        payload: { project: row.name },
+        projectId: row.id,
+      });
       set.status = 201;
       return toSummary(row, []);
     },
@@ -182,7 +191,15 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
           .set({ serviceId: body.serviceId, onboardedAt: new Date(), submissionStatus: null })
           .where(eq(project.id, row.id));
       });
-      return toDetail(await findOwned(row.id, user.id));
+      const onboarded = await findOwned(row.id, user.id);
+      await notify({
+        userId: user.id,
+        type: NotificationType.PROCEDURE_STARTED,
+        idempotencyKey: `project:${row.id}:procedure-started:${onboarded.onboardedAt?.toISOString() ?? ""}`,
+        payload: { project: row.name, service: body.serviceId },
+        projectId: row.id,
+      });
+      return toDetail(onboarded);
     },
     {
       auth: true,
@@ -231,14 +248,40 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
       if (body.note !== undefined) patch.note = emptyToNull(body.note);
       const status = parseRequirementStatus(body.status);
       if (status !== undefined) patch.status = status;
-      else if (current.status === RequirementStatus.MISSING && (patch.uploadId || body.value)) {
+      else if (
+        (patch.uploadId || body.value) &&
+        (current.status === RequirementStatus.MISSING ||
+          current.status === RequirementStatus.NOT_APPLICABLE ||
+          current.status === RequirementStatus.WAIVED)
+      ) {
+        // Supplying evidence for an item implies it applies after all.
         patch.status = RequirementStatus.PROVIDED;
       }
+      const before = deriveProcedureStatus(
+        row.serviceId,
+        await listRequirements(row.id),
+        row.submissionStatus,
+      );
       const [updated] = await db
         .update(projectRequirement)
         .set(patch)
         .where(eq(projectRequirement.id, current.id))
         .returning();
+      const after = deriveProcedureStatus(
+        row.serviceId,
+        await listRequirements(row.id),
+        row.submissionStatus,
+      );
+      if (before !== "READY_FOR_SUBMISSION" && after === "READY_FOR_SUBMISSION") {
+        await notify({
+          userId: user.id,
+          type: NotificationType.PROCEDURE_READY,
+          // One notification per time the checklist becomes complete, keyed on the change that completed it.
+          idempotencyKey: `project:${row.id}:ready:${updated!.updatedAt.toISOString()}`,
+          payload: { project: row.name },
+          projectId: row.id,
+        });
+      }
       return updated!;
     },
     {
@@ -271,6 +314,15 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
         .set({ submissionStatus: status })
         .where(eq(project.id, row.id))
         .returning();
+      if (status) {
+        await notify({
+          userId: user.id,
+          type: NotificationType.SUBMISSION_UPDATED,
+          idempotencyKey: `project:${row.id}:submission:${status}:${updated!.updatedAt.toISOString()}`,
+          payload: { project: row.name, status },
+          projectId: row.id,
+        });
+      }
       return toDetail(updated!);
     },
     {

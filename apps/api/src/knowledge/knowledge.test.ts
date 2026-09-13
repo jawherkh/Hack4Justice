@@ -18,8 +18,13 @@ class MemoryJobStore implements JobStore {
   async claim(request: JobRequest, startedAt: string) {
     if (this.receipts.some((receipt) => receipt.jobId === request.jobId)) throw new Error("duplicate job id");
     const receipt: JobReceipt = {
-      jobId: request.jobId, dossierId: request.dossierId, kind: request.kind,
-      status: "running", attempts: 1, startedAt, updatedAt: startedAt,
+      jobId: request.jobId,
+      dossierId: request.dossierId,
+      kind: request.kind,
+      status: "running",
+      attempts: 1,
+      startedAt,
+      updatedAt: startedAt,
     };
     this.receipts.push(receipt);
     return { ...receipt };
@@ -49,27 +54,34 @@ const serviceBody = {
   agency: "DGI",
   group_id: "dgi",
   query: "attestation",
-  edges: [{
-    uuid: "edge-1",
-    name: "REQUIRES",
-    fact: "Le dossier exige une attestation de situation fiscale.",
-    valid_at: "2024-01-01T00:00:00Z",
-    invalid_at: null,
-    episodes: ["episode-1"],
-  }],
+  edges: [
+    {
+      uuid: "edge-1",
+      name: "REQUIRES",
+      fact: "Le dossier exige une attestation de situation fiscale.",
+      valid_at: "2024-01-01T00:00:00Z",
+      invalid_at: null,
+      episodes: ["episode-1"],
+    },
+  ],
   nodes: [],
-  episodes: [{
-    uuid: "episode-1",
-    name: "code-tva-art-12",
-    group_id: "dgi",
-    source: "text",
-    source_description: "Code de la TVA, article 12",
-    content_excerpt: "Attestation exigee avant le depot.",
-  }],
+  episodes: [
+    {
+      uuid: "episode-1",
+      name: "code-tva-art-12",
+      group_id: "dgi",
+      source: "text",
+      source_description: "Code de la TVA, article 12",
+      content_excerpt: "Attestation exigee avant le depot.",
+    },
+  ],
 };
 
 function respondWith(body: unknown, status = 200) {
-  return vi.fn(async () => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
+  return vi.fn(
+    async () =>
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }),
+  );
 }
 
 describe("legal knowledge search", () => {
@@ -77,7 +89,10 @@ describe("legal knowledge search", () => {
     const fetcher = respondWith(serviceBody);
     vi.stubGlobal("fetch", fetcher);
     try {
-      const context = await createKnowledgeSearch("http://knowledge.test").search({ agency: "DGI", query: "  attestation  " });
+      const context = await createKnowledgeSearch("http://knowledge.test").search({
+        agency: "DGI",
+        query: "  attestation  ",
+      });
 
       const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
       expect(url).toBe("http://knowledge.test/api/v1/knowledge/search");
@@ -89,14 +104,16 @@ describe("legal knowledge search", () => {
       expect(context.needsReview).toBe(false);
       // The reference is the document, not the extracted relation: that is what a person
       // can go and read.
-      expect(context.passages).toEqual([{
-        fact: "Le dossier exige une attestation de situation fiscale.",
-        source: "Code de la TVA, article 12",
-        reference: "episode-1",
-        statement: "edge-1",
-        validFrom: "2024-01-01T00:00:00Z",
-        excerpt: "Attestation exigee avant le depot.",
-      }]);
+      expect(context.passages).toEqual([
+        {
+          fact: "Le dossier exige une attestation de situation fiscale.",
+          source: "Code de la TVA, article 12",
+          reference: "episode-1",
+          statement: "edge-1",
+          validFrom: "2024-01-01T00:00:00Z",
+          excerpt: "Attestation exigee avant le depot.",
+        },
+      ]);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -105,7 +122,10 @@ describe("legal knowledge search", () => {
   test("reports nothing found as needing review rather than as an answer", async () => {
     vi.stubGlobal("fetch", respondWith({ ...serviceBody, edges: [], episodes: [] }));
     try {
-      const context = await createKnowledgeSearch("http://knowledge.test").search({ agency: "RNE", query: "inconnu" });
+      const context = await createKnowledgeSearch("http://knowledge.test").search({
+        agency: "RNE",
+        query: "inconnu",
+      });
       expect(context.passages).toEqual([]);
       expect(context.needsReview).toBe(true);
     } finally {
@@ -116,13 +136,30 @@ describe("legal knowledge search", () => {
   test("refuses to present a statement with no document behind it", async () => {
     // The shape the service returns when it matched a relation but attached no episode.
     // Its relation name is not a source, and an answer citing it could not be checked.
-    vi.stubGlobal("fetch", respondWith({
-      agency: "DGI", group_id: "dgi", query: "quittance",
-      edges: [{ uuid: "edge-1", name: "REQUIRES", fact: "A quittance fiscale is required.", episodes: [], attributes: {} }],
-      nodes: [], episodes: [],
-    }));
+    vi.stubGlobal(
+      "fetch",
+      respondWith({
+        agency: "DGI",
+        group_id: "dgi",
+        query: "quittance",
+        edges: [
+          {
+            uuid: "edge-1",
+            name: "REQUIRES",
+            fact: "A quittance fiscale is required.",
+            episodes: [],
+            attributes: {},
+          },
+        ],
+        nodes: [],
+        episodes: [],
+      }),
+    );
     try {
-      const context = await createKnowledgeSearch("http://knowledge.test").search({ agency: "DGI", query: "quittance" });
+      const context = await createKnowledgeSearch("http://knowledge.test").search({
+        agency: "DGI",
+        query: "quittance",
+      });
       expect(context.passages).toEqual([]);
       expect(context.unsourcedStatements).toBe(1);
       expect(context.needsReview).toBe(true);
@@ -134,24 +171,40 @@ describe("legal knowledge search", () => {
   test("keeps a fact whose document was not returned in the same response", async () => {
     // The service ranks and caps edges and episodes separately, so an edge routinely names
     // an episode this response did not carry. The fact is still traceable to that document.
-    vi.stubGlobal("fetch", respondWith({
-      agency: "DGI", group_id: "dgi", query: "quittance",
-      edges: [{
-        uuid: "edge-9", name: "REQUIRES", fact: "Une quittance fiscale est exigee.",
-        episodes: ["episode-not-in-this-response"], attributes: {},
-      }],
-      nodes: [], episodes: [],
-    }));
+    vi.stubGlobal(
+      "fetch",
+      respondWith({
+        agency: "DGI",
+        group_id: "dgi",
+        query: "quittance",
+        edges: [
+          {
+            uuid: "edge-9",
+            name: "REQUIRES",
+            fact: "Une quittance fiscale est exigee.",
+            episodes: ["episode-not-in-this-response"],
+            attributes: {},
+          },
+        ],
+        nodes: [],
+        episodes: [],
+      }),
+    );
     try {
-      const context = await createKnowledgeSearch("http://knowledge.test").search({ agency: "DGI", query: "quittance" });
+      const context = await createKnowledgeSearch("http://knowledge.test").search({
+        agency: "DGI",
+        query: "quittance",
+      });
       expect(context.needsReview).toBe(false);
       expect(context.unsourcedStatements).toBe(0);
       // No source description is invented for a document this response did not describe.
-      expect(context.passages).toEqual([{
-        fact: "Une quittance fiscale est exigee.",
-        reference: "episode-not-in-this-response",
-        statement: "edge-9",
-      }]);
+      expect(context.passages).toEqual([
+        {
+          fact: "Une quittance fiscale est exigee.",
+          reference: "episode-not-in-this-response",
+          statement: "edge-9",
+        },
+      ]);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -160,16 +213,21 @@ describe("legal knowledge search", () => {
   test("keeps matching legal text that no relation was extracted from", async () => {
     vi.stubGlobal("fetch", respondWith({ ...serviceBody, edges: [] }));
     try {
-      const context = await createKnowledgeSearch("http://knowledge.test").search({ agency: "DGI", query: "attestation" });
+      const context = await createKnowledgeSearch("http://knowledge.test").search({
+        agency: "DGI",
+        query: "attestation",
+      });
       // The episode is the document itself. Reporting it as nothing found would hide law
       // the service did return.
       expect(context.needsReview).toBe(false);
-      expect(context.passages).toEqual([{
-        fact: "Attestation exigee avant le depot.",
-        source: "Code de la TVA, article 12",
-        reference: "episode-1",
-        excerpt: "Attestation exigee avant le depot.",
-      }]);
+      expect(context.passages).toEqual([
+        {
+          fact: "Attestation exigee avant le depot.",
+          source: "Code de la TVA, article 12",
+          reference: "episode-1",
+          excerpt: "Attestation exigee avant le depot.",
+        },
+      ]);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -178,26 +236,34 @@ describe("legal knowledge search", () => {
   test("separates a service that is briefly down from one that refused the request", async () => {
     vi.stubGlobal("fetch", respondWith({ detail: "graph not ready" }, 503));
     try {
-      await expect(createKnowledgeSearch("http://knowledge.test").search({ agency: "DGI", query: "q" }))
-        .rejects.toMatchObject({ temporary: true });
+      await expect(
+        createKnowledgeSearch("http://knowledge.test").search({ agency: "DGI", query: "q" }),
+      ).rejects.toMatchObject({ temporary: true });
     } finally {
       vi.unstubAllGlobals();
     }
 
     vi.stubGlobal("fetch", respondWith({ detail: "unknown agency" }, 400));
     try {
-      await expect(createKnowledgeSearch("http://knowledge.test").search({ agency: "DGI", query: "q" }))
-        .rejects.toMatchObject({ temporary: false });
+      await expect(
+        createKnowledgeSearch("http://knowledge.test").search({ agency: "DGI", query: "q" }),
+      ).rejects.toMatchObject({ temporary: false });
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
   test("treats an unreachable service as worth another attempt", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("ECONNREFUSED"); }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("ECONNREFUSED");
+      }),
+    );
     try {
       const failure = await createKnowledgeSearch("http://knowledge.test")
-        .search({ agency: "DGI", query: "q" }).catch((error: unknown) => error);
+        .search({ agency: "DGI", query: "q" })
+        .catch((error: unknown) => error);
       expect(failure).toBeInstanceOf(KnowledgeError);
       expect((failure as KnowledgeError).temporary).toBe(true);
     } finally {
@@ -209,7 +275,9 @@ describe("legal knowledge search", () => {
 const found = (agency: string): LegalContext => ({
   agency: agency as LegalContext["agency"],
   query: "attestation",
-  passages: [{ fact: "une attestation est exigee", source: "Code de la TVA, article 12", reference: "episode-1" }],
+  passages: [
+    { fact: "une attestation est exigee", source: "Code de la TVA, article 12", reference: "episode-1" },
+  ],
   unsourcedStatements: 0,
   needsReview: false,
 });
@@ -218,7 +286,12 @@ describe("durable legal lookups", () => {
   test("asks the graph once for a question repeated in the same conversation", async () => {
     const store = new MemoryJobStore();
     let calls = 0;
-    const search: KnowledgeSearch = { async search({ agency }) { calls += 1; return found(agency); } };
+    const search: KnowledgeSearch = {
+      async search({ agency }) {
+        calls += 1;
+        return found(agency);
+      },
+    };
     const durable = withDurableSearches(search, store, { dossierId: "dossier-1", sessionId: "session-1" });
 
     const first = await durable.search({ agency: "DGI", query: "attestation" });
@@ -233,7 +306,12 @@ describe("durable legal lookups", () => {
   test("does not answer one agency from another agency's stored lookup", async () => {
     const store = new MemoryJobStore();
     const asked: string[] = [];
-    const search: KnowledgeSearch = { async search({ agency }) { asked.push(agency); return found(agency); } };
+    const search: KnowledgeSearch = {
+      async search({ agency }) {
+        asked.push(agency);
+        return found(agency);
+      },
+    };
     const durable = withDurableSearches(search, store, { dossierId: "dossier-1", sessionId: "session-1" });
 
     const dgi = await durable.search({ agency: "DGI", query: "attestation" });
@@ -262,8 +340,16 @@ describe("durable legal lookups", () => {
     expect(await durable.search({ agency: "DGI", query: "attestation" })).toEqual(found("DGI"));
     expect(calls).toBe(2);
 
-    const refusing: KnowledgeSearch = { async search() { calls += 1; throw new KnowledgeError("unknown agency", 400); } };
-    const permanent = withDurableSearches(refusing, store, { dossierId: "dossier-1", sessionId: "session-2" });
+    const refusing: KnowledgeSearch = {
+      async search() {
+        calls += 1;
+        throw new KnowledgeError("unknown agency", 400);
+      },
+    };
+    const permanent = withDurableSearches(refusing, store, {
+      dossierId: "dossier-1",
+      sessionId: "session-2",
+    });
     await expect(permanent.search({ agency: "DGI", query: "refuse" })).rejects.toThrow();
     await expect(permanent.search({ agency: "DGI", query: "refuse" })).rejects.toThrow();
     // Three: the two calls above, plus one refusal that is not asked a second time.
@@ -272,23 +358,39 @@ describe("durable legal lookups", () => {
 });
 
 async function invoke(context: Record<string, unknown>, input: unknown): Promise<unknown> {
-  return await invokeFunctionTool({ tool: searchLegalKnowledgeTool, runContext: new RunContext(context), input: JSON.stringify(input) });
+  return await invokeFunctionTool({
+    tool: searchLegalKnowledgeTool,
+    runContext: new RunContext(context),
+    input: JSON.stringify(input),
+  });
 }
 
-const member = { id: "demo-member-alpha", roles: ["business_member"] as const, companyIds: ["company-alpha"] };
+const member = {
+  id: "demo-member-alpha",
+  roles: ["business_member"] as const,
+  companyIds: ["company-alpha"],
+};
 
 describe("the agent's legal source tool", () => {
   test("searches the dossier's own agency, whatever the model asks for", async () => {
     const repository = createDemoRepository();
-    const session = await repository.createAgentSession({ dossierId: "dossier-alpha-dgi", principalId: member.id });
+    const session = await repository.createAgentSession({
+      dossierId: "dossier-alpha-dgi",
+      principalId: member.id,
+    });
     const asked: string[] = [];
-    const knowledge: KnowledgeSearch = { async search({ agency }) { asked.push(agency); return found(agency); } };
+    const knowledge: KnowledgeSearch = {
+      async search({ agency }) {
+        asked.push(agency);
+        return found(agency);
+      },
+    };
 
     // The dossier belongs to one agency. The question names a different one on purpose.
-    const result = await invoke(
+    const result = (await invoke(
       { repository, principal: member, dossierId: "dossier-alpha-dgi", sessionId: session.id, knowledge },
       { query: "registry requirements held by another agency for this company" },
-    ) as LegalContext;
+    )) as LegalContext;
 
     expect(asked).toEqual(["DGI"]);
     expect(result.agency).toBe("DGI");
@@ -296,13 +398,26 @@ describe("the agent's legal source tool", () => {
 
   test("reports a lookup it could not run as needing review", async () => {
     const repository = createDemoRepository();
-    const session = await repository.createAgentSession({ dossierId: "dossier-alpha-dgi", principalId: member.id });
-    const broken: KnowledgeSearch = { async search() { throw new KnowledgeError("knowledge_unreachable"); } };
+    const session = await repository.createAgentSession({
+      dossierId: "dossier-alpha-dgi",
+      principalId: member.id,
+    });
+    const broken: KnowledgeSearch = {
+      async search() {
+        throw new KnowledgeError("knowledge_unreachable");
+      },
+    };
 
-    const result = await invoke(
-      { repository, principal: member, dossierId: "dossier-alpha-dgi", sessionId: session.id, knowledge: broken },
+    const result = (await invoke(
+      {
+        repository,
+        principal: member,
+        dossierId: "dossier-alpha-dgi",
+        sessionId: session.id,
+        knowledge: broken,
+      },
       { query: "quelles pieces" },
-    ) as LegalContext & { reason?: string };
+    )) as LegalContext & { reason?: string };
 
     // Not an absence of rules: the model must not fill the gap from its own memory.
     expect(result.needsReview).toBe(true);
@@ -312,12 +427,15 @@ describe("the agent's legal source tool", () => {
 
   test("reports needing review when no knowledge source is configured", async () => {
     const repository = createDemoRepository();
-    const session = await repository.createAgentSession({ dossierId: "dossier-alpha-dgi", principalId: member.id });
+    const session = await repository.createAgentSession({
+      dossierId: "dossier-alpha-dgi",
+      principalId: member.id,
+    });
 
-    const result = await invoke(
+    const result = (await invoke(
       { repository, principal: member, dossierId: "dossier-alpha-dgi", sessionId: session.id },
       { query: "quelles pieces" },
-    ) as LegalContext & { reason?: string };
+    )) as LegalContext & { reason?: string };
 
     expect(result.needsReview).toBe(true);
     expect(result.reason).toBe("knowledge_source_unavailable");

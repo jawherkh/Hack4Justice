@@ -146,8 +146,14 @@ export class ProjectDockerSandboxSession implements SandboxSession<ProjectDocker
   async exec(args: ExecCommandArgs): Promise<SandboxExecResult> {
     this.assertOpen();
     const startedAt = Date.now();
-    const result = await this.runner.run(this.workspace, ["sh", "-c", commandWithWorkdir(args.cmd, args.workdir)]);
-    const output = result.stderr ? `${result.stdout}${result.stdout ? "\n" : ""}${result.stderr}` : result.stdout;
+    const result = await this.runner.run(this.workspace, [
+      "sh",
+      "-c",
+      commandWithWorkdir(args.cmd, args.workdir),
+    ]);
+    const output = result.stderr
+      ? `${result.stdout}${result.stdout ? "\n" : ""}${result.stderr}`
+      : result.stdout;
     return {
       output,
       stdout: result.stdout,
@@ -253,7 +259,10 @@ function createArgs(
  * The SDK supplies the model-facing shell/filesystem capabilities; all commands still pass
  * through Workspace path validation and DockerRunner's non-root, no-network container flags.
  */
-export class ProjectDockerSandboxClient implements SandboxClient<ProjectDockerSandboxOptions, ProjectDockerSandboxSessionState> {
+export class ProjectDockerSandboxClient implements SandboxClient<
+  ProjectDockerSandboxOptions,
+  ProjectDockerSandboxSessionState
+> {
   readonly backendId = "hack4justice_docker";
   readonly supportsDefaultOptions = true;
 
@@ -264,18 +273,23 @@ export class ProjectDockerSandboxClient implements SandboxClient<ProjectDockerSa
     manifestOptions?: ProjectDockerSandboxOptions,
   ): Promise<ProjectDockerSandboxSession> {
     const { manifest, options } = createArgs(args, { ...this.options, ...(manifestOptions ?? {}) });
-    if (!options.dossierId || !options.runId) throw new Error("dossierId and runId are required for a project sandbox");
+    if (!options.dossierId || !options.runId)
+      throw new Error("dossierId and runId are required for a project sandbox");
     const baseDir = options.workspaceBaseDir ?? ".local-data/agent-sandboxes";
     await mkdir(baseDir, { recursive: true, mode: 0o700 });
     const workspace = await Workspace.create(baseDir, options.dossierId, options.runId);
     const image = options.image ?? "alpine:3.20";
-    const session = new ProjectDockerSandboxSession({
-      manifest,
-      dossierId: options.dossierId,
-      runId: options.runId,
-      workspaceRootPath: workspace.root,
-      image,
-    }, workspace, new DockerRunner(image, options.runLimits ?? defaultRunLimits));
+    const session = new ProjectDockerSandboxSession(
+      {
+        manifest,
+        dossierId: options.dossierId,
+        runId: options.runId,
+        workspaceRootPath: workspace.root,
+        image,
+      },
+      workspace,
+      new DockerRunner(image, options.runLimits ?? defaultRunLimits),
+    );
     await session.applyManifest(manifest);
     return session;
   }
@@ -289,7 +303,11 @@ export class ProjectDockerSandboxClient implements SandboxClient<ProjectDockerSa
     const workspace = await Workspace.create(baseDir, state.dossierId, state.runId);
     if (workspace.root !== state.workspaceRootPath) throw new SandboxPathError("sandbox workspace changed");
     const image = merged.image ?? state.image;
-    return new ProjectDockerSandboxSession(state, workspace, new DockerRunner(image, merged.runLimits ?? defaultRunLimits));
+    return new ProjectDockerSandboxSession(
+      state,
+      workspace,
+      new DockerRunner(image, merged.runLimits ?? defaultRunLimits),
+    );
   }
 
   async serializeSessionState(state: ProjectDockerSandboxSessionState): Promise<Record<string, unknown>> {
@@ -297,7 +315,10 @@ export class ProjectDockerSandboxClient implements SandboxClient<ProjectDockerSa
   }
 
   async deserializeSessionState(state: Record<string, unknown>): Promise<ProjectDockerSandboxSessionState> {
-    const manifest = state.manifest instanceof Manifest ? state.manifest : new Manifest(state.manifest as ConstructorParameters<typeof Manifest>[0]);
+    const manifest =
+      state.manifest instanceof Manifest
+        ? state.manifest
+        : new Manifest(state.manifest as ConstructorParameters<typeof Manifest>[0]);
     return { ...state, manifest } as ProjectDockerSandboxSessionState;
   }
 

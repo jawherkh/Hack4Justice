@@ -42,7 +42,10 @@ export interface JobStore {
    * handed the same job cannot both perform its effect.
    */
   claim(request: JobRequest, startedAt: string): Promise<JobReceipt>;
-  complete(jobId: string, outcome: Pick<JobReceipt, "status" | "output" | "error" | "retryable">): Promise<JobReceipt>;
+  complete(
+    jobId: string,
+    outcome: Pick<JobReceipt, "status" | "output" | "error" | "retryable">,
+  ): Promise<JobReceipt>;
   /**
    * Takes a failed job back for another attempt, raising its attempt count.
    *

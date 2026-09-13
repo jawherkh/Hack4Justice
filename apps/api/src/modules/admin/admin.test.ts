@@ -61,12 +61,11 @@ function genericRequest(path: string, user: string, method = "GET", body?: unkno
 
 describe("agency review workspace", () => {
   test.each(["DGI", "RNE", "APII"] as const)("isolates and paginates the %s queues", async (agency) => {
-    const response = await app().handle(request(
-      `/${agency.toLowerCase()}/queue?view=pending&page=1&limit=1`,
-      officerByAgency[agency],
-    ));
+    const response = await app().handle(
+      request(`/${agency.toLowerCase()}/queue?view=pending&page=1&limit=1`, officerByAgency[agency]),
+    );
     expect(response.status).toBe(200);
-    const payload = await response.json() as {
+    const payload = (await response.json()) as {
       agency: Agency;
       data: { agency: Agency; agencyAcceptance: string }[];
       meta: { page: number; limit: number; total: number; totalPages: number };
@@ -104,7 +103,7 @@ describe("agency review workspace", () => {
 
     for (const view of ["pending", "assigned", "returned"]) {
       const response = await server.handle(request(`/dgi/queue?view=${view}`, "demo-officer-dgi"));
-      const payload = await response.json() as {
+      const payload = (await response.json()) as {
         data: unknown[];
         statusCounts: { pending: number; assigned: number; returned: number };
       };
@@ -116,28 +115,41 @@ describe("agency review workspace", () => {
   test("claims a pending dossier exactly once and exposes it in the assigned queue", async () => {
     const repository = pendingRepository();
     const server = app(repository);
-    const claim = await server.handle(request("/dgi/dossiers/dossier-alpha-dgi/assignment", "demo-officer-dgi", "POST", {
-      expectedVersion: 1,
-    }));
+    const claim = await server.handle(
+      request("/dgi/dossiers/dossier-alpha-dgi/assignment", "demo-officer-dgi", "POST", {
+        expectedVersion: 1,
+      }),
+    );
     expect(claim.status).toBe(200);
-    expect(await claim.json()).toMatchObject({ dossier: {
-      id: "dossier-alpha-dgi", version: 2, assignedOfficerId: "demo-officer-dgi",
-    } });
+    expect(await claim.json()).toMatchObject({
+      dossier: {
+        id: "dossier-alpha-dgi",
+        version: 2,
+        assignedOfficerId: "demo-officer-dgi",
+      },
+    });
 
-    const retry = await server.handle(request("/dgi/dossiers/dossier-alpha-dgi/assignment", "demo-officer-dgi", "POST", {
-      expectedVersion: 2,
-    }));
+    const retry = await server.handle(
+      request("/dgi/dossiers/dossier-alpha-dgi/assignment", "demo-officer-dgi", "POST", {
+        expectedVersion: 2,
+      }),
+    );
     expect(retry.status).toBe(200);
     expect(await retry.json()).toMatchObject({ dossier: { version: 2 } });
 
     const assigned = await server.handle(request("/dgi/queue?view=assigned", "demo-officer-dgi"));
-    const assignedPayload = await assigned.json() as { data: { id: string }[]; statusCounts: { assigned: number } };
+    const assignedPayload = (await assigned.json()) as {
+      data: { id: string }[];
+      statusCounts: { assigned: number };
+    };
     expect(assignedPayload.data.map(({ id }) => id)).toEqual(["dossier-alpha-dgi"]);
     expect(assignedPayload.statusCounts.assigned).toBe(1);
 
     try {
       repository.assignDossier({
-        dossierId: "dossier-alpha-dgi", expectedVersion: 2, officerId: "another-dgi-officer",
+        dossierId: "dossier-alpha-dgi",
+        expectedVersion: 2,
+        officerId: "another-dgi-officer",
       });
       throw new Error("Expected a competing assignment to fail");
     } catch (error) {
@@ -148,13 +160,23 @@ describe("agency review workspace", () => {
   test("returns the review evidence, source passages, prerequisites and decision history", async () => {
     const repository = pendingRepository();
     const dossier = repository.dossier("dossier-alpha-dgi")!;
-    repository.addDossier({ ...dossier, lifecycleContext: {
-      correctionNodeIds: [],
-      prerequisites: { registration: {
-        obligationId: "registration", version: 2, status: "fulfilled", ruleVersionId: "rule-v2",
-        sourceRef: "registry-event-2", expiresAt: "2027-09-13T00:00:00.000Z", actions: ["submission_requested"],
-      } },
-    } });
+    repository.addDossier({
+      ...dossier,
+      lifecycleContext: {
+        correctionNodeIds: [],
+        prerequisites: {
+          registration: {
+            obligationId: "registration",
+            version: 2,
+            status: "fulfilled",
+            ruleVersionId: "rule-v2",
+            sourceRef: "registry-event-2",
+            expiresAt: "2027-09-13T00:00:00.000Z",
+            actions: ["submission_requested"],
+          },
+        },
+      },
+    });
     repository.addDecision({
       companyId: dossier.companyId,
       dossierId: dossier.id,
@@ -170,11 +192,11 @@ describe("agency review workspace", () => {
       createdAt: "2026-09-12T14:00:00.000Z",
     });
 
-    const response = await app(repository).handle(request(
-      "/dgi/dossiers/dossier-alpha-dgi", "demo-officer-dgi",
-    ));
+    const response = await app(repository).handle(
+      request("/dgi/dossiers/dossier-alpha-dgi", "demo-officer-dgi"),
+    );
     expect(response.status).toBe(200);
-    const payload = await response.json() as {
+    const payload = (await response.json()) as {
       documents: Record<string, unknown>[];
       findings: unknown[];
       sources: { passage: string }[];
@@ -186,10 +208,16 @@ describe("agency review workspace", () => {
     expect(payload.documents[0]).not.toHaveProperty("storageRef");
     expect(payload.findings).toHaveLength(1);
     expect(payload.sources[0]?.passage).toBeTruthy();
-    expect(payload.prerequisites).toContainEqual(expect.objectContaining({ obligationId: "registration", status: "fulfilled" }));
-    expect(payload.decisions).toContainEqual(expect.objectContaining({
-      actorId: "demo-officer-dgi", reason: "Replace the unreadable page", evidenceIds: ["document-alpha-dgi"],
-    }));
+    expect(payload.prerequisites).toContainEqual(
+      expect.objectContaining({ obligationId: "registration", status: "fulfilled" }),
+    );
+    expect(payload.decisions).toContainEqual(
+      expect.objectContaining({
+        actorId: "demo-officer-dgi",
+        reason: "Replace the unreadable page",
+        evidenceIds: ["document-alpha-dgi"],
+      }),
+    );
   });
 
   test("validates and hands an auditable decision to the durable lifecycle", async () => {
@@ -201,9 +229,11 @@ describe("agency review workspace", () => {
       return dispatch(input);
     };
     const server = app(repository);
-    await server.handle(request("/dgi/dossiers/dossier-alpha-dgi/assignment", "demo-officer-dgi", "POST", {
-      expectedVersion: 1,
-    }));
+    await server.handle(
+      request("/dgi/dossiers/dossier-alpha-dgi/assignment", "demo-officer-dgi", "POST", {
+        expectedVersion: 1,
+      }),
+    );
     const decision = {
       expectedVersion: 2,
       idempotencyKey: "decision-alpha-1",
@@ -215,11 +245,11 @@ describe("agency review workspace", () => {
       evidenceIds: ["document-alpha-dgi"],
     };
 
-    const accepted = await server.handle(request(
-      "/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST", decision,
-    ));
+    const accepted = await server.handle(
+      request("/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST", decision),
+    );
     expect(accepted.status).toBe(202);
-    const first = await accepted.json() as { commandId: string; status: string };
+    const first = (await accepted.json()) as { commandId: string; status: string };
     expect(first.status).toBe("accepted");
     expect(dispatched).toMatchObject({
       dossierId: "dossier-alpha-dgi",
@@ -234,15 +264,17 @@ describe("agency review workspace", () => {
       },
     });
 
-    const retry = await server.handle(request(
-      "/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST", decision,
-    ));
-    expect((await retry.json() as { commandId: string }).commandId).toBe(first.commandId);
+    const retry = await server.handle(
+      request("/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST", decision),
+    );
+    expect(((await retry.json()) as { commandId: string }).commandId).toBe(first.commandId);
 
-    const conflict = await server.handle(request(
-      "/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST",
-      { ...decision, reason: "A different reason" },
-    ));
+    const conflict = await server.handle(
+      request("/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST", {
+        ...decision,
+        reason: "A different reason",
+      }),
+    );
     expect(conflict.status).toBe(409);
     expect(await conflict.json()).toMatchObject({ error: { code: "idempotency_conflict" } });
   });
@@ -254,18 +286,15 @@ describe("agency review workspace", () => {
       expectedVersion: 1,
       officerId: "another-dgi-officer",
     });
-    const response = await app(repository).handle(genericRequest(
-      "/dossiers/dossier-alpha-dgi/commands",
-      "demo-officer-dgi",
-      "POST",
-      {
+    const response = await app(repository).handle(
+      genericRequest("/dossiers/dossier-alpha-dgi/commands", "demo-officer-dgi", "POST", {
         expectedVersion: 2,
         idempotencyKey: "bypass-attempt",
         type: "decision_recorded",
         nodeId: "node-alpha-dgi-human_review",
         decision: { action: "accept", reason: "Attempted bypass" },
-      },
-    ));
+      }),
+    );
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ error: { code: "dossier_not_assigned" } });
   });
@@ -282,22 +311,49 @@ describe("agency review workspace", () => {
       targetNodeIds: [],
       evidenceIds: ["document-alpha-dgi"],
     };
-    expect((await server.handle(request(
-      "/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST", base,
-    ))).status).toBe(409);
+    expect(
+      (
+        await server.handle(
+          request("/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST", base),
+        )
+      ).status,
+    ).toBe(409);
 
-    await server.handle(request("/dgi/dossiers/dossier-alpha-dgi/assignment", "demo-officer-dgi", "POST", {
-      expectedVersion: 1,
-    }));
-    expect((await server.handle(request(
-      "/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-rne", "POST", { ...base, expectedVersion: 2 },
-    ))).status).toBe(403);
-    expect((await server.handle(request(
-      "/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST",
-      { ...base, expectedVersion: 2, evidenceIds: ["document-alpha-rne"] },
-    ))).status).toBe(422);
-    expect((await server.handle(request(
-      "/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST", { ...base, expectedVersion: 1 },
-    ))).status).toBe(409);
+    await server.handle(
+      request("/dgi/dossiers/dossier-alpha-dgi/assignment", "demo-officer-dgi", "POST", {
+        expectedVersion: 1,
+      }),
+    );
+    expect(
+      (
+        await server.handle(
+          request("/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-rne", "POST", {
+            ...base,
+            expectedVersion: 2,
+          }),
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await server.handle(
+          request("/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST", {
+            ...base,
+            expectedVersion: 2,
+            evidenceIds: ["document-alpha-rne"],
+          }),
+        )
+      ).status,
+    ).toBe(422);
+    expect(
+      (
+        await server.handle(
+          request("/dgi/dossiers/dossier-alpha-dgi/decisions", "demo-officer-dgi", "POST", {
+            ...base,
+            expectedVersion: 1,
+          }),
+        )
+      ).status,
+    ).toBe(409);
   });
 });

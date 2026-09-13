@@ -12,6 +12,7 @@ import { Separator } from '@hack4justice/ui/components/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@hack4justice/ui/components/sidebar'
 import { Skeleton } from '@hack4justice/ui/components/skeleton'
 import { LanguageSwitcher } from '#/components/language-switcher'
+import { NotificationsPopover } from '#/components/notifications/notifications-popover'
 import { ProjectSidebar } from '#/components/projects/project-sidebar'
 import { ThemeToggle } from '#/components/theme-toggle'
 import { toLocaleParam, useI18n } from '#/i18n'
@@ -44,7 +45,7 @@ function ProjectWorkspace() {
   return (
     <SidebarProvider style={{ '--sidebar-width': '19rem' } as React.CSSProperties}>
       {project.data ? <ProjectSidebar project={project.data} session={session} /> : null}
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <header className="flex h-16 shrink-0 items-center gap-2 px-4">
           <SidebarTrigger className="-ms-1" aria-label={t('projects.sidebar.toggle')} />
           <Separator orientation="vertical" className="me-2 data-vertical:h-4 data-vertical:self-auto" />
@@ -78,12 +79,13 @@ function ProjectWorkspace() {
             </BreadcrumbList>
           </Breadcrumb>
           <div className="ms-auto flex items-center gap-1">
+            <NotificationsPopover />
             <ThemeToggle />
             <LanguageSwitcher />
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col gap-6 p-4 pt-0 md:p-6 md:pt-0">
+        <div className="flex min-w-0 flex-1 flex-col gap-6 p-4 pt-0 md:p-6 md:pt-0">
           {project.isPending ? (
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-4">

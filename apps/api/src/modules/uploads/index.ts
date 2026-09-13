@@ -1,5 +1,5 @@
 import { project, upload, type NewUpload, type Upload } from "@hack4justice/db";
-import { AppError, UploadStatus } from "@hack4justice/shared";
+import { AppError, NotificationType, UploadStatus } from "@hack4justice/shared";
 import { and, desc, eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 
@@ -9,6 +9,7 @@ import { i18n } from "../../i18n/plugin";
 import { logger } from "../../logger";
 import { DeepSeekOcrError, documentTextExtractor } from "../../ocr/index";
 import { storage } from "../../storage";
+import { notify } from "../../notifications/inbox";
 
 const PDF_CONTENT_TYPE = "application/pdf";
 const PDF_MAGIC = "%PDF-";
@@ -140,19 +141,34 @@ async function extractInBackground(id: string, bytes: Uint8Array, languages?: st
       languages,
     });
     logger.info({ uploadId: id, method, pageCount }, "document text extracted");
-    await updateUpload(id, {
+    const row = await updateUpload(id, {
       status: UploadStatus.EXTRACTED,
       text,
       pageCount,
       extractedAt: new Date(),
       error: null,
     });
+    await notify({
+      userId: row.userId,
+      type: NotificationType.UPLOAD_EXTRACTED,
+      idempotencyKey: `upload:${row.id}:extracted:${row.extractedAt?.toISOString() ?? ""}`,
+      payload: { filename: row.filename },
+      projectId: row.projectId,
+    });
   } catch (cause) {
     const error = cause instanceof DeepSeekOcrError ? cause.message : "Text extraction failed";
     logger.error({ err: cause, uploadId: id }, "extraction failed");
-    await updateUpload(id, { status: UploadStatus.FAILED, error }).catch((err) =>
-      logger.error({ err, uploadId: id }, "could not persist extraction failure"),
-    );
+    await updateUpload(id, { status: UploadStatus.FAILED, error })
+      .then((row) =>
+        notify({
+          userId: row.userId,
+          type: NotificationType.UPLOAD_FAILED,
+          idempotencyKey: `upload:${row.id}:failed:${row.updatedAt.toISOString()}`,
+          payload: { filename: row.filename, error },
+          projectId: row.projectId,
+        }),
+      )
+      .catch((err) => logger.error({ err, uploadId: id }, "could not persist extraction failure"));
   }
 }
 

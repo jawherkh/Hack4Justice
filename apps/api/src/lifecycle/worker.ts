@@ -22,7 +22,10 @@ if (!url) throw new Error("Set DATABASE_URL before starting the worker");
 const address = process.env.TEMPORAL_ADDRESS || "127.0.0.1:7233";
 const namespace = process.env.TEMPORAL_NAMESPACE || "default";
 const taskQueue = process.env.TEMPORAL_TASK_QUEUE || DEFAULT_TASK_QUEUE;
-const repository = new PersistentRepository(url, new FileStore(process.env.DOCUMENT_STORAGE_DIR || ".local-data/documents"));
+const repository = new PersistentRepository(
+  url,
+  new FileStore(process.env.DOCUMENT_STORAGE_DIR || ".local-data/documents"),
+);
 const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 const turnStore = new PostgresJobStore(url);
 const agentActivities = geminiApiKey
@@ -30,9 +33,13 @@ const agentActivities = geminiApiKey
       model: createGeminiAgentModel({
         apiKey: geminiApiKey,
         model: process.env.AGENT_MODEL || process.env.GEMINI_LLM_MODEL || "gemini-2.5-flash",
-        baseURL: process.env.GEMINI_AGENT_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai/",
+        baseURL:
+          process.env.GEMINI_AGENT_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai/",
       }),
-      sandbox: { image: process.env.SANDBOX_IMAGE || "alpine:3.20", workspaceBaseDir: process.env.SANDBOX_BASE_DIR || ".local-data/agent-sandboxes" },
+      sandbox: {
+        image: process.env.SANDBOX_IMAGE || "alpine:3.20",
+        workspaceBaseDir: process.env.SANDBOX_BASE_DIR || ".local-data/agent-sandboxes",
+      },
       knowledge: createKnowledgeSearch(process.env.GRAPHITI_URL || "http://localhost:8010"),
       jobs: turnStore,
     })
@@ -52,11 +59,18 @@ const documents = createDocumentActivities(url, {
     async read({ documentId }) {
       const document = await repository.document(documentId);
       if (!document) throw new Error(`document ${documentId} not found`);
-      return { bytes: await repository.readContent(documentId), filename: document.filename, contentType: document.mimeType };
+      return {
+        bytes: await repository.readContent(documentId),
+        filename: document.filename,
+        contentType: document.mimeType,
+      };
     },
   },
 });
-const worker = await Worker.create({ connection: nativeConnection, namespace, taskQueue,
+const worker = await Worker.create({
+  connection: nativeConnection,
+  namespace,
+  taskQueue,
   workflowsPath: fileURLToPath(new URL("./workflows.ts", import.meta.url)),
   activities: {
     prepare: repository.prepare.bind(repository),
@@ -74,17 +88,31 @@ async function relay() {
     try {
       for (const reference of await repository.claimCommands()) {
         if (stopped) break;
-        await client.workflow.signalWithStart(WORKFLOW_TYPE, { workflowId: `dossier/${reference.dossierId}`,
-          taskQueue, args: [reference.dossierId], signal: COMMAND_SIGNAL, signalArgs: [reference] });
+        await client.workflow.signalWithStart(WORKFLOW_TYPE, {
+          workflowId: `dossier/${reference.dossierId}`,
+          taskQueue,
+          args: [reference.dossierId],
+          signal: COMMAND_SIGNAL,
+          signalArgs: [reference],
+        });
       }
-    } catch { console.error("Command delivery unavailable; persisted requests will be retried."); }
+    } catch {
+      console.error("Command delivery unavailable; persisted requests will be retried.");
+    }
     await setTimeout(1000);
   }
 }
 const delivery = relay();
-try { await worker.run(); }
-finally {
+try {
+  await worker.run();
+} finally {
   stopped = true;
   await delivery;
-  await Promise.all([connection.close(), nativeConnection.close(), repository.close(), documents.close(), turnStore.close()]);
+  await Promise.all([
+    connection.close(),
+    nativeConnection.close(),
+    repository.close(),
+    documents.close(),
+    turnStore.close(),
+  ]);
 }

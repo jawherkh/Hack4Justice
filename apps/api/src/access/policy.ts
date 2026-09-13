@@ -37,7 +37,9 @@ export class AccessError extends AppError {
 }
 
 const officerRoles: Record<Agency, Role> = {
-  DGI: "dgi_officer", RNE: "rne_officer", APII: "apii_officer",
+  DGI: "dgi_officer",
+  RNE: "rne_officer",
+  APII: "apii_officer",
 };
 
 export const isMember = (principal: Principal, companyId: string): boolean =>
@@ -59,18 +61,31 @@ export const canMaintainRules = (principal: Principal): boolean =>
   principal.roles.includes("rule_maintainer");
 
 export function canReadDocument(
-  principal: Principal, scope: ResourceScope, documentId: string,
-  grants: readonly DocumentGrant[], now: number,
+  principal: Principal,
+  scope: ResourceScope,
+  documentId: string,
+  grants: readonly DocumentGrant[],
+  now: number,
 ): boolean {
-  return canReadDossier(principal, scope) || grants.some((grant) =>
-    grant.principalId === principal.id && grant.companyId === scope.companyId &&
-    grant.documentId === documentId && Number.isFinite(grant.expiresAt) && grant.expiresAt > now,
+  return (
+    canReadDossier(principal, scope) ||
+    grants.some(
+      (grant) =>
+        grant.principalId === principal.id &&
+        grant.companyId === scope.companyId &&
+        grant.documentId === documentId &&
+        Number.isFinite(grant.expiresAt) &&
+        grant.expiresAt > now,
+    )
   );
 }
 
 export function canReadDependency(principal: Principal, scope: DependencyScope): boolean {
-  return isMember(principal, scope.companyId) || isOfficer(principal, scope.agency) ||
-    scope.consumerAgencies.some((agency) => isOfficer(principal, agency));
+  return (
+    isMember(principal, scope.companyId) ||
+    isOfficer(principal, scope.agency) ||
+    scope.consumerAgencies.some((agency) => isOfficer(principal, agency))
+  );
 }
 
 export function requireAccess(allowed: boolean): void {

@@ -6,6 +6,7 @@ import type { MessageKey } from '#/i18n'
 export const serviceName = (id: string) => `procedure.service.${id}.name` as MessageKey
 export const serviceSummary = (id: string) => `procedure.service.${id}.summary` as MessageKey
 export const requirementLabel = (id: string) => `procedure.requirement.${id}` as MessageKey
+export const requirementHint = (id: string) => `procedure.requirement.${id}.hint` as MessageKey
 export const submissionModeLabel = (mode: string) => `procedure.mode.${mode}` as MessageKey
 export const stepTitle = (step: ProcedureStep) => `procedure.step.${step}.title` as MessageKey
 export const stepDescription = (step: ProcedureStep) => `procedure.step.${step}.description` as MessageKey

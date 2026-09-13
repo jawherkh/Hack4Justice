@@ -8,7 +8,8 @@
     "dev": "echo \"shared is source-only\" && exit 0",
     "lint": "eslint .",
     "check-types": "tsc --noEmit",
-    "test": "echo \"no tests yet\" && exit 0"
+    "test": "echo \"no tests yet\" && exit 0",
+    "procedures:generate": "python3 scripts/generate-procedures.py"
   },
   "dependencies": {
     "zod": "^4.6.2"
