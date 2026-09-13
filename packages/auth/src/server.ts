@@ -10,7 +10,7 @@ export interface CreateAuthOptions {
   /** Random 32+ char string. Generate with `openssl rand -base64 32`. */
   secret: string;
   /** Origins allowed to call auth endpoints with cookies, e.g. the web app. */
-  trustedOrigins?: string[];
+  trustedOrigins?: string[] | ((request?: Request) => string[]);
   /** Delivers the password-reset link. Without it, "forgot password" is disabled. */
   sendResetPassword?: (input: ResetPasswordEmail) => Promise<void>;
   /** Per-IP rate limiting on auth endpoints. Defaults to enabled. Disable for tests. */

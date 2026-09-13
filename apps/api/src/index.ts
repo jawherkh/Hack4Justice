@@ -13,6 +13,7 @@ import { backofficeModule } from "./modules/backoffice/index";
 import { v1 } from "./v1/index";
 
 const PORT = env.PORT;
+const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 // Leave room for multipart boundaries and form fields around the 25 MB file limit.
 const MAX_UPLOAD_REQUEST_BYTES = 26 * 1024 * 1024;
 
@@ -21,7 +22,8 @@ const app = new Elysia({ adapter: node() })
   .use(requestLogger)
   .use(
     cors({
-      origin: [env.WEB_ORIGIN, env.ADMIN_ORIGIN],
+      // Development: any localhost port, so vite falling back to another port keeps working.
+      origin: env.NODE_ENV === "production" ? [env.WEB_ORIGIN, env.ADMIN_ORIGIN] : LOCALHOST_ORIGIN,
       credentials: true,
       allowedHeaders: [
         "Content-Type",

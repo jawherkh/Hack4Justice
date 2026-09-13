@@ -5,12 +5,13 @@ import { Elysia } from "elysia";
 import { db } from "./db";
 import { env } from "./env";
 import { sendMail } from "./mail";
+import { trustedOrigins } from "./trusted-origins";
 
 export const auth = createAuth({
   db,
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
-  trustedOrigins: [env.WEB_ORIGIN],
+  trustedOrigins: trustedOrigins([env.WEB_ORIGIN]),
   rateLimit: { enabled: env.NODE_ENV !== "test" },
   sendResetPassword: ({ to, url }) =>
     sendMail({

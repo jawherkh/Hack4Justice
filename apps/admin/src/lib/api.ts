@@ -27,4 +27,3 @@ export function unwrap<T>(result: { data: T; error: unknown }, fallbackMessage: 
   }
   return result.data as NonNullable<T>
 }
-

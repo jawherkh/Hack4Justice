@@ -4,6 +4,7 @@ import { Elysia } from "elysia";
 
 import { db } from "./db";
 import { env } from "./env";
+import { trustedOrigins } from "./trusted-origins";
 
 if (!env.ADMIN_AUTH_SECRET && env.NODE_ENV === "production") {
   throw new Error("ADMIN_AUTH_SECRET is required in production");
@@ -13,7 +14,7 @@ export const adminAuth = createAdminAuth({
   db,
   baseURL: env.BETTER_AUTH_URL,
   secret: env.ADMIN_AUTH_SECRET ?? `${env.BETTER_AUTH_SECRET}:admin`,
-  trustedOrigins: [env.ADMIN_ORIGIN],
+  trustedOrigins: trustedOrigins([env.ADMIN_ORIGIN]),
   rateLimit: { enabled: env.NODE_ENV !== "test" },
 });
 

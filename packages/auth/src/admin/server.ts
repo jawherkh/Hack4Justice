@@ -13,7 +13,7 @@ export interface CreateAdminAuthOptions {
   /** Random 32+ char string. Keep it different from the end-user auth secret. */
   secret: string;
   /** Origins allowed to call admin auth endpoints with cookies, e.g. the admin app. */
-  trustedOrigins?: string[];
+  trustedOrigins?: string[] | ((request?: Request) => string[]);
   rateLimit?: { enabled: boolean };
 }
 
