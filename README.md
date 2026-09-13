@@ -6,10 +6,6 @@
   </p>
 
   <p>
-    <a href="#arabic"><img alt="Read in Arabic" src="https://img.shields.io/badge/%D8%A7%D9%84%D8%B9%D8%B1%D8%A8%D9%8A%D8%A9-C2410C?style=for-the-badge&logo=googletranslate&logoColor=white" /></a>
-  </p>
-
-  <p>
     <a href="https://github.com/Goodnight77/Hack4Justice/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/Goodnight77/Hack4Justice/actions/workflows/ci.yml/badge.svg" /></a>
     <img alt="Node.js 22+" src="https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white" />
     <img alt="pnpm 11" src="https://img.shields.io/badge/pnpm-11-F69220?logo=pnpm&logoColor=white" />
