@@ -32,5 +32,7 @@
   "storage_not_initialized": "Storage is not initialized",
   "workflow_not_configured": "Workflow is not configured",
   "extraction_in_progress": "An extraction is already running for this upload",
-  "project_not_found": "Project not found"
+  "project_not_found": "Project not found",
+  "requirement_not_found": "Requirement not found",
+  "project_not_ready": "The checklist is not complete yet"
 }

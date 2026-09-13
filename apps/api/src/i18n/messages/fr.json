@@ -32,5 +32,7 @@
   "storage_not_initialized": "Le stockage n'est pas initialisé",
   "workflow_not_configured": "Le flux de travail n'est pas configuré",
   "extraction_in_progress": "Une extraction est déjà en cours pour ce document",
-  "project_not_found": "Projet introuvable"
+  "project_not_found": "Projet introuvable",
+  "requirement_not_found": "Exigence introuvable",
+  "project_not_ready": "La liste des pièces n’est pas encore complète"
 }
