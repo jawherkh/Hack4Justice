@@ -471,5 +471,12 @@
   "nav.notifications": "Notifications",
   "procedure.requirement.dropHere": "Drop a PDF to attach it",
   "procedure.requirement.uploading": "Uploading…",
-  "procedure.explorer.dropHere": "Drop a PDF to add it to the project"
+  "procedure.explorer.dropHere": "Drop a PDF to add it to the project",
+  "uploads.drop.titleMulti": "Drop PDFs here, or click to choose",
+  "uploads.drop.hintMulti": "Several files at once, 25 MB each",
+  "uploads.queue.uploading": "Uploading…",
+  "uploads.queue.done": "Uploaded",
+  "uploads.queue.failed": "Failed",
+  "uploads.queue.clear": "Clear",
+  "procedure.explorer.download": "Download"
 }

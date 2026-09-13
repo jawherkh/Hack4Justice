@@ -4,9 +4,12 @@ import { MAX_UPLOAD_BYTES } from '#/lib/uploads'
 export type FileDropError = 'notPdf' | 'tooLarge'
 
 interface UseFileDropOptions {
+  /** Called once per accepted file. */
   onFile: (file: File) => void
   onError?: (error: FileDropError) => void
   disabled?: boolean
+  /** Accept every dropped file instead of the first one. */
+  multiple?: boolean
 }
 
 export function isPdf(file: File): boolean {
@@ -17,7 +20,21 @@ export function isPdf(file: File): boolean {
  * Drag-and-drop handlers for a single PDF. `dragging` is true while a file
  * hovers the element, so callers can highlight the drop target.
  */
-export function useFileDrop({ onFile, onError, disabled = false }: UseFileDropOptions) {
+export function acceptFiles(
+  list: ArrayLike<File>,
+  multiple: boolean,
+  onFile: (file: File) => void,
+  onError?: (error: FileDropError) => void,
+) {
+  const files = multiple ? Array.from(list) : Array.from(list).slice(0, 1)
+  for (const file of files) {
+    if (!isPdf(file)) onError?.('notPdf')
+    else if (file.size > MAX_UPLOAD_BYTES) onError?.('tooLarge')
+    else onFile(file)
+  }
+}
+
+export function useFileDrop({ onFile, onError, disabled = false, multiple = false }: UseFileDropOptions) {
   const [dragging, setDragging] = React.useState(false)
   // Nested children fire enter/leave pairs; count them so the highlight does not flicker.
   const depth = React.useRef(0)
@@ -48,11 +65,7 @@ export function useFileDrop({ onFile, onError, disabled = false }: UseFileDropOp
         onDrop: (event: React.DragEvent) => {
           event.preventDefault()
           reset()
-          const file = event.dataTransfer.files[0]
-          if (!file) return
-          if (!isPdf(file)) return onError?.('notPdf')
-          if (file.size > MAX_UPLOAD_BYTES) return onError?.('tooLarge')
-          onFile(file)
+          acceptFiles(event.dataTransfer.files, multiple, onFile, onError)
         },
       }
 

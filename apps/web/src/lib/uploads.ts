@@ -34,6 +34,18 @@ export async function retryExtraction(input: { id: string; languages?: OcrLangua
   )
 }
 
+/** Fetches a fresh presigned URL and triggers the browser download. */
+export async function downloadUpload(id: string) {
+  const upload = await getUpload(id)
+  const anchor = document.createElement('a')
+  anchor.href = upload.downloadUrl
+  anchor.download = upload.filename
+  anchor.rel = 'noopener'
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+}
+
 /** Poll while an upload is still being processed. */
 export function pollingInterval(statuses: string[]): number | false {
   return statuses.includes('PROCESSING') ? 2000 : false

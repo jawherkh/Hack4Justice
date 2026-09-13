@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { REQUIREMENTS } from '@hack4justice/shared'
 import {
+  Download,
   ExternalLink,
   FileText,
   Folder,
@@ -14,13 +15,6 @@ import {
 } from 'lucide-react'
 import { Badge } from '@hack4justice/ui/components/badge'
 import { Button } from '@hack4justice/ui/components/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@hack4justice/ui/components/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,14 +35,15 @@ import {
 import { Skeleton } from '@hack4justice/ui/components/skeleton'
 import { toast } from '@hack4justice/ui/components/toast'
 import { cn } from '@hack4justice/ui/lib/utils'
-import { UploadDropzone } from '#/components/uploads/upload-dropzone'
+import { MultiUploadDropzone } from '#/components/uploads/multi-upload-dropzone'
 import { useFileDrop } from '#/components/uploads/use-file-drop'
+import { useUploadQueue } from '#/components/uploads/use-upload-queue'
 import { UploadStatusBadge } from '#/components/uploads/upload-status-badge'
 import { toLocaleParam, useI18n } from '#/i18n'
 import { ApiError } from '#/lib/api-error'
 import { formatBytes, formatRelative } from '#/lib/format'
 import { listProjectUploads, projectKeys, updateRequirement, type ProjectDetail } from '#/lib/projects'
-import { pollingInterval, uploadPdf } from '#/lib/uploads'
+import { downloadUpload, pollingInterval, type OcrLanguages } from '#/lib/uploads'
 import { requirementLabel } from './labels'
 
 const ALL = '__all__'
@@ -59,7 +54,7 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
   const { t, locale } = useI18n()
   const queryClient = useQueryClient()
   const [folder, setFolder] = React.useState<string>(ALL)
-  const [uploading, setUploading] = React.useState(false)
+  const [languages, setLanguages] = React.useState<OcrLanguages>('fra+eng')
 
   const uploads = useQuery({
     queryKey: projectKeys.uploads(project.id),
@@ -82,12 +77,9 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
       }),
   })
 
-  const dropUpload = useMutation({
-    mutationFn: (file: File) => uploadPdf({ file, languages: 'fra+eng', projectId: project.id }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: projectKeys.uploads(project.id) })
-      toast.add({ type: 'success', title: t('procedure.explorer.uploaded') })
-    },
+  const queue = useUploadQueue({ projectId: project.id, languages })
+  const download = useMutation({
+    mutationFn: downloadUpload,
     onError: (err) =>
       toast.add({
         type: 'error',
@@ -95,15 +87,24 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
         description: err instanceof ApiError ? err.message : t('auth.error.generic'),
       }),
   })
+  const dropped: File[] = []
   const drop = useFileDrop({
-    onFile: (file) => dropUpload.mutate(file),
+    multiple: true,
+    onFile: (file) => dropped.push(file),
     onError: (error) =>
       toast.add({
         type: 'error',
         title: t(error === 'notPdf' ? 'uploads.drop.notPdf' : 'uploads.drop.tooLarge'),
       }),
-    disabled: dropUpload.isPending,
   })
+  const sectionHandlers = {
+    ...drop.handlers,
+    onDrop: (event: React.DragEvent) => {
+      dropped.length = 0
+      drop.handlers.onDrop?.(event)
+      if (dropped.length) queue.add([...dropped])
+    },
+  }
 
   const documentRequirements = project.requirements.filter(
     (r) => REQUIREMENTS[r.requirementId]?.type === 'document',
@@ -155,7 +156,7 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
       </nav>
 
       <section
-        {...drop.handlers}
+        {...sectionHandlers}
         className={cn(
           'relative flex min-w-0 flex-col gap-3 rounded-xl transition-colors',
           drop.dragging && 'ring-2 ring-primary ring-offset-4 ring-offset-background',
@@ -167,15 +168,17 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
             {t('procedure.explorer.dropHere')}
           </div>
         ) : null}
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            {t('procedure.explorer.files', { count: visible.length })}
-          </p>
-          <Button onClick={() => setUploading(true)}>
-            <Upload data-icon="inline-start" />
-            {t('procedure.explorer.upload')}
-          </Button>
-        </div>
+        <MultiUploadDropzone
+          items={queue.items}
+          onFiles={queue.add}
+          onClear={queue.clear}
+          languages={languages}
+          onLanguagesChange={setLanguages}
+        />
+
+        <p className="text-sm text-muted-foreground">
+          {t('procedure.explorer.files', { count: visible.length })}
+        </p>
 
         {uploads.isPending ? (
           <div className="flex flex-col gap-2">
@@ -227,6 +230,16 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
                   </div>
                   <UploadStatusBadge status={file.status} />
                   {linkedTo ? <Badge variant="secondary">{t('procedure.explorer.linked')}</Badge> : null}
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('procedure.explorer.download')}
+                    title={t('procedure.explorer.download')}
+                    disabled={download.isPending}
+                    onClick={() => download.mutate(file.id)}
+                  >
+                    <Download />
+                  </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       render={
@@ -246,6 +259,10 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
                       >
                         <ExternalLink />
                         {t('procedure.explorer.open')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => download.mutate(file.id)}>
+                        <Download />
+                        {t('procedure.explorer.download')}
                       </DropdownMenuItem>
                       {documentRequirements.length > 0 ? (
                         <DropdownMenuSub>
@@ -287,22 +304,6 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
           </ul>
         )}
       </section>
-
-      <Dialog open={uploading} onOpenChange={setUploading}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{t('procedure.explorer.upload.title')}</DialogTitle>
-            <DialogDescription>{t('procedure.explorer.upload.description')}</DialogDescription>
-          </DialogHeader>
-          <UploadDropzone
-            projectId={project.id}
-            onUploaded={() => {
-              toast.add({ type: 'success', title: t('procedure.explorer.uploaded') })
-              setUploading(false)
-            }}
-          />
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { REQUIREMENTS, RequirementStatus } from '@hack4justice/shared'
-import { Paperclip, X } from 'lucide-react'
+import { Download, Paperclip, Upload, X } from 'lucide-react'
 import { Button } from '@hack4justice/ui/components/button'
 import { Checkbox } from '@hack4justice/ui/components/checkbox'
 import { Field, FieldDescription, FieldLabel } from '@hack4justice/ui/components/field'
@@ -23,14 +23,18 @@ import {
 import { Spinner } from '@hack4justice/ui/components/spinner'
 import { Textarea } from '@hack4justice/ui/components/textarea'
 import { toast } from '@hack4justice/ui/components/toast'
+import { cn } from '@hack4justice/ui/lib/utils'
 import { UploadDropzone } from '#/components/uploads/upload-dropzone'
+import { useFileDrop } from '#/components/uploads/use-file-drop'
 import { UploadStatusBadge } from '#/components/uploads/upload-status-badge'
 import { useI18n } from '#/i18n'
+import { downloadUpload } from '#/lib/uploads'
 import { ApiError } from '#/lib/api-error'
 import {
   listProjectUploads,
   projectKeys,
   updateRequirement,
+  uploadAndAttach,
   type ProjectRequirementView,
   type RequirementPatch,
 } from '#/lib/projects'
@@ -50,13 +54,11 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
   const def = requirement ? REQUIREMENTS[requirement.requirementId] : undefined
   const [details, setDetails] = React.useState('')
   const [note, setNote] = React.useState('')
-  const [showUpload, setShowUpload] = React.useState(false)
 
   // Reset the local form each time another requirement is opened.
   React.useEffect(() => {
     setDetails(requirement?.value?.['details'] ?? '')
     setNote(requirement?.note ?? '')
-    setShowUpload(false)
   }, [requirement?.id, requirement?.value, requirement?.note])
 
   const uploads = useQuery({
@@ -78,6 +80,29 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
         title: t('procedure.requirement.error'),
         description: err instanceof ApiError ? err.message : t('auth.error.generic'),
       }),
+  })
+  const attach = useMutation({
+    mutationFn: (file: File) => uploadAndAttach(projectId, requirement!.requirementId, file),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) })
+      void queryClient.invalidateQueries({ queryKey: projectKeys.uploads(projectId) })
+      toast.add({ type: 'success', title: t('procedure.requirement.saved') })
+    },
+    onError: (err) =>
+      toast.add({
+        type: 'error',
+        title: t('procedure.requirement.error'),
+        description: err instanceof ApiError ? err.message : t('auth.error.generic'),
+      }),
+  })
+  const drop = useFileDrop({
+    onFile: (file) => attach.mutate(file),
+    onError: (error) =>
+      toast.add({
+        type: 'error',
+        title: t(error === 'notPdf' ? 'uploads.drop.notPdf' : 'uploads.drop.tooLarge'),
+      }),
+    disabled: def?.type !== 'document' || attach.isPending,
   })
 
   if (!requirement || !def) {
@@ -114,7 +139,21 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
 
         <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
           {def.type === 'document' ? (
-            <div className="flex flex-col gap-4">
+            <div
+              {...drop.handlers}
+              className={cn(
+                'flex flex-col gap-4 rounded-lg transition-colors',
+                drop.dragging && '-m-2 border border-dashed border-primary bg-primary/5 p-2',
+              )}
+            >
+              {drop.dragging || attach.isPending ? (
+                <p className="flex items-center gap-2 text-sm text-primary">
+                  <Upload className="size-4" />
+                  {attach.isPending
+                    ? t('procedure.requirement.uploading')
+                    : t('procedure.requirement.dropHere')}
+                </p>
+              ) : null}
               <Field>
                 <FieldLabel>{t('procedure.requirement.file')}</FieldLabel>
                 {requirement.upload ? (
@@ -124,6 +163,15 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
                       {requirement.upload.filename}
                     </span>
                     <UploadStatusBadge status={requirement.upload.status} />
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={t('procedure.explorer.download')}
+                      title={t('procedure.explorer.download')}
+                      onClick={() => void downloadUpload(requirement.upload!.id)}
+                    >
+                      <Download />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon-xs"
@@ -155,21 +203,12 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
                   <FieldDescription>{t('procedure.requirement.noFiles')}</FieldDescription>
                 )}
               </Field>
-              {showUpload ? (
+              {!requirement.upload ? (
                 <UploadDropzone
                   projectId={projectId}
                   onUploaded={(file) => update.mutate({ uploadId: file.id })}
                 />
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="self-start"
-                  onClick={() => setShowUpload(true)}
-                >
-                  {t('procedure.requirement.uploadNew')}
-                </Button>
-              )}
+              ) : null}
             </div>
           ) : null}
 

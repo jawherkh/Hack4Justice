@@ -471,5 +471,12 @@
   "nav.notifications": "الإشعارات",
   "procedure.requirement.dropHere": "أفلت ملف PDF لإرفاقه",
   "procedure.requirement.uploading": "جارٍ الاستيراد…",
-  "procedure.explorer.dropHere": "أفلت ملف PDF لإضافته إلى المشروع"
+  "procedure.explorer.dropHere": "أفلت ملف PDF لإضافته إلى المشروع",
+  "uploads.drop.titleMulti": "أفلت ملفات PDF هنا أو انقر للاختيار",
+  "uploads.drop.hintMulti": "عدة ملفات دفعة واحدة، 25 م.ب لكل ملف",
+  "uploads.queue.uploading": "جارٍ الاستيراد…",
+  "uploads.queue.done": "تم الاستيراد",
+  "uploads.queue.failed": "فشل",
+  "uploads.queue.clear": "مسح",
+  "procedure.explorer.download": "تنزيل"
 }

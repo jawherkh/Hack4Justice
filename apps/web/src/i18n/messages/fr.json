@@ -471,5 +471,12 @@
   "nav.notifications": "Notifications",
   "procedure.requirement.dropHere": "Déposez un PDF pour le joindre",
   "procedure.requirement.uploading": "Import en cours…",
-  "procedure.explorer.dropHere": "Déposez un PDF pour l’ajouter au projet"
+  "procedure.explorer.dropHere": "Déposez un PDF pour l’ajouter au projet",
+  "uploads.drop.titleMulti": "Déposez des PDF ici, ou cliquez pour choisir",
+  "uploads.drop.hintMulti": "Plusieurs fichiers à la fois, 25 Mo chacun",
+  "uploads.queue.uploading": "Import en cours…",
+  "uploads.queue.done": "Importé",
+  "uploads.queue.failed": "Échec",
+  "uploads.queue.clear": "Effacer",
+  "procedure.explorer.download": "Télécharger"
 }
