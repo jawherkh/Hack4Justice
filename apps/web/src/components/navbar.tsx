@@ -35,6 +35,11 @@ export function Navbar() {
                   {t('nav.uploads')}
                 </Link>
               </li>
+              <li>
+                <Link to="/{-$locale}/alerts" params={params} className={navLinkClass}>
+                  {t('nav.alerts')}
+                </Link>
+              </li>
             </>
           ) : (
             <li>

@@ -6,6 +6,8 @@ const id = '0b3f6b2e-6d1a-4e8e-9c1f-3a2b1c4d5e6f'
 describe('parseFileRef', () => {
   it('maps staged document paths to the upload', () => {
     expect(parseFileRef(`input/documents/${id}.txt`)).toEqual({ kind: 'document', uploadId: id })
+    expect(parseFileRef(`input/documents/${id}.md`)).toEqual({ kind: 'document', uploadId: id })
+    expect(parseFileRef(`/work/input/documents/${id}.md`)).toEqual({ kind: 'document', uploadId: id })
     expect(parseFileRef(`/work/input/documents/${id}.txt`)).toEqual({ kind: 'document', uploadId: id })
     expect(parseFileRef(`input/documents/${id.toUpperCase()}`)).toEqual({ kind: 'document', uploadId: id })
   })

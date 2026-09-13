@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 
 import { authModule } from "../modules/auth/index";
 import { profileModule } from "../modules/profile/index";
+import { alertsModule } from "../modules/alerts/index";
 import { uploadsModule } from "../modules/uploads/index";
 import { projectsModule } from "../modules/projects/index";
 import { notificationsModule } from "../modules/notifications/index";
@@ -56,6 +57,7 @@ const resolvePrincipal = createDemoIdentity(env.DEMO_ACCESS_ENABLED, env.NODE_EN
 export const v1 = new Elysia({ prefix: "/api/v1" })
   .use(authModule)
   .use(profileModule)
+  .use(alertsModule)
   .use(uploadsModule)
   .use(projectsModule)
   .use(createCopilotModule(copilotService))

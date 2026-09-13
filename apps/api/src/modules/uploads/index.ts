@@ -7,7 +7,7 @@ import { authGuard } from "../../auth";
 import { db } from "../../db";
 import { i18n } from "../../i18n/plugin";
 import { logger } from "../../logger";
-import { DeepSeekOcrError, documentTextExtractor } from "../../ocr/index";
+import { DeepSeekOcrError, PdfError, documentTextExtractor } from "../../ocr/index";
 import { storage } from "../../storage";
 import { notify } from "../../notifications/inbox";
 
@@ -156,7 +156,7 @@ async function extractInBackground(id: string, bytes: Uint8Array, languages?: st
       projectId: row.projectId,
     });
   } catch (cause) {
-    const error = cause instanceof DeepSeekOcrError ? cause.message : "Text extraction failed";
+    const error = extractionErrorMessage(cause);
     logger.error({ err: cause, uploadId: id }, "extraction failed");
     await updateUpload(id, { status: UploadStatus.FAILED, error })
       .then((row) =>
@@ -170,6 +170,25 @@ async function extractInBackground(id: string, bytes: Uint8Array, languages?: st
       )
       .catch((err) => logger.error({ err, uploadId: id }, "could not persist extraction failure"));
   }
+}
+
+/** Short, user-facing reason stored on the row; the full cause is only logged. */
+function extractionErrorMessage(cause: unknown): string {
+  if (cause instanceof DeepSeekOcrError) return cause.message;
+  if (cause instanceof PdfError) {
+    switch (cause.code) {
+      case "pdf_tools_unavailable":
+        return "PDF tools (Poppler) are not installed on the server";
+      case "pdf_page_limit":
+        return "The PDF has too many pages";
+      default:
+        return "The PDF could not be read";
+    }
+  }
+  if (cause instanceof Error && cause.message.startsWith("no_text_extracted")) {
+    return "No readable text was found in the document";
+  }
+  return "Text extraction failed";
 }
 
 async function updateUpload(id: string, values: Partial<NewUpload>): Promise<Upload> {
