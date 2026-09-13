@@ -133,6 +133,54 @@ def test_ingestion_passes_provenance_ontology_and_group_id():
     asyncio.run(run())
 
 
+def test_ingestion_writes_the_exact_chonkie_chunks_as_episodes():
+    async def run():
+        fake = FakeGraphiti()
+        settings = GraphitiSettings(
+            gemini_api_key="test-key",
+            max_text_chars=72,
+            chunk_overlap_chars=12,
+        )
+        service = GraphitiKnowledgeService(settings, client_factory=lambda: fake)
+        document = LegalDocument(
+            document_id="multilingual-source",
+            title="Multilingual legal source",
+            text=(
+                "Article premier. Les recettes fiscales sont déclarées chaque année. "
+                "الفصل الثاني. يجب إيداع التصريح قبل الأجل القانوني. "
+                "Article trois. La quittance accompagne le dossier administratif."
+            ),
+            source_uri="https://example.gov.tn/multilingual-source",
+            retrieved_at=datetime.now(timezone.utc),
+            language="fra+ara",
+        )
+        expected_chunks = chunk_document(
+            document.text,
+            max_chars=settings.max_text_chars,
+            overlap_chars=settings.chunk_overlap_chars,
+        )
+
+        response = await service.ingest_document(AgencyScope.from_header("DGI"), document)
+
+        assert len(expected_chunks) > 1
+        assert len(fake.added) == len(expected_chunks) == len(response.episodes)
+        for index, (chunk, call, episode) in enumerate(
+            zip(expected_chunks, fake.added, response.episodes, strict=True)
+        ):
+            assert call["name"] == f"{document.title} [{index + 1}/{len(expected_chunks)}]"
+            assert call["episode_body"].endswith("LEGAL SOURCE PASSAGE\n" + chunk.text)
+            assert f"chunk_start_index: {chunk.start_index}" in call["episode_body"]
+            assert f"chunk_end_index: {chunk.end_index}" in call["episode_body"]
+            assert f"chunk_token_count: {chunk.token_count}" in call["episode_body"]
+            assert episode.chunk_index == index
+            assert episode.chunk_count == len(expected_chunks)
+            assert episode.start_index == chunk.start_index
+            assert episode.end_index == chunk.end_index
+            assert episode.token_count == chunk.token_count
+
+    asyncio.run(run())
+
+
 def test_ingestion_retries_transient_episode_failures_with_exponential_backoff():
     async def run():
         fake = FakeGraphiti()
