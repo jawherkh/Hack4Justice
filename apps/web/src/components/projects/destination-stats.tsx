@@ -81,7 +81,7 @@ function StatCard({
       onClick={onSelect}
       className={cn(
         'group/stat relative flex items-center gap-4 rounded-xl border bg-card px-4 py-3.5 text-start transition-all outline-none',
-        'hover:border-foreground/20 hover:shadow-sm focus-visible:ring-3 focus-visible:ring-ring/50',
+        'hover:border-foreground/20 focus-visible:ring-3 focus-visible:ring-ring/50',
         selected ? 'border-primary shadow-sm ring-1 ring-primary' : 'border-border',
       )}
     >

@@ -27,7 +27,7 @@ export function ProjectCard({ project, query = '' }: ProjectCardProps) {
       data-testid="project-card"
       className={cn(
         'group/card relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-xs',
-        'focus-within:ring-2 focus-within:ring-ring hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-md',
+        'focus-within:ring-2 focus-within:ring-ring hover:border-foreground/20',
       )}
     >
       {/* Agency band: the destination is the first thing you read. */}
