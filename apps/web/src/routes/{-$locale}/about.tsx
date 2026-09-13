@@ -29,7 +29,7 @@ const CONTRIBUTORS = [
   { name: 'Mohamed Arbi', email: 'mohammedarbinsibi@gmail.com', github: 'Goodnight77' },
   { name: 'Jawher Khalifa', email: 'jawherkhalifa@drugit.live', github: 'jawherkh' },
   { name: 'Mouayed Chouaieb', email: 'mouayed.chaieb@gmail.com', github: 'mwking0' },
-  { name: 'Aziz Elyef', email: 'aziz.elhyf@gmail.com' },
+  { name: 'Mohamed Aziz Elhif', email: 'aziz.elhyf@gmail.com' },
 ] as const
 
 function initials(name: string) {

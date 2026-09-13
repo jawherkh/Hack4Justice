@@ -22,7 +22,6 @@ import { SubmitDialog } from '#/components/procedure/submit-dialog'
 import { ProcedureStatusBadge } from '#/components/procedure/status-badges'
 import { StepsTimeline } from '#/components/procedure/steps-timeline'
 import { DestinationBadge } from '#/components/projects/destination-badge'
-import { DestinationTile } from '#/components/projects/destination-tile'
 import { ProjectActions } from '#/components/projects/project-actions'
 import { toLocaleParam, useI18n } from '#/i18n'
 import { formatRelative } from '#/lib/format'
@@ -69,7 +68,6 @@ function Overview() {
     <div className="flex flex-col gap-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          <DestinationTile destination={data.destination} size="lg" />
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight break-words">{data.name}</h1>

@@ -90,12 +90,9 @@ function ProjectWorkspace() {
         <div className="flex min-w-0 flex-1 flex-col gap-6 p-4 pt-0 md:p-6 md:pt-0">
           {project.isPending ? (
             <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-4">
-                <Skeleton className="size-14 rounded-xl" />
-                <div className="flex flex-col gap-2">
-                  <Skeleton className="h-7 w-64" />
-                  <Skeleton className="h-4 w-40" />
-                </div>
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-7 w-64" />
+                <Skeleton className="h-4 w-40" />
               </div>
               <Skeleton className="h-64 w-full rounded-xl" />
             </div>
