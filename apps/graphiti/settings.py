@@ -37,7 +37,21 @@ class GraphitiSettings:
     max_coroutines: int | None = 10
     max_text_chars: int = 12_000
     chunk_overlap_chars: int = 400
+    # Graphiti's provider client has its own retry loop. These service-level
+    # retries cover failures that escape that loop, such as a wrapped Gemini
+    # 5xx/timeout error during edge extraction.
+    ingest_max_retries: int = 3
+    ingest_retry_base_seconds: float = 2.0
+    ingest_retry_max_seconds: float = 30.0
     cors_origins: tuple[str, ...] = ("http://localhost:3000",)
+
+    def __post_init__(self) -> None:
+        if self.ingest_max_retries < 0:
+            raise ValueError("ingest_max_retries must be non-negative")
+        if self.ingest_retry_base_seconds < 0:
+            raise ValueError("ingest_retry_base_seconds must be non-negative")
+        if self.ingest_retry_max_seconds < 0:
+            raise ValueError("ingest_retry_max_seconds must be non-negative")
 
     @classmethod
     def from_env(cls) -> "GraphitiSettings":
@@ -67,5 +81,12 @@ class GraphitiSettings:
             max_coroutines=None if max_coroutines_value.lower() == "none" else int(max_coroutines_value),
             max_text_chars=int(os.getenv("GRAPHITI_MAX_TEXT_CHARS", "12000")),
             chunk_overlap_chars=int(os.getenv("GRAPHITI_CHUNK_OVERLAP_CHARS", "400")),
+            ingest_max_retries=int(os.getenv("GRAPHITI_INGEST_MAX_RETRIES", "3")),
+            ingest_retry_base_seconds=float(
+                os.getenv("GRAPHITI_INGEST_RETRY_BASE_SECONDS", "2")
+            ),
+            ingest_retry_max_seconds=float(
+                os.getenv("GRAPHITI_INGEST_RETRY_MAX_SECONDS", "30")
+            ),
             cors_origins=origins,
         )

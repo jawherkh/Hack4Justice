@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from unittest.mock import patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -128,6 +129,94 @@ def test_ingestion_passes_provenance_ontology_and_group_id():
         assert all("LegalRule" in call["entity_types"] for call in fake.added)
         assert all("REQUIRES" in call["edge_types"] for call in fake.added)
         assert all(episode.token_count > 0 for episode in response.episodes)
+
+    asyncio.run(run())
+
+
+def test_ingestion_retries_transient_episode_failures_with_exponential_backoff():
+    async def run():
+        fake = FakeGraphiti()
+        attempts = 0
+
+        async def flaky_add_episode(**kwargs):
+            nonlocal attempts
+            attempts += 1
+            if attempts < 3:
+                try:
+                    raise RuntimeError("503 service unavailable")
+                except RuntimeError as cause:
+                    raise Exception from cause
+            return await FakeGraphiti.add_episode(fake, **kwargs)
+
+        fake.add_episode = flaky_add_episode
+        service = GraphitiKnowledgeService(
+            GraphitiSettings(
+                gemini_api_key="test-key",
+                ingest_max_retries=2,
+                ingest_retry_base_seconds=1,
+                ingest_retry_max_seconds=10,
+            ),
+            client_factory=lambda: fake,
+        )
+        document = LegalDocument(
+            document_id="retry-source",
+            title="Retryable source",
+            text="A business must file a declaration.",
+            source_uri="https://example.gov.tn/retryable-source",
+            retrieved_at=datetime.now(timezone.utc),
+        )
+
+        delays = []
+
+        async def capture_sleep(delay):
+            delays.append(delay)
+
+        with patch("apps.graphiti.service.asyncio.sleep", new=capture_sleep):
+            response = await service.ingest_document(AgencyScope.from_header("DGI"), document)
+
+        assert attempts == 3
+        assert delays == [1, 2]
+        assert len(response.episodes) == 1
+        assert len(fake.added) == 1
+
+    asyncio.run(run())
+
+
+def test_ingestion_does_not_retry_permanent_episode_failures():
+    async def run():
+        fake = FakeGraphiti()
+        attempts = 0
+
+        async def permanent_failure(**kwargs):
+            nonlocal attempts
+            attempts += 1
+            raise RuntimeError("permission denied")
+
+        fake.add_episode = permanent_failure
+        service = GraphitiKnowledgeService(
+            GraphitiSettings(
+                gemini_api_key="test-key",
+                ingest_max_retries=3,
+                ingest_retry_base_seconds=0,
+            ),
+            client_factory=lambda: fake,
+        )
+        document = LegalDocument(
+            document_id="permanent-source",
+            title="Permanent failure source",
+            text="A business must file a declaration.",
+            source_uri="https://example.gov.tn/permanent-source",
+            retrieved_at=datetime.now(timezone.utc),
+        )
+
+        try:
+            await service.ingest_document(AgencyScope.from_header("DGI"), document)
+        except RuntimeError as error:
+            assert str(error) == "permission denied"
+        else:
+            raise AssertionError("expected the permanent episode failure")
+
+        assert attempts == 1
 
     asyncio.run(run())
 

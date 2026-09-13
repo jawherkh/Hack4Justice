@@ -76,6 +76,15 @@ The service does not promote scraped content to an approved legal procedure.
 That promotion remains subject to the existing contracts' maintainer approval
 and official-source safeguards.
 
+## Ingestion retries
+
+Each Graphiti episode write has a bounded service-level retry around the
+provider client's own retry loop. Transient 429, 5xx, timeout, connection, and
+empty-response failures use exponential backoff; authentication, permission,
+malformed-request, and refusal errors fail immediately. Configure the policy
+with `GRAPHITI_INGEST_MAX_RETRIES`, `GRAPHITI_INGEST_RETRY_BASE_SECONDS`, and
+`GRAPHITI_INGEST_RETRY_MAX_SECONDS`.
+
 ## Chunking and upload architecture
 
 The TypeScript API should upload the original file to MinIO, persist the OCR
