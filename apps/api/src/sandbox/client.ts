@@ -13,8 +13,9 @@ import type {
   ExecCommandArgs,
   ListDirectoryArgs,
   ReadFileArgs,
+  ViewImageArgs,
 } from "@openai/agents/sandbox";
-import type { ApplyPatchOperation, Editor } from "@openai/agents";
+import type { ApplyPatchOperation, Editor, ToolOutputImage } from "@openai/agents";
 import { Manifest } from "@openai/agents/sandbox";
 import { applyDiff } from "@openai/agents";
 
@@ -61,6 +62,42 @@ function shellQuote(value: string): string {
 function commandWithWorkdir(command: string, workdir?: string): string {
   const path = relativeWorkspacePath(workdir);
   return path === "." ? command : `cd ${shellQuote(join(workspacePath, path))} && ${command}`;
+}
+
+const maxViewImageBytes = 10 * 1024 * 1024;
+
+function matchesBytes(bytes: Uint8Array, offset: number, expected: readonly number[]): boolean {
+  return expected.every((byte, index) => bytes[offset + index] === byte);
+}
+
+function matchesAscii(bytes: Uint8Array, offset: number, expected: string): boolean {
+  return matchesBytes(bytes, offset, Array.from(expected, (character) => character.charCodeAt(0)));
+}
+
+function imageMediaType(bytes: Uint8Array, path: string): string | undefined {
+  if (matchesBytes(bytes, 0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+  if (matchesBytes(bytes, 0, [0xff, 0xd8, 0xff])) return "image/jpeg";
+  if (matchesAscii(bytes, 0, "GIF87a") || matchesAscii(bytes, 0, "GIF89a")) return "image/gif";
+  if (matchesAscii(bytes, 0, "RIFF") && matchesAscii(bytes, 8, "WEBP")) return "image/webp";
+  if (matchesAscii(bytes, 0, "BM")) return "image/bmp";
+  if (
+    matchesBytes(bytes, 0, [0x49, 0x49, 0x2a, 0x00])
+    || matchesBytes(bytes, 0, [0x4d, 0x4d, 0x00, 0x2a])
+    || matchesBytes(bytes, 0, [0x49, 0x49, 0x2b, 0x00])
+    || matchesBytes(bytes, 0, [0x4d, 0x4d, 0x00, 0x2b])
+  ) return "image/tiff";
+
+  const prefix = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.byteLength, 512))).trimStart().toLowerCase();
+  if (prefix.startsWith("<svg") || /^<\?xml[\s\S]*<svg/u.test(prefix)) return "image/svg+xml";
+  if (path.trim().toLowerCase().endsWith(".svg") || path.trim().toLowerCase().endsWith(".svgz")) return "image/svg+xml";
+  return undefined;
+}
+
+function imageOutputFromBytes(path: string, bytes: Uint8Array): ToolOutputImage {
+  if (bytes.byteLength > maxViewImageBytes) throw new Error(`Image file exceeds the 10 MB limit: ${path}`);
+  const mediaType = imageMediaType(bytes, path);
+  if (!mediaType) throw new Error(`Unsupported image format for view_image: ${path}`);
+  return { type: "image", image: { data: Uint8Array.from(bytes), mediaType } };
 }
 
 class ProjectDockerEditor implements Editor {
@@ -137,6 +174,12 @@ export class ProjectDockerSandboxSession implements SandboxSession<ProjectDocker
       throw new SandboxLimitError("file exceeds the requested read limit");
     }
     return bytes;
+  }
+
+  async viewImage(args: ViewImageArgs): Promise<ToolOutputImage> {
+    this.assertOpen();
+    const bytes = await this.workspace.readFile(this.path(args.path));
+    return imageOutputFromBytes(args.path, bytes);
   }
 
   async listDir(args: ListDirectoryArgs): Promise<SandboxDirectoryEntry[]> {

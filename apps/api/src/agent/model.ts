@@ -39,7 +39,9 @@ function without(value: JsonRecord, keys: readonly string[]): JsonRecord {
  * the extension data on the SDK function-call item before the runner persists it in session
  * history and converts it back to the next Chat Completions request.
  */
-class GeminiThoughtSignatureModel implements Model {
+// Agents SDK 0.18 uses the adapter constructor name to select transport-specific sandbox
+// tool shapes, so keep Chat Completions in the name to select function-tool fallbacks.
+class GeminiChatCompletionsThoughtSignatureModel implements Model {
   constructor(private readonly delegate: OpenAIChatCompletionsModel) {}
 
   getResponse(request: ModelRequest): Promise<ModelResponse> {
@@ -130,9 +132,9 @@ export function createGeminiAgentModel(options: GeminiAgentModelOptions): Model 
       "x-goog-api-client": "hack4justice-agents/0.1.0",
     },
   });
-  return new GeminiThoughtSignatureModel(
-    new OpenAIChatCompletionsModel(client, options.model ?? DEFAULT_GEMINI_AGENT_MODEL, {
-      strictFeatureValidation: true,
-    }),
-  );
+  return new GeminiChatCompletionsThoughtSignatureModel(new OpenAIChatCompletionsModel(
+    client,
+    options.model ?? DEFAULT_GEMINI_AGENT_MODEL,
+    { strictFeatureValidation: true },
+  ));
 }
