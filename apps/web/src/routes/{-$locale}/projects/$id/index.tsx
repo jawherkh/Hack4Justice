@@ -12,11 +12,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@hack4justice/ui/components/alert-dialog'
+import { Send } from 'lucide-react'
 import { Button } from '@hack4justice/ui/components/button'
 import { OnboardingWizard } from '#/components/procedure/onboarding-wizard'
 import { serviceName, submissionModeLabel } from '#/components/procedure/labels'
 import { RequirementSheet } from '#/components/procedure/requirement-sheet'
 import { StepRail } from '#/components/procedure/step-rail'
+import { SubmitDialog } from '#/components/procedure/submit-dialog'
 import { ProcedureStatusBadge } from '#/components/procedure/status-badges'
 import { StepsTimeline } from '#/components/procedure/steps-timeline'
 import { DestinationBadge } from '#/components/projects/destination-badge'
@@ -38,6 +40,7 @@ function Overview() {
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
   const [changing, setChanging] = React.useState(false)
   const [reselecting, setReselecting] = React.useState(false)
+  const [submitting, setSubmitting] = React.useState(false)
 
   // Re-run onboarding with the same service to wipe progress, then let the wizard pick a new one.
   const reset = useMutation({
@@ -89,6 +92,12 @@ function Overview() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {data.status === 'READY_FOR_SUBMISSION' ? (
+            <Button size="sm" onClick={() => setSubmitting(true)}>
+              <Send data-icon="inline-start" />
+              {t('procedure.submit.button')}
+            </Button>
+          ) : null}
           <Button variant="outline" size="sm" onClick={() => setChanging(true)}>
             {t('procedure.overview.changeService')}
           </Button>
@@ -107,7 +116,11 @@ function Overview() {
 
       <section className="flex flex-col gap-4">
         <h2 className="font-semibold">{t('procedure.overview.steps')}</h2>
-        <StepsTimeline project={data} onSelectRequirement={(r) => setSelectedId(r.requirementId)} />
+        <StepsTimeline
+          project={data}
+          onSelectRequirement={(r) => setSelectedId(r.requirementId)}
+          onSubmit={() => setSubmitting(true)}
+        />
       </section>
 
       <RequirementSheet
@@ -115,6 +128,8 @@ function Overview() {
         requirement={selected}
         onOpenChange={(open) => !open && setSelectedId(null)}
       />
+
+      <SubmitDialog project={data} open={submitting} onOpenChange={setSubmitting} />
 
       <AlertDialog open={changing} onOpenChange={setChanging}>
         <AlertDialogContent>

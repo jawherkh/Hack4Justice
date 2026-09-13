@@ -95,3 +95,10 @@ export function countByDestination<T extends { destination: string }>(projects: 
   for (const project of projects) counts[project.destination] = (counts[project.destination] ?? 0) + 1
   return counts
 }
+
+export type ProjectSubmission = ProjectDetail['submissions'][number]
+
+/** Records the official submission; requires every requirement to be valid. */
+export async function submitProject(id: string, input: { receipt?: string; note?: string }) {
+  return unwrap(await api.api.v1.projects({ id }).submissions.post(input), 'Could not record the submission')
+}

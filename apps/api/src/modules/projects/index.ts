@@ -1,8 +1,10 @@
 import {
   project,
   projectRequirement,
+  submission,
   upload,
   type NewProject,
+  type SubmissionSnapshot,
   type Project,
   type ProjectRequirement,
 } from "@hack4justice/db";
@@ -27,6 +29,7 @@ import {
   type SubmissionStatus,
 } from "@hack4justice/shared";
 import { and, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
 import { Elysia, t } from "elysia";
 
 import { authGuard } from "../../auth";
@@ -315,6 +318,16 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
         .where(eq(project.id, row.id))
         .returning();
       if (status) {
+        // Keep the latest submission record in step with the declared status.
+        const [latest] = await db
+          .select({ id: submission.id })
+          .from(submission)
+          .where(eq(submission.projectId, row.id))
+          .orderBy(desc(submission.submittedAt))
+          .limit(1);
+        if (latest) await db.update(submission).set({ status }).where(eq(submission.id, latest.id));
+      }
+      if (status) {
         await notify({
           userId: user.id,
           type: NotificationType.SUBMISSION_UPDATED,
@@ -331,6 +344,82 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
       body: t.Object({ status: t.Nullable(t.String({ maxLength: 20 })) }),
       detail: {
         summary: "Record what happened on the official channel (the app never submits by itself)",
+      },
+    },
+  )
+
+  .get(
+    "/:id/submissions",
+    async ({ params, user }) => {
+      const row = await findOwned(params.id, user.id);
+      return listSubmissions(row.id);
+    },
+    { auth: true, params: idParam, detail: { summary: "Submission history of a project" } },
+  )
+
+  .post(
+    "/:id/submissions",
+    async ({ params, body, user, set }) => {
+      const row = await findOwned(params.id, user.id);
+      if (!row.serviceId) throw new AppError({ status: 409, code: "project_not_ready" });
+      if (row.submissionStatus !== null) throw new AppError({ status: 409, code: "submission_in_progress" });
+      const requirements = await listRequirements(row.id);
+      if (deriveProcedureStatus(row.serviceId, requirements, null) !== "READY_FOR_SUBMISSION") {
+        throw new AppError({ status: 409, code: "project_not_ready" });
+      }
+      const uploadIds = requirements.flatMap((r) => (r.uploadId ? [r.uploadId] : []));
+      const files =
+        uploadIds.length > 0
+          ? await db
+              .select({ id: upload.id, filename: upload.filename })
+              .from(upload)
+              .where(inArray(upload.id, uploadIds))
+          : [];
+      const fileById = new Map(files.map((f) => [f.id, f]));
+      const snapshot: SubmissionSnapshot = {
+        serviceId: row.serviceId,
+        requirements: requirements.map((r) => ({
+          requirementId: r.requirementId,
+          status: r.status,
+          upload: r.uploadId ? (fileById.get(r.uploadId) ?? null) : null,
+          value: r.value ?? null,
+          note: r.note,
+        })),
+      };
+      const created = await db.transaction(async (tx) => {
+        const [inserted] = await tx
+          .insert(submission)
+          .values({
+            projectId: row.id,
+            reference: newReference(),
+            serviceId: row.serviceId!,
+            receipt: emptyToNull(body.receipt),
+            note: emptyToNull(body.note),
+            snapshot,
+          })
+          .returning();
+        await tx.update(project).set({ submissionStatus: "SUBMITTED" }).where(eq(project.id, row.id));
+        return inserted!;
+      });
+      await notify({
+        userId: user.id,
+        type: NotificationType.SUBMISSION_UPDATED,
+        idempotencyKey: `submission:${created.id}:SUBMITTED`,
+        payload: { project: row.name, status: "SUBMITTED", reference: created.reference },
+        projectId: row.id,
+      });
+      set.status = 201;
+      return created;
+    },
+    {
+      auth: true,
+      params: idParam,
+      body: t.Object({
+        receipt: t.Optional(t.String({ maxLength: 200 })),
+        note: t.Optional(t.String({ maxLength: 2000 })),
+      }),
+      detail: {
+        summary: "Record an official submission: snapshots the checklist and moves the project to SUBMITTED",
       },
     },
   )
@@ -373,6 +462,20 @@ async function findOwned(id: string, userId: string): Promise<Project> {
   return row;
 }
 
+async function listSubmissions(projectId: string) {
+  return db
+    .select()
+    .from(submission)
+    .where(eq(submission.projectId, projectId))
+    .orderBy(desc(submission.submittedAt));
+}
+
+/** Short, unique, human-readable reference: date plus 6 random hex chars. */
+function newReference(): string {
+  const day = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  return `H4J-${day}-${randomBytes(3).toString("hex").toUpperCase()}`;
+}
+
 async function listRequirements(projectId: string) {
   return db.select().from(projectRequirement).where(eq(projectRequirement.projectId, projectId));
 }
@@ -393,8 +496,10 @@ async function toDetail(row: Project) {
           .where(inArray(upload.id, uploadIds))
       : [];
   const byId = new Map(files.map((f) => [f.id, f]));
+  const submissions = await listSubmissions(row.id);
   return {
     ...toSummary(row, requirements),
+    submissions,
     requirements: requirements
       .map((r) => ({ ...r, upload: r.uploadId ? (byId.get(r.uploadId) ?? null) : null }))
       .sort(
