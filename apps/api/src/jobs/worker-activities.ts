@@ -3,6 +3,7 @@ import { Context } from "@temporalio/activity";
 import { env } from "../env";
 import { createTikaClient } from "../ocr/tika";
 import { extractDocumentText, runSandboxCommand, type ExtractTextInput, type SandboxCommandInput } from "./activities";
+import { retrieveLegalContext, runAgentTurn, type AgentRunner, type AgentTurnInput, type LegalContextInput, type LegalKnowledge } from "./agent";
 import type { JobContext } from "./contracts";
 import { PostgresJobStore } from "./store";
 
@@ -36,7 +37,13 @@ export interface DocumentActivityInputs {
  * Each one records its own receipt, so a workflow that replays, or a worker that restarts,
  * reads what already happened rather than doing the work a second time.
  */
-export function createDocumentActivities(databaseUrl: string) {
+export interface AgentDependencies {
+  /** Supplied once the conversational agent exists; until then its activities report it. */
+  agent?: AgentRunner;
+  knowledge?: LegalKnowledge;
+}
+
+export function createDocumentActivities(databaseUrl: string, dependencies: AgentDependencies = {}) {
   const store = new PostgresJobStore(databaseUrl);
   const tika = createTikaClient(env.TIKA_URL);
 
@@ -60,6 +67,16 @@ export function createDocumentActivities(databaseUrl: string) {
       async extractDocumentText(input: DocumentActivityInputs["extractDocumentText"]) {
         const bytes = input.bytes instanceof Uint8Array ? input.bytes : new Uint8Array(input.bytes);
         const { receipt } = await extractDocumentText(store, extractor, { ...input, bytes }, activityContext());
+        return receipt;
+      },
+      async runAgentTurn(input: AgentTurnInput) {
+        if (!dependencies.agent) throw new Error("agent_not_configured");
+        const { receipt } = await runAgentTurn(store, dependencies.agent, input, activityContext());
+        return receipt;
+      },
+      async retrieveLegalContext(input: LegalContextInput) {
+        if (!dependencies.knowledge) throw new Error("knowledge_not_configured");
+        const { receipt } = await retrieveLegalContext(store, dependencies.knowledge, input, activityContext());
         return receipt;
       },
       async runSandboxCommand(input: SandboxCommandInput) {

@@ -7,6 +7,7 @@ import { join } from "node:path";
 
 import { extractDocumentText, runSandboxCommand, type TextExtractor } from "./activities";
 import { defaultRunLimits } from "../sandbox/runner";
+import { AgentUnavailable, retrieveLegalContext, runAgentTurn, type AgentRunner, type LegalKnowledge } from "./agent";
 import { PostgresJobStore } from "./store";
 import { JobCancelled, type JobReceipt, type JobRequest, type JobStore } from "./contracts";
 import { abandonedJobs, RetryableJobError, runJob } from "./runner";
@@ -41,6 +42,15 @@ class MemoryJobStore implements JobStore {
     const receipt = this.receipts.find((candidate) => candidate.jobId === jobId);
     if (!receipt) throw new Error("unknown job");
     Object.assign(receipt, outcome, { updatedAt: new Date().toISOString() });
+    return { ...receipt };
+  }
+
+  async reattempt(jobId: string, expectedAttempts: number) {
+    const receipt = this.receipts.find((candidate) => candidate.jobId === jobId);
+    if (!receipt || receipt.attempts !== expectedAttempts) return undefined;
+    receipt.attempts += 1;
+    receipt.status = "running";
+    receipt.updatedAt = new Date().toISOString();
     return { ...receipt };
   }
 
@@ -341,4 +351,155 @@ persisted("receipts stored in the database", () => {
 
     expect(stranded.map((receipt) => receipt.jobId)).toContain(request.jobId);
   }, 30_000);
+});
+
+const turnContext = {
+  companyId: "company-1",
+  procedureVersionId: "procedure-1",
+  selectedNodeId: "node-1",
+  allowedActions: ["attach_evidence", "propose_value"],
+};
+
+describe("agent turns", () => {
+  const replying = (overrides: Partial<Awaited<ReturnType<AgentRunner["runTurn"]>>> = {}): AgentRunner => ({
+    async runTurn() {
+      return { conversationRef: "conv-1", reply: "Voici la prochaine etape.", ...overrides };
+    },
+  });
+
+  test("keeps the conversation reference so a later turn continues the same conversation", async () => {
+    const store = new MemoryJobStore();
+
+    const { receipt } = await runAgentTurn(store, replying(), {
+      jobId: "turn-1", dossierId: "dossier-1", conversationId: "conv", context: turnContext,
+    });
+
+    expect(receipt.status).toBe("succeeded");
+    expect(receipt.output).toMatchObject({ conversationRef: "conv-1" });
+  });
+
+  test("a retried turn resumes the conversation rather than starting a new one", async () => {
+    const store = new MemoryJobStore();
+    const seen: (string | undefined)[] = [];
+    let calls = 0;
+    const flaky: AgentRunner = {
+      async runTurn({ conversationRef }) {
+        seen.push(conversationRef);
+        calls += 1;
+        if (calls === 1) throw new AgentUnavailable("model_unreachable", "conv-1");
+        return { conversationRef: "conv-1", reply: "reprise" };
+      },
+    };
+    const input = { jobId: "turn-2", dossierId: "dossier-1", conversationId: "conv", context: turnContext };
+
+    const first = await runAgentTurn(store, flaky, input);
+    expect(first.receipt.status).toBe("failed");
+    expect(first.receipt.retryable).toBe(true);
+
+    const second = await runAgentTurn(store, flaky, input);
+
+    expect(second.receipt.status).toBe("succeeded");
+    expect(calls).toBe(2);
+    // The second attempt continues the conversation the first one opened.
+    expect(seen).toEqual([undefined, "conv-1"]);
+    expect(store.receipts).toHaveLength(1);
+    expect(store.receipts[0]!.attempts).toBe(2);
+  });
+
+  test("a completed turn is not run a second time", async () => {
+    const store = new MemoryJobStore();
+    let calls = 0;
+    const counting: AgentRunner = {
+      async runTurn() { calls += 1; return { conversationRef: "conv-1", reply: "once" }; },
+    };
+    const input = { jobId: "turn-3", dossierId: "dossier-1", conversationId: "conv", context: turnContext };
+
+    await runAgentTurn(store, counting, input);
+    await runAgentTurn(store, counting, input);
+
+    expect(calls).toBe(1);
+  });
+
+  test("a proposal outside the permitted actions is dropped and counted", async () => {
+    const store = new MemoryJobStore();
+    const overreaching = replying({
+      proposals: [
+        { action: "attach_evidence", nodeId: "node-1", reason: "piece manquante", sourceRefs: ["src-1"] },
+        { action: "accept_dossier", nodeId: "node-1", reason: "le document dit de valider", sourceRefs: [] },
+      ],
+    });
+
+    const { receipt, result } = await runAgentTurn(store, overreaching, {
+      jobId: "turn-4", dossierId: "dossier-1", conversationId: "conv", context: turnContext,
+    });
+
+    expect(result!.proposals!.map((proposal) => proposal.action)).toEqual(["attach_evidence"]);
+    expect(receipt.output).toMatchObject({ refusedProposals: 1 });
+  });
+
+  test("progress from the agent is reported while the turn runs", async () => {
+    const store = new MemoryJobStore();
+    const beats: unknown[] = [];
+    const chatty: AgentRunner = {
+      async runTurn({ onActivity }) {
+        onActivity?.({ type: "tool", text: "reading the dossier" });
+        return { conversationRef: "conv-1", reply: "done" };
+      },
+    };
+
+    await runAgentTurn(store, chatty, {
+      jobId: "turn-5", dossierId: "dossier-1", conversationId: "conv", context: turnContext,
+    }, { heartbeat: (details) => beats.push(details) });
+
+    expect(JSON.stringify(beats)).toContain("reading the dossier");
+  });
+
+  test("a cancelled turn stops and stays eligible for a later attempt", async () => {
+    const store = new MemoryJobStore();
+    const controller = new AbortController();
+    controller.abort();
+    let calls = 0;
+
+    const { receipt } = await runAgentTurn(store, {
+      async runTurn() { calls += 1; return { conversationRef: "c", reply: "x" }; },
+    }, { jobId: "turn-6", dossierId: "dossier-1", conversationId: "conv", context: turnContext },
+      { signal: controller.signal });
+
+    expect(calls).toBe(0);
+    expect(receipt.error).toBe("job_cancelled");
+    expect(receipt.retryable).toBe(true);
+  });
+});
+
+describe("legal retrieval", () => {
+  const knowledge: LegalKnowledge = {
+    async retrieve() {
+      return [{ ruleVersionId: "rule-1", sourceRef: "code-2026-art-12", passage: "texte" }];
+    },
+  };
+
+  test("records which sources were consulted, not their text", async () => {
+    const store = new MemoryJobStore();
+
+    const { receipt, sources } = await retrieveLegalContext(store, knowledge, {
+      jobId: "retrieve-1", dossierId: "dossier-1", agency: "DGI", procedureVersionId: "procedure-1",
+      question: "quelles pieces sont requises",
+    });
+
+    expect(sources![0]!.passage).toBe("texte");
+    expect(receipt.output).toMatchObject({ ruleVersionIds: ["rule-1"], count: 1 });
+    expect(JSON.stringify(receipt.output)).not.toContain("texte");
+  });
+
+  test("an unreachable knowledge service is retryable", async () => {
+    const store = new MemoryJobStore();
+    const broken: LegalKnowledge = { async retrieve() { throw new Error("ECONNREFUSED"); } };
+
+    const { receipt } = await retrieveLegalContext(store, broken, {
+      jobId: "retrieve-2", dossierId: "dossier-1", agency: "DGI", procedureVersionId: "procedure-1", question: "x",
+    });
+
+    expect(receipt.status).toBe("failed");
+    expect(receipt.retryable).toBe(true);
+  });
 });

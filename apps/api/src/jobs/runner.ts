@@ -1,4 +1,4 @@
-import { JobCancelled, type JobContext, type JobReceipt, type JobRequest, type JobStore } from "./contracts";
+import { JobCancelled, maxJobAttempts, type JobContext, type JobReceipt, type JobRequest, type JobStore } from "./contracts";
 
 export interface JobOutcome {
   output?: Record<string, unknown>;
@@ -9,6 +9,13 @@ export type JobWork = (context: Required<Pick<JobContext, "heartbeat">> & JobCon
 /** A failure worth another attempt: a service was briefly unavailable, not a bad request. */
 export class RetryableJobError extends Error {
   readonly retryable = true;
+  /**
+   * What the attempt established before it failed, such as a conversation that was opened.
+   * Kept on the receipt so the next attempt continues from there rather than starting over.
+   */
+  constructor(message: string, readonly output?: Record<string, unknown>) {
+    super(message);
+  }
 }
 
 function describe(error: unknown) {
@@ -36,12 +43,21 @@ export async function runJob(
   const heartbeat = context.heartbeat ?? (() => {});
 
   const existing = await store.findReceipt(request.jobId);
-  if (existing && existing.status !== "running") return existing;
-  // Another worker holds this job. Reporting it as running keeps the effect to one worker.
-  if (existing) return existing;
+  if (existing) {
+    // Done, or failed in a way that will fail again: the stored result is the answer.
+    if (existing.status === "succeeded") return existing;
+    if (existing.status === "failed" && !existing.retryable) return existing;
+    if (existing.status === "failed" && existing.attempts >= maxJobAttempts) return existing;
+    // Still running: another worker holds it, and repeating the work would double its effect.
+    if (existing.status === "running") return existing;
 
-  const claimed = await claim(store, request, now().toISOString());
-  if (!claimed.owned) return claimed.receipt;
+    // A temporary failure is worth another attempt, and taking it must be exclusive.
+    const retried = await store.reattempt(request.jobId, existing.attempts);
+    if (!retried) return (await store.findReceipt(request.jobId)) ?? existing;
+  } else {
+    const claimed = await claim(store, request, now().toISOString());
+    if (!claimed.owned) return claimed.receipt;
+  }
 
   if (context.signal?.aborted) {
     return await store.complete(request.jobId, {
@@ -60,6 +76,7 @@ export async function runJob(
       error: cancelled ? "job_cancelled" : describe(error),
       // A cancelled job did not fail on its merits, so it stays eligible for a later run.
       retryable: cancelled || error instanceof RetryableJobError,
+      output: error instanceof RetryableJobError ? error.output : undefined,
     });
   }
 }

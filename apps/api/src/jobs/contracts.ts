@@ -1,7 +1,10 @@
 /** Work that runs outside the workflow: reading a document, or running a command in a sandbox. */
-export type JobKind = "document_text_extraction" | "sandbox_command";
+export type JobKind = "document_text_extraction" | "sandbox_command" | "agent_turn" | "legal_retrieval";
 
 export type JobStatus = "running" | "succeeded" | "failed";
+
+/** How many times a job whose failure looked temporary may be tried. */
+export const maxJobAttempts = 3;
 
 export interface JobRequest {
   /** Stable for one logical piece of work. Repeating it must not repeat the effect. */
@@ -40,6 +43,13 @@ export interface JobStore {
    */
   claim(request: JobRequest, startedAt: string): Promise<JobReceipt>;
   complete(jobId: string, outcome: Pick<JobReceipt, "status" | "output" | "error" | "retryable">): Promise<JobReceipt>;
+  /**
+   * Takes a failed job back for another attempt, raising its attempt count.
+   *
+   * Must apply only while the record still shows `expectedAttempts`, and must return
+   * undefined when another caller took it first, so two retries cannot run at once.
+   */
+  reattempt(jobId: string, expectedAttempts: number): Promise<JobReceipt | undefined>;
   /** Jobs still marked running after the cutoff. A worker that stopped leaves these behind. */
   abandoned(olderThan: string): Promise<JobReceipt[]>;
 }

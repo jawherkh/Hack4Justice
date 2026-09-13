@@ -105,6 +105,16 @@ CREATE INDEX IF NOT EXISTS document_jobs_running ON h4j_api.document_jobs(update
     return toReceipt(row);
   }
 
+  async reattempt(jobId: string, expectedAttempts: number) {
+    const rows = await this.query<Row>(
+      `UPDATE h4j_api.document_jobs
+         SET status = 'running', attempts = attempts + 1, error = NULL, retryable = NULL, updated_at = now()
+       WHERE id = $1 AND attempts = $2 RETURNING *`,
+      [jobId, expectedAttempts],
+    );
+    return rows[0] ? toReceipt(rows[0]) : undefined;
+  }
+
   /** Backdates a running job so the abandoned-job check can be exercised. */
   async markStaleForTest(jobId: string) {
     await this.query("UPDATE h4j_api.document_jobs SET updated_at = now() - interval '2 minutes' WHERE id = $1", [jobId]);
