@@ -25,11 +25,21 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          version: latest-known
+
       - run: pnpm install --frozen-lockfile
+
+      - run: |
+          sudo apt-get update
+          sudo apt-get install --yes poppler-utils
 
       - run: pnpm check-types
       - run: pnpm lint
       - run: pnpm test
+      - run: uv run --frozen pytest tests/test_graphiti_service.py
       - run: pnpm build
         env:
           # Web build reads VITE_* at build time; API/db/auth do not connect during build.
