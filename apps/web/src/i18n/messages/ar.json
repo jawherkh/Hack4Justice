@@ -205,5 +205,7 @@
   "projects.detail.workspace.description": "ستظهر هنا وثائق هذا المشروع وقائمة المتطلبات والإيداعات.",
   "projects.detail.workspace.uploads": "الانتقال إلى وثائقي",
   "projects.shortcut.search": "اضغط / للبحث",
-  "projects.shortcut.new": "اضغط N للإنشاء"
+  "projects.shortcut.new": "اضغط N للإنشاء",
+  "projects.stats.all": "كل المشاريع",
+  "projects.stats.hint": "جميع الوجهات"
 }

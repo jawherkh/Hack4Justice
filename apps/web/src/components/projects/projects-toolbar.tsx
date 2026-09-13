@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { PROJECT_DESTINATIONS, type ProjectDestination } from '@hack4justice/shared'
 import { LayoutGrid, List, Search, X } from 'lucide-react'
 import {
   InputGroup,
@@ -10,34 +9,19 @@ import {
 import { Kbd } from '@hack4justice/ui/components/kbd'
 import { ToggleGroup, ToggleGroupItem } from '@hack4justice/ui/components/toggle-group'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@hack4justice/ui/components/tooltip'
-import { cn } from '@hack4justice/ui/lib/utils'
 import { useTranslation } from '#/i18n'
-import { DESTINATION_META } from './destination'
 import type { ViewMode } from './view-mode'
 
 interface ProjectsToolbarProps {
   query: string
   onQueryChange: (query: string) => void
-  destination: ProjectDestination | undefined
-  onDestinationChange: (destination: ProjectDestination | undefined) => void
-  counts: Record<string, number>
-  total: number
   view: ViewMode
   onViewChange: (view: ViewMode) => void
+  /** Text shown on the start side, e.g. "6 projects". */
+  summary?: React.ReactNode
 }
 
-const ALL = 'ALL'
-
-export function ProjectsToolbar({
-  query,
-  onQueryChange,
-  destination,
-  onDestinationChange,
-  counts,
-  total,
-  view,
-  onViewChange,
-}: ProjectsToolbarProps) {
+export function ProjectsToolbar({ query, onQueryChange, view, onViewChange, summary }: ProjectsToolbarProps) {
   const t = useTranslation()
   const inputRef = React.useRef<HTMLInputElement>(null)
 
@@ -56,8 +40,9 @@ export function ProjectsToolbar({
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col gap-3 md:flex-row md:items-center">
-        <InputGroup className="md:max-w-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        {summary ? <p className="text-sm text-muted-foreground sm:me-auto">{summary}</p> : null}
+        <InputGroup className="sm:w-72">
           <InputGroupAddon>
             <Search />
           </InputGroupAddon>
@@ -97,29 +82,6 @@ export function ProjectsToolbar({
         </InputGroup>
 
         <ToggleGroup
-          aria-label={t('projects.filter.label')}
-          variant="outline"
-          spacing={0}
-          value={[destination ?? ALL]}
-          onValueChange={(values) => {
-            const next = values[0]
-            onDestinationChange(next === ALL || next === undefined ? undefined : (next as ProjectDestination))
-          }}
-          className="md:ms-1"
-        >
-          <FilterItem value={ALL} label={t('projects.filter.all')} count={total} />
-          {PROJECT_DESTINATIONS.map((value) => (
-            <FilterItem
-              key={value}
-              value={value}
-              label={t(DESTINATION_META[value].label)}
-              count={counts[value] ?? 0}
-              dot={DESTINATION_META[value].dot}
-            />
-          ))}
-        </ToggleGroup>
-
-        <ToggleGroup
           aria-label={t('projects.view.label')}
           variant="outline"
           spacing={0}
@@ -128,33 +90,12 @@ export function ProjectsToolbar({
             const next = values[0]
             if (next === 'grid' || next === 'list') onViewChange(next)
           }}
-          className="md:ms-auto"
         >
           <ViewItem value="grid" label={t('projects.view.grid')} icon={LayoutGrid} />
           <ViewItem value="list" label={t('projects.view.list')} icon={List} />
         </ToggleGroup>
       </div>
     </TooltipProvider>
-  )
-}
-
-function FilterItem({
-  value,
-  label,
-  count,
-  dot,
-}: {
-  value: string
-  label: string
-  count: number
-  dot?: string
-}) {
-  return (
-    <ToggleGroupItem value={value} aria-label={label} className="gap-1.5 px-3">
-      {dot ? <span aria-hidden className={cn('size-1.5 rounded-full', dot)} /> : null}
-      {label}
-      <span className="text-muted-foreground tabular-nums">{count}</span>
-    </ToggleGroupItem>
   )
 }
 

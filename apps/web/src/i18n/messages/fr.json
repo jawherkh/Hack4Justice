@@ -205,5 +205,7 @@
   "projects.detail.workspace.description": "Les documents, la liste des pièces et les dépôts de ce projet apparaîtront ici.",
   "projects.detail.workspace.uploads": "Voir mes documents",
   "projects.shortcut.search": "Appuyez sur / pour rechercher",
-  "projects.shortcut.new": "Appuyez sur N pour créer"
+  "projects.shortcut.new": "Appuyez sur N pour créer",
+  "projects.stats.all": "Tous les projets",
+  "projects.stats.hint": "Toutes destinations"
 }

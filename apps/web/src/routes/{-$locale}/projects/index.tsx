@@ -4,10 +4,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { projectDestinationSchema } from '@hack4justice/shared'
 import { Plus } from 'lucide-react'
 import { z } from 'zod'
-import { Badge } from '@hack4justice/ui/components/badge'
 import { Button } from '@hack4justice/ui/components/button'
 import { Kbd } from '@hack4justice/ui/components/kbd'
 import { CreateProjectDialog } from '#/components/projects/create-project-dialog'
+import { DestinationStats } from '#/components/projects/destination-stats'
 import { ProjectCard } from '#/components/projects/project-card'
 import { ProjectsNoResults, ProjectsWelcome } from '#/components/projects/projects-empty'
 import { ProjectsSkeleton } from '#/components/projects/projects-skeleton'
@@ -92,18 +92,11 @@ function Projects() {
   const isFiltering = query.trim().length > 0 || destination !== undefined
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 md:px-8">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">{t('projects.title')}</h1>
-            {projects.isSuccess && all.length > 0 ? (
-              <Badge variant="secondary" className="tabular-nums">
-                <ProjectCount count={all.length} />
-              </Badge>
-            ) : null}
-          </div>
-          <p className="text-sm text-muted-foreground">{t('projects.subtitle')}</p>
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-3xl font-bold tracking-tight">{t('projects.title')}</h1>
+          <p className="max-w-xl text-sm text-muted-foreground">{t('projects.subtitle')}</p>
         </div>
         <Button size="lg" onClick={() => setCreating(true)} className="gap-2">
           <Plus data-icon="inline-start" />
@@ -111,18 +104,21 @@ function Projects() {
           <Kbd className="hidden bg-primary-foreground/20 text-primary-foreground md:inline-flex">N</Kbd>
         </Button>
       </header>
-
       {projects.isSuccess && all.length === 0 ? (
         <ProjectsWelcome onCreate={() => setCreating(true)} />
       ) : (
         <>
-          <ProjectsToolbar
-            query={query}
-            onQueryChange={(q) => void setSearch({ q: q || undefined })}
-            destination={destination}
-            onDestinationChange={(next) => void setSearch({ destination: next })}
+          <DestinationStats
             counts={counts}
             total={all.length}
+            value={destination}
+            onChange={(next) => void setSearch({ destination: next })}
+          />
+
+          <ProjectsToolbar
+            summary={projects.isSuccess ? <ProjectCount count={visible.length} /> : null}
+            query={query}
+            onQueryChange={(q) => void setSearch({ q: q || undefined })}
             view={view}
             onViewChange={(next) => {
               storeView(next)
@@ -151,7 +147,6 @@ function Projects() {
           )}
         </>
       )}
-
       <CreateProjectDialog open={creating} onOpenChange={setCreating} defaultDestination={destination} />
     </main>
   )

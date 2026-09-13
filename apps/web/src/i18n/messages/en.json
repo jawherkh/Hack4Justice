@@ -205,5 +205,7 @@
   "projects.detail.workspace.description": "Documents, checklist and submissions for this project will appear here.",
   "projects.detail.workspace.uploads": "Go to my documents",
   "projects.shortcut.search": "Press / to search",
-  "projects.shortcut.new": "Press N to create"
+  "projects.shortcut.new": "Press N to create",
+  "projects.stats.all": "All projects",
+  "projects.stats.hint": "Every destination"
 }

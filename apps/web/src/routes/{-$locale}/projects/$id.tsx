@@ -33,7 +33,7 @@ function ProjectDetail() {
   const project = useQuery({ queryKey: projectKeys.detail(id), queryFn: () => getProject(id) })
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 md:px-8">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8">
       <Link
         to="/{-$locale}/projects"
         params={params}
