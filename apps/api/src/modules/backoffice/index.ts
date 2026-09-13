@@ -4,10 +4,11 @@ import {
   AppError,
   NotificationType,
   SUBMISSION_STATUSES,
-  SubmissionStatus,
+  type SubmissionStatus,
   deriveProcedureStatus,
 } from "@hack4justice/shared";
-import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import { Elysia, t } from "elysia";
 
 import { adminGuard } from "../../admin-auth";
@@ -34,27 +35,156 @@ export const backofficeModule = new Elysia({ prefix: "/api/admin", tags: ["backo
   .get(
     "/stats",
     async () => {
-      const [[users], [projects], [uploads], byStatus, [pending]] = await Promise.all([
+      // UTC day buckets on both sides (Postgres date_trunc runs in the session timezone, UTC here).
+      const since = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000);
+      since.setUTCHours(0, 0, 0, 0);
+      const day = (column: PgColumn) => sql<string>`to_char(date_trunc('day', ${column}), 'YYYY-MM-DD')`;
+
+      const [
+        [users],
+        [projects],
+        [uploads],
+        [staff],
+        byStatus,
+        byDestination,
+        byService,
+        submissionsByDestination,
+        uploadsByStatus,
+        signupsByDay,
+        projectsByDay,
+        submissionsByDay,
+        reviewed,
+        allProjects,
+        allRequirements,
+      ] = await Promise.all([
         db.select({ value: count() }).from(user),
         db.select({ value: count() }).from(project),
         db.select({ value: count() }).from(upload),
+        db.select({ value: count() }).from(adminUser),
         db.select({ status: submission.status, value: count() }).from(submission).groupBy(submission.status),
         db
-          .select({ value: count() })
+          .select({ destination: project.destination, value: count() })
+          .from(project)
+          .groupBy(project.destination),
+        db
+          .select({ serviceId: project.serviceId, value: count() })
+          .from(project)
+          .where(sql`${project.serviceId} is not null`)
+          .groupBy(project.serviceId),
+        db
+          .select({ destination: project.destination, status: submission.status, value: count() })
           .from(submission)
-          .where(inArray(submission.status, [SubmissionStatus.SUBMITTED, SubmissionStatus.UNDER_REVIEW])),
+          .innerJoin(project, eq(project.id, submission.projectId))
+          .groupBy(project.destination, submission.status),
+        db.select({ status: upload.status, value: count() }).from(upload).groupBy(upload.status),
+        db
+          .select({ day: day(user.createdAt), value: count() })
+          .from(user)
+          .where(gte(user.createdAt, since))
+          .groupBy(day(user.createdAt)),
+        db
+          .select({ day: day(project.createdAt), value: count() })
+          .from(project)
+          .where(gte(project.createdAt, since))
+          .groupBy(day(project.createdAt)),
+        db
+          .select({ day: day(submission.submittedAt), value: count() })
+          .from(submission)
+          .where(gte(submission.submittedAt, since))
+          .groupBy(day(submission.submittedAt)),
+        db
+          .select({
+            status: submission.status,
+            submittedAt: submission.submittedAt,
+            reviewedAt: submission.reviewedAt,
+          })
+          .from(submission)
+          .where(sql`${submission.reviewedAt} is not null`),
+        db
+          .select({
+            id: project.id,
+            serviceId: project.serviceId,
+            submissionStatus: project.submissionStatus,
+          })
+          .from(project),
+        db
+          .select({
+            projectId: projectRequirement.projectId,
+            requirementId: projectRequirement.requirementId,
+            status: projectRequirement.status,
+          })
+          .from(projectRequirement),
       ]);
+
       const submissions: Record<string, number> = {};
       for (const row of byStatus) submissions[row.status] = row.value;
+
+      // Procedure status per project (derived, same engine as the web app).
+      const procedureStatus: Record<string, number> = {};
+      for (const p of allProjects) {
+        const status = deriveProcedureStatus(
+          p.serviceId,
+          allRequirements.filter((r) => r.projectId === p.id),
+          p.submissionStatus,
+        );
+        procedureStatus[status] = (procedureStatus[status] ?? 0) + 1;
+      }
+
+      // 30 continuous days so charts have no gaps.
+      const days: { day: string; label: string; signups: number; projects: number; submissions: number }[] =
+        [];
+      const index = (rows: { day: string; value: number }[]) => new Map(rows.map((r) => [r.day, r.value]));
+      const s1 = index(signupsByDay);
+      const s2 = index(projectsByDay);
+      const s3 = index(submissionsByDay);
+      for (let i = 0; i < 30; i += 1) {
+        const d = new Date(since.getTime() + i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        // `label` is deliberately not date-like: Eden would otherwise parse it into a Date on the client.
+        days.push({
+          day: d,
+          label: d.slice(5),
+          signups: s1.get(d) ?? 0,
+          projects: s2.get(d) ?? 0,
+          submissions: s3.get(d) ?? 0,
+        });
+      }
+
+      const durations = reviewed
+        .filter((r) => r.reviewedAt)
+        .map((r) => (r.reviewedAt!.getTime() - r.submittedAt.getTime()) / (60 * 60 * 1000))
+        .sort((a, b) => a - b);
+      const median = durations.length ? durations[Math.floor(durations.length / 2)]! : null;
+      const decided = reviewed.filter((r) => r.status === "ACCEPTED" || r.status === "REJECTED");
+      const acceptanceRate = decided.length
+        ? decided.filter((r) => r.status === "ACCEPTED").length / decided.length
+        : null;
+
       return {
         users: users?.value ?? 0,
         projects: projects?.value ?? 0,
         uploads: uploads?.value ?? 0,
+        staff: staff?.value ?? 0,
         submissions,
-        pendingReview: pending?.value ?? 0,
+        pendingReview: (submissions["SUBMITTED"] ?? 0) + (submissions["UNDER_REVIEW"] ?? 0),
+        review: { medianHours: median, acceptanceRate, reviewedCount: reviewed.length },
+        procedureStatus,
+        projectsByDestination: byDestination.map((r) => ({ destination: r.destination, value: r.value })),
+        projectsByService: byService
+          .map((r) => ({ serviceId: r.serviceId!, value: r.value }))
+          .sort((a, b) => b.value - a.value),
+        submissionsByDestination: submissionsByDestination.map((r) => ({
+          destination: r.destination,
+          status: r.status,
+          value: r.value,
+        })),
+        uploadsByStatus: uploadsByStatus.map((r) => ({ status: r.status, value: r.value })),
+        days,
       };
     },
-    { admin: AdminPermission.VIEW, detail: { summary: "Dashboard counters" } },
+    {
+      admin: AdminPermission.VIEW,
+      detail: { summary: "Dashboard counters, breakdowns and 30-day activity" },
+    },
   )
 
   .get(
