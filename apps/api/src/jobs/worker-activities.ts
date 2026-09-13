@@ -1,4 +1,4 @@
-import { Context } from "@temporalio/activity";
+import { ApplicationFailure, CancelledFailure, Context } from "@temporalio/activity";
 
 import { createTikaClient } from "../ocr/tika";
 import { extractDocumentText, runSandboxCommand, type DocumentSource, type ExtractTextInput, type SandboxCommandInput } from "./activities";
@@ -40,20 +40,27 @@ function activityContext(): JobContext {
  * completed. A job that failed in a way no retry would change is returned, because the
  * record of that refusal is the useful answer.
  */
+export function settleForTest(receipt: JobReceipt): JobReceipt {
+  return settle(receipt);
+}
+
 function settle(receipt: JobReceipt): JobReceipt {
+  if (receipt.error === "job_cancelled") {
+    // Cancellation has its own failure type. A plain error would be read as an ordinary
+    // failure and retried, spending the retry budget on work the caller already stopped.
+    throw new CancelledFailure("job_cancelled");
+  }
   if (receipt.status === "running") {
     // Another worker holds this job. Returning the record would tell the workflow the work
-    // finished while it is still going, so the activity fails and the retry reads the
-    // finished record instead.
-    const inProgress = new Error("job_in_progress");
-    inProgress.name = "RetryableJobFailure";
-    throw inProgress;
+    // finished while it is still going, so this fails and the retry reads the finished
+    // record instead.
+    throw ApplicationFailure.retryable("job_in_progress", "JobInProgress");
   }
-  if (receipt.status === "failed" && (receipt.retryable || receipt.error === "job_cancelled")) {
-    const failure = new Error(receipt.error ?? "job_failed");
-    failure.name = receipt.error === "job_cancelled" ? "JobCancelled" : "RetryableJobFailure";
-    throw failure;
+  if (receipt.status === "failed" && receipt.retryable) {
+    throw ApplicationFailure.retryable(receipt.error ?? "job_failed", "RetryableJobFailure");
   }
+  // A failure no retry would change is returned, not thrown: that record is the answer the
+  // workflow needs, and Temporal would only repeat a call that cannot succeed.
   return forHistory(receipt);
 }
 

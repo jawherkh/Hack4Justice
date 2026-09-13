@@ -146,6 +146,18 @@ describe("durable agent turns", () => {
     await expect(durable.runAgentTurn(turn())).rejects.toThrow(/model_refused/);
   });
 
+  test("a cancelled turn is reported as cancelled, not as something to retry", async () => {
+    const { CancelledFailure } = await import("@temporalio/activity");
+    // settle() is the activity boundary: a cancelled record must leave it as a
+    // cancellation, so Temporal stops rather than spending retries on stopped work.
+    const { settleForTest } = await import("./worker-activities");
+    expect(() => settleForTest({
+      jobId: "j", dossierId: "d", kind: "sandbox_command", status: "failed",
+      error: "job_cancelled", retryable: false, attempts: 1,
+      startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    })).toThrow(CancelledFailure);
+  });
+
   test("the answer survives a worker restart", async () => {
     const store = new MemoryJobStore();
     let calls = 0;
