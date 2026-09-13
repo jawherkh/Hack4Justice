@@ -1,8 +1,9 @@
-import { NotificationType, isUrgentNotification, type NotificationType as Type } from "@hack4justice/shared";
+import { isUrgentNotification, type NotificationType as Type } from "@hack4justice/shared";
 
 import { env } from "../env";
 import { logger } from "../logger";
-import { Notifier, renderTemplate, type Language, type NotificationRecord } from "./notify";
+import { buildUrgentMessage } from "./messages";
+import { Notifier, type Language, type NotificationRecord } from "./notify";
 import { deliveryStore, profileDirectory } from "./store";
 import { createTwilioTransport } from "./twilio";
 
@@ -29,26 +30,6 @@ export interface UrgentAlertInput {
   language?: Language;
 }
 
-/** What the message says, and what the user is asked to do about it. */
-function message(type: Type, payload: Record<string, string>) {
-  if (type === NotificationType.SUBMISSION_UPDATED) {
-    return {
-      kind: "decision" as const,
-      dossierReference: payload.reference ?? payload.project ?? "",
-      // The reviewer's own note says what is missing, so it is the useful part of the
-      // message. Without one the user is only told to open the dossier.
-      subject: payload.note?.trim() || "dossier refuse",
-      nextAction: "ouvrir le dossier et corriger les pieces signalees",
-    };
-  }
-  return {
-    kind: "blocked" as const,
-    dossierReference: payload.project ?? payload.filename ?? "",
-    subject: payload.error?.trim() || `document illisible : ${payload.filename ?? ""}`,
-    nextAction: "televerser a nouveau le document",
-  };
-}
-
 /**
  * Sends an urgent notification to the user's phone, in addition to the inbox.
  *
@@ -64,8 +45,7 @@ export async function alertIfUrgent(input: UrgentAlertInput): Promise<Notificati
     // Nothing to send to, or the user has not asked for phone alerts.
     if (!recipient?.acceptsExternalMessages) return undefined;
 
-    const { kind, ...content } = message(input.type, input.payload);
-    const rendered = renderTemplate(input.language ?? recipient.language, kind, content);
+    const rendered = buildUrgentMessage(input.type, input.payload, input.language ?? recipient.language);
 
     return await notifier.notify({
       recipientId: input.userId,

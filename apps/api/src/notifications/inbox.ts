@@ -42,11 +42,11 @@ export async function notify({
       .values(values)
       .onConflictDoNothing({ target: [notification.userId, notification.idempotencyKey] })
       .returning({ id: notification.id });
-    if (rows.length > 0) {
-      // Only the first time this event is recorded. The alert has its own record and its
-      // own key as well, so a retry that reaches here again still sends one message.
-      await alertIfUrgent({ userId, type, payload, idempotencyKey, projectId });
-    }
+    // Attempted every time, not only when the inbox row is new. A message whose provider
+    // was down leaves a failed delivery record, and replaying the event is what retries it;
+    // gating this on a new inbox row meant the first failure was the last attempt. The
+    // delivery record's own key is what keeps a delivered message from being sent twice.
+    await alertIfUrgent({ userId, type, payload, idempotencyKey, projectId });
     return rows.length > 0;
   } catch (err) {
     logger.error({ err, userId, type, idempotencyKey }, "could not store notification");
