@@ -1,4 +1,4 @@
-// GENERATED from packages/shared/src/procedures/source/*.json by the catalog script.
+// GENERATED from packages/shared/src/procedures/source/*.json by scripts/generate-procedures.py.
 // Only RNE and DGI services are included: those are the project destinations.
 // Do not edit by hand; edit the source JSON and regenerate.
 
@@ -89,9 +89,13 @@ export interface ServiceDef {
   requirements: string[];
   /** Authentication requirements, collected at the AUTHENTICATION step. */
   authentication: string[];
+  /** Identity / signature mechanisms the channel accepts (decision trees). */
+  authenticationMethods: string[];
   submissionMode: string;
   /** Official channels from the decision trees. */
   channels: string[];
+  /** Decision-tree question nodes the user should answer before moving on (self-checks). */
+  checks: string[];
   outputs: string[];
   rejectionEffects: string[];
   notes: string[];
@@ -217,8 +221,10 @@ export const SERVICES: Record<string, ServiceDef> = {
     destination: "RNE",
     requirements: ["VALIDATED_STATUTES", "MANAGER_BENEFICIARY_DATA", "FISCAL_IDENTIFIER"],
     authentication: ["DIGIGO_CERTIFICATE"],
+    authenticationMethods: ["MobileID_for_physical_persons", "DigiGo_for_legal_persons"],
     submissionMode: "100%_ONLINE",
     channels: ["100_percent_online"],
+    checks: ["start", "authenticate", "RNE_validation"],
     outputs: ["RNE_EXTRACT", "RNE_IDENTIFIER"],
     rejectionEffects: ["Rejection can prevent the unique identifier and affect/delay CNSS/DGI processes."],
     notes: [],
@@ -228,8 +234,10 @@ export const SERVICES: Record<string, ServiceDef> = {
     destination: "RNE",
     requirements: ["RNE_UPDATE_SUPPORTING_ATTACHMENTS", "MANAGER_BENEFICIARY_DATA"],
     authentication: ["DIGIGO_CERTIFICATE"],
+    authenticationMethods: ["MobileID", "DigiGo"],
     submissionMode: "100%_ONLINE_AFTER_INITIAL_ACTIVATION",
     channels: ["online"],
+    checks: ["start", "RNE_validation"],
     outputs: ["UPDATED_RNE_EXTRACT", "DIGITAL_NOTIFICATION"],
     rejectionEffects: [
       "Rejection leaves the previous situation in place and can create inconsistencies affecting CNSS/DGI.",
@@ -241,8 +249,10 @@ export const SERVICES: Record<string, ServiceDef> = {
     destination: "RNE",
     requirements: ["RNE_DEREGISTRATION_ATTACHMENTS"],
     authentication: ["DIGIGO_CERTIFICATE"],
+    authenticationMethods: [],
     submissionMode: "100%_ONLINE",
     channels: ["online"],
+    checks: ["start", "RNE_validation"],
     outputs: ["RNE_DEREGISTRATION_CERTIFICATE"],
     rejectionEffects: ["Closure without alignment with CNSS/DGI can create fiscal/social inconsistencies."],
     notes: ["Some underlying acts may still require authentic/notarial form."],
@@ -252,8 +262,10 @@ export const SERVICES: Record<string, ServiceDef> = {
     destination: "RNE",
     requirements: ["RNE_E_SAFE_ACTIVATION", "OTP", "RNE_ELECTRONIC_ACTS"],
     authentication: ["DIGIGO_CERTIFICATE"],
+    authenticationMethods: [],
     submissionMode: "ACTIVATION_MAY_BE_PHYSICAL_THEN_ONLINE",
     channels: ["initial_activation_often_physical", "then_online"],
+    checks: ["start"],
     outputs: ["CERTIFIED_ELECTRONIC_ACTS"],
     rejectionEffects: [],
     notes: [
@@ -265,8 +277,10 @@ export const SERVICES: Record<string, ServiceDef> = {
     destination: "DGI",
     requirements: ["REGISTERED_STATUTES", "RNE_OR_RC_INFORMATION", "MANAGER_CIN"],
     authentication: ["DIGIGO_CERTIFICATE"],
+    authenticationMethods: [],
     submissionMode: "ONLINE_OR_GUICHET_DEPENDING_ON_PROCESS",
     channels: [],
+    checks: [],
     outputs: ["FISCAL_IDENTIFIER"],
     rejectionEffects: [
       "Rejection for missing documents can prevent the fiscal identifier and e-Jibaya; CNSS may also reject without the fiscal identifier.",
@@ -278,8 +292,10 @@ export const SERVICES: Record<string, ServiceDef> = {
     destination: "DGI",
     requirements: ["MONTHLY_TAX_DECLARATION_DATA", "TAXPAYER_ENROLLMENT", "TAXPAYER_IDENTIFIER"],
     authentication: ["DIGIGO_CERTIFICATE"],
+    authenticationMethods: ["telesubscriber_identifier", "DIGIGO_certificate"],
     submissionMode: "100%_ONLINE",
     channels: ["online_e_Jibaya"],
+    checks: ["start", "prepare_declaration", "DGI_validation"],
     outputs: ["ELECTRONIC_RECEIPT", "AMOUNT_DUE", "DECLARATION_PROOF"],
     rejectionEffects: [
       "Technical rejection or declarative errors can block validation and cause penalties; anomalies can affect TEJ and require regularization.",
@@ -291,8 +307,10 @@ export const SERVICES: Record<string, ServiceDef> = {
     destination: "DGI",
     requirements: ["ANNUAL_RESULTS_TAX_PACKAGE"],
     authentication: ["QUALIFIED_TUNTRUST_SIGNATURE"],
+    authenticationMethods: [],
     submissionMode: "ONLINE",
     channels: ["online_e_Liasse"],
+    checks: ["start", "DGI_validation"],
     outputs: ["TIMESTAMPED_E_LIASSE_PROOF"],
     rejectionEffects: [
       "Technical/declarative rejection can affect the fiscal situation visible through TEJ.",
@@ -304,8 +322,10 @@ export const SERVICES: Record<string, ServiceDef> = {
     destination: "DGI",
     requirements: ["TEJ_ENROLLMENT"],
     authentication: ["TEJ_LOGIN_CERTIFICATE"],
+    authenticationMethods: ["login", "certificate"],
     submissionMode: "ONLINE",
     channels: ["online"],
+    checks: ["start", "consult"],
     outputs: ["FISCAL_SITUATION", "WITHHOLDING_CERTIFICATES"],
     rejectionEffects: [
       "Missing/rejected e-Jibaya declarations can appear as irregularities in TEJ and affect supplier eligibility.",

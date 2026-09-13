@@ -1,12 +1,19 @@
 import { Link } from '@tanstack/react-router'
-import { REQUIREMENTS, deriveSteps, type ProcedureStep } from '@hack4justice/shared'
+import { REQUIREMENTS, SERVICES, deriveSteps, type ProcedureStep } from '@hack4justice/shared'
 import { ArrowRight, Check, ChevronRight, Paperclip } from 'lucide-react'
 import { Button } from '@hack4justice/ui/components/button'
 import { cn } from '@hack4justice/ui/lib/utils'
 import { toLocaleParam, useI18n } from '#/i18n'
 import type { ProjectDetail, ProjectRequirementView } from '#/lib/projects'
-import { REQUIREMENT_TYPE_ICON, requirementLabel, stepDescription, stepTitle } from './labels'
+import {
+  REQUIREMENT_TYPE_ICON,
+  requirementHint,
+  requirementLabel,
+  stepDescription,
+  stepTitle,
+} from './labels'
 import { RequirementStatusBadge } from './status-badges'
+import { StepGuide } from './step-guide'
 
 interface StepsTimelineProps {
   project: ProjectDetail
@@ -21,10 +28,12 @@ export function StepsTimeline({ project, onSelectRequirement }: StepsTimelinePro
   const { t, locale } = useI18n()
   const steps = deriveSteps(project.serviceId, project.requirements, project.submissionStatus)
   const byId = new Map(project.requirements.map((r) => [r.requirementId, r]))
+  const service = project.serviceId ? SERVICES[project.serviceId] : undefined
 
   return (
     <ol className="flex flex-col">
-      {steps.map(({ step, state, requirementIds, satisfied }, index) => {
+      {steps.map((progress, index) => {
+        const { step, state, requirementIds, satisfied } = progress
         const last = index === steps.length - 1
         const showNodes = STEPS_WITH_NODES.has(step) && requirementIds.length > 0
         return (
@@ -65,6 +74,10 @@ export function StepsTimeline({ project, onSelectRequirement }: StepsTimelinePro
                 ) : null}
               </div>
 
+              {service ? (
+                <StepGuide step={progress} service={service} defaultOpen={state === 'current'} />
+              ) : null}
+
               {showNodes ? (
                 <ol className="flex flex-col gap-2">
                   {requirementIds.map((id) => {
@@ -93,7 +106,11 @@ export function StepsTimeline({ project, onSelectRequirement }: StepsTimelinePro
                               <span className="truncate text-xs text-muted-foreground">
                                 {requirement.note}
                               </span>
-                            ) : null}
+                            ) : (
+                              <span className="line-clamp-1 text-xs text-muted-foreground">
+                                {t(requirementHint(id))}
+                              </span>
+                            )}
                           </span>
                           <RequirementStatusBadge status={requirement.status} />
                           <ChevronRight className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover/node:opacity-100 rtl:rotate-180" />

@@ -33,7 +33,7 @@ import {
   type ProjectRequirementView,
   type RequirementPatch,
 } from '#/lib/projects'
-import { REQUIREMENT_TYPE_ICON, humanize, requirementLabel, requirementTypeLabel } from './labels'
+import { REQUIREMENT_TYPE_ICON, requirementHint, requirementLabel, requirementTypeLabel } from './labels'
 import { RequirementStatusBadge } from './status-badges'
 
 interface RequirementSheetProps {
@@ -100,13 +100,12 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
             {t(requirementTypeLabel(def.type))}
           </div>
           <SheetTitle>{t(requirementLabel(requirement.requirementId))}</SheetTitle>
-          <SheetDescription>
-            {def.providedBy
-              ? t('procedure.requirement.providedBy', { entity: def.providedBy.entity })
-              : def.sourceStatus === 'NOT_SPECIFIED_IN_SOURCE' || def.notes
-                ? t('procedure.requirement.notSpecified')
-                : humanize(def.type)}
-          </SheetDescription>
+          <SheetDescription>{t(requirementHint(requirement.requirementId))}</SheetDescription>
+          {def.providedBy ? (
+            <p className="text-xs text-muted-foreground">
+              {t('procedure.requirement.providedBy', { entity: def.providedBy.entity })}
+            </p>
+          ) : null}
           <div className="pt-1">
             <RequirementStatusBadge status={requirement.status} />
           </div>
