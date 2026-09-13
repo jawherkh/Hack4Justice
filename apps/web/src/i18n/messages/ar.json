@@ -500,5 +500,7 @@
   "procedure.submissions.reference": "المرجع",
   "procedure.submissions.receipt": "الوصل",
   "procedure.submissions.items": "{count} عناصر",
-  "procedure.submissions.submittedAt": "أُودع {date}"
+  "procedure.submissions.submittedAt": "أُودع {date}",
+  "procedure.prevalidation.needsCheck": "تحقق منه ثم وسمه صالحًا",
+  "procedure.prevalidation.provideFirst": "قدّمه أولاً في الخطوة السابقة"
 }

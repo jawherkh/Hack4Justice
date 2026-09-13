@@ -500,5 +500,7 @@
   "procedure.submissions.reference": "Référence",
   "procedure.submissions.receipt": "Récépissé",
   "procedure.submissions.items": "{count} pièces",
-  "procedure.submissions.submittedAt": "Déposé {date}"
+  "procedure.submissions.submittedAt": "Déposé {date}",
+  "procedure.prevalidation.needsCheck": "Vérifiez-la, puis marquez-la valide",
+  "procedure.prevalidation.provideFirst": "Fournissez-la d’abord à l’étape précédente"
 }

@@ -500,5 +500,7 @@
   "procedure.submissions.reference": "Reference",
   "procedure.submissions.receipt": "Receipt",
   "procedure.submissions.items": "{count} items",
-  "procedure.submissions.submittedAt": "Submitted {date}"
+  "procedure.submissions.submittedAt": "Submitted {date}",
+  "procedure.prevalidation.needsCheck": "Check it, then mark it valid",
+  "procedure.prevalidation.provideFirst": "Provide it in the step above first"
 }

@@ -1,6 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { REQUIREMENTS, SERVICES, deriveSteps, type ProcedureStep } from '@hack4justice/shared'
+import {
+  REQUIREMENTS,
+  RequirementStatus,
+  SERVICES,
+  deriveSteps,
+  type ProcedureStep,
+} from '@hack4justice/shared'
 import { ArrowRight, Check, ChevronRight, Paperclip, Send, Upload } from 'lucide-react'
 import { toast } from '@hack4justice/ui/components/toast'
 import { useFileDrop, type FileDropError } from '#/components/uploads/use-file-drop'
@@ -8,7 +14,13 @@ import { ApiError } from '#/lib/api-error'
 import { Button } from '@hack4justice/ui/components/button'
 import { cn } from '@hack4justice/ui/lib/utils'
 import { toLocaleParam, useI18n } from '#/i18n'
-import { projectKeys, uploadAndAttach, type ProjectDetail, type ProjectRequirementView } from '#/lib/projects'
+import {
+  projectKeys,
+  updateRequirement,
+  uploadAndAttach,
+  type ProjectDetail,
+  type ProjectRequirementView,
+} from '#/lib/projects'
 import {
   REQUIREMENT_TYPE_ICON,
   requirementHint,
@@ -28,7 +40,11 @@ interface StepsTimelineProps {
 }
 
 /** Steps that list their gating requirements as child nodes. */
-const STEPS_WITH_NODES: ReadonlySet<ProcedureStep> = new Set(['COLLECT_REQUIREMENTS', 'AUTHENTICATION'])
+const STEPS_WITH_NODES: ReadonlySet<ProcedureStep> = new Set([
+  'COLLECT_REQUIREMENTS',
+  'PREVALIDATION',
+  'AUTHENTICATION',
+])
 
 /** Vertical timeline of the procedure: one node per state machine step, requirement nodes nested under it. */
 export function StepsTimeline({ project, onSelectRequirement, onSubmit }: StepsTimelineProps) {
@@ -96,7 +112,8 @@ export function StepsTimeline({ project, onSelectRequirement, onSubmit }: StepsT
                         key={id}
                         projectId={project.id}
                         requirement={requirement}
-                        droppable={def.type === 'document'}
+                        droppable={step === 'COLLECT_REQUIREMENTS' && def.type === 'document'}
+                        validating={step === 'PREVALIDATION'}
                         onSelect={() => onSelectRequirement(requirement)}
                       />
                     )
@@ -140,10 +157,18 @@ interface RequirementNodeProps {
   requirement: ProjectRequirementView
   /** Document requirements accept a dropped PDF: it is uploaded into the project and attached. */
   droppable: boolean
+  /** Pre-validation view: offer to mark the item valid or invalid without opening the panel. */
+  validating?: boolean
   onSelect: () => void
 }
 
-function RequirementNode({ projectId, requirement, droppable, onSelect }: RequirementNodeProps) {
+function RequirementNode({
+  projectId,
+  requirement,
+  droppable,
+  validating = false,
+  onSelect,
+}: RequirementNodeProps) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
   const id = requirement.requirementId
@@ -164,6 +189,23 @@ function RequirementNode({ projectId, requirement, droppable, onSelect }: Requir
         description: err instanceof ApiError ? err.message : t('auth.error.generic'),
       }),
   })
+  const setStatus = useMutation({
+    mutationFn: (status: RequirementStatus) => updateRequirement(projectId, id, { status }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) })
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all })
+    },
+    onError: (err) =>
+      toast.add({
+        type: 'error',
+        title: t('procedure.requirement.error'),
+        description: err instanceof ApiError ? err.message : t('auth.error.generic'),
+      }),
+  })
+  const settled =
+    requirement.status === RequirementStatus.VALID ||
+    requirement.status === RequirementStatus.NOT_APPLICABLE ||
+    requirement.status === RequirementStatus.WAIVED
   const dropError = (error: FileDropError) =>
     toast.add({
       type: 'error',
@@ -195,6 +237,12 @@ function RequirementNode({ projectId, requirement, droppable, onSelect }: Requir
             <span className="truncate text-xs text-muted-foreground">
               {t('procedure.requirement.uploading')}
             </span>
+          ) : validating && requirement.status === RequirementStatus.MISSING ? (
+            <span className="truncate text-xs text-muted-foreground">
+              {t('procedure.prevalidation.provideFirst')}
+            </span>
+          ) : validating && !settled ? (
+            <span className="truncate text-xs text-primary">{t('procedure.prevalidation.needsCheck')}</span>
           ) : dragging ? (
             <span className="truncate text-xs text-primary">{t('procedure.requirement.dropHere')}</span>
           ) : requirement.upload ? (
@@ -208,6 +256,28 @@ function RequirementNode({ projectId, requirement, droppable, onSelect }: Requir
             <span className="line-clamp-1 text-xs text-muted-foreground">{t(requirementHint(id))}</span>
           )}
         </span>
+        {validating && requirement.status !== RequirementStatus.MISSING && !settled ? (
+          <span className="flex shrink-0 items-center gap-1" onClick={(event) => event.stopPropagation()}>
+            <Button
+              size="xs"
+              disabled={setStatus.isPending}
+              onClick={() => setStatus.mutate(RequirementStatus.VALID)}
+            >
+              <Check data-icon="inline-start" />
+              {t('procedure.requirement.markValid')}
+            </Button>
+            {requirement.status !== RequirementStatus.INVALID ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                disabled={setStatus.isPending}
+                onClick={() => setStatus.mutate(RequirementStatus.INVALID)}
+              >
+                {t('procedure.requirement.markInvalid')}
+              </Button>
+            ) : null}
+          </span>
+        ) : null}
         <RequirementStatusBadge status={requirement.status} />
         <ChevronRight className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover/node:opacity-100 rtl:rotate-180" />
       </button>
