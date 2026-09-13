@@ -249,13 +249,32 @@ export class DockerRunner {
     });
   }
 
-  /** Stops a run that is still going. Safe to call when the container is already gone. */
+  /**
+   * Stops a run that is still going. Safe to call when the container is already gone.
+   *
+   * Uses the same repeated removal as a timed-out run: one request can land while the
+   * container is still being created and miss it, leaving the run going after the caller
+   * believes it stopped.
+   */
   async terminate(workspace: Workspace): Promise<void> {
     const name = this.containerName(workspace);
-    await new Promise<void>((settle) => {
-      const child = spawn(this.dockerBinary, ["rm", "--force", name], { stdio: "ignore" });
-      child.on("error", () => settle());
-      child.on("close", () => settle());
-    });
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
+      const removed = await new Promise<number | null>((settle) => {
+        const child = spawn(this.dockerBinary, ["rm", "--force", name], { stdio: "ignore" });
+        child.on("error", () => settle(null));
+        child.on("close", (code) => settle(code));
+      });
+      if (removed === 0) return;
+      const remaining = await new Promise<string>((settle) => {
+        const check = spawn(this.dockerBinary, ["ps", "--all", "--quiet", "--filter", `name=^${name}$`], { stdio: ["ignore", "pipe", "ignore"] });
+        let text = "";
+        check.stdout.on("data", (chunk: Buffer) => { text += chunk.toString(); });
+        check.on("error", () => settle(""));
+        check.on("close", () => settle(text.trim()));
+      });
+      if (remaining === "") return;
+      await new Promise((settle) => setTimeout(settle, 300));
+    }
   }
 }
