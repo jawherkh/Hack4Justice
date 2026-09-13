@@ -1,5 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { LifecycleContext, PrerequisiteObservation } from "../lifecycle/contracts";
+import { combinePrerequisiteStatuses, observationStatus } from "../lifecycle/prerequisites";
+import {
+  type ObligationChangeEvent,
+  type ObligationObservationInput,
+  type ObligationRecord,
+  type ObligationRelationship,
+  type ObligationWriteResult,
+  type OfficerReassessmentInput,
+} from "../obligations/contracts";
 
 import {
   AccessError,
@@ -147,6 +156,7 @@ export interface NodeRecord extends ResourceScope {
   readonly id: string;
   readonly version: number;
   readonly procedureVersionId: string;
+  readonly procedureNodeKey?: string;
   readonly type: NodeType;
   readonly state: NodeState;
   readonly title: string;
@@ -189,7 +199,7 @@ export interface DependencyRecord extends DependencyScope {
   readonly id: string;
   readonly status: "unknown" | "satisfied" | "unsatisfied";
   readonly observedAt: string;
-  readonly simulated: true;
+  readonly simulated: boolean;
 }
 
 export interface DossierDetail {
@@ -407,9 +417,13 @@ export interface AccessRepository {
   document(id: string): DocumentRecord | undefined;
   node(id: string): NodeRecord | undefined;
   dependency(id: string): DependencyRecord | undefined;
+  obligation(id: string): ObligationRecord | undefined;
+  obligationEvents(id: string, afterVersion: number): readonly ObligationChangeEvent[];
   grants(): readonly DocumentGrant[];
   procedures(): readonly ProcedureVersionRecord[];
   procedure(id: string): ProcedureVersionRecord | undefined;
+  recordObligationObservation(input: ObligationObservationInput): ObligationWriteResult;
+  reassessObligation(input: OfficerReassessmentInput): ObligationWriteResult;
   createDossier(input: CreateDossierInput): DossierDetail;
   uploadDocument(input: UploadDocumentInput): {
     readonly document: DocumentRecord;
@@ -491,6 +505,8 @@ export interface RepositorySnapshot {
   readonly decisions: DecisionRecord[];
   readonly sources: SourceRecord[];
   readonly dependencies: DependencyRecord[];
+  readonly obligations?: ObligationRecord[];
+  readonly obligationEvents?: ObligationChangeEvent[];
   readonly procedures: ProcedureVersionRecord[];
   readonly commands: [string, { fingerprint: string; acknowledgement: LifecycleCommandAcknowledgement }][];
   readonly grants: readonly DocumentGrant[];
@@ -511,6 +527,8 @@ export class InMemoryDossierRepository implements AgentRepository {
   private readonly decisionRows = new Map<string, DecisionRecord>();
   private readonly sourceRows = new Map<string, SourceRecord>();
   private readonly dependencyRows = new Map<string, DependencyRecord>();
+  private readonly obligationRows = new Map<string, ObligationRecord>();
+  private readonly obligationEventRows = new Map<string, ObligationChangeEvent>();
   private readonly procedureRows = new Map<string, ProcedureVersionRecord>();
   private readonly commandRows = new Map<
     string,
@@ -541,6 +559,8 @@ export class InMemoryDossierRepository implements AgentRepository {
       decisions: [...this.decisionRows.values()],
       sources: [...this.sourceRows.values()],
       dependencies: [...this.dependencyRows.values()],
+      obligations: [...this.obligationRows.values()],
+      obligationEvents: [...this.obligationEventRows.values()],
       procedures: [...this.procedureRows.values()],
       commands: [...this.commandRows.entries()],
       grants: this.documentGrants,
@@ -566,6 +586,8 @@ export class InMemoryDossierRepository implements AgentRepository {
     for (const row of copy.decisions) repository.decisionRows.set(row.id, row);
     for (const row of copy.sources) repository.sourceRows.set(row.id, row);
     for (const row of copy.dependencies) repository.dependencyRows.set(row.id, row);
+    for (const row of copy.obligations ?? []) repository.obligationRows.set(row.id, row);
+    for (const row of copy.obligationEvents ?? []) repository.obligationEventRows.set(row.id, row);
     for (const row of copy.procedures) repository.procedureRows.set(row.id, row);
     for (const [key, row] of copy.commands) repository.commandRows.set(key, row);
     for (const [key, row] of copy.uploadReceipts ?? []) repository.uploadReceiptRows.set(key, row);
@@ -580,27 +602,30 @@ export class InMemoryDossierRepository implements AgentRepository {
   }
 
   public dossiers(): readonly DossierRecord[] {
-    return [...this.dossierRows.values()].map(clone);
+    const now = Date.now();
+    return [...this.dossierRows.values()].map((dossier) => this.currentDossier(dossier, now));
   }
 
   public dossier(id: string): DossierRecord | undefined {
     const value = this.dossierRows.get(id);
-    return value ? clone(value) : undefined;
+    return value ? this.currentDossier(value, Date.now()) : undefined;
   }
 
   public dossierDetail(id: string): DossierDetail | undefined {
     const dossier = this.dossierRows.get(id);
     if (!dossier) return undefined;
+    const now = Date.now();
     const nodes = dossier.nodeIds
       .map((nodeId) => this.nodeRows.get(nodeId))
-      .filter((node): node is NodeRecord => Boolean(node));
+      .filter((node): node is NodeRecord => Boolean(node))
+      .map((node) => this.currentNode(node, now));
     const requirements = this.procedureRows.get(dossier.procedureVersionId)?.requirements ?? [];
     const sourceIds = new Set<string>([
       ...(this.procedureRows.get(dossier.procedureVersionId)?.sourceIds ?? []),
       ...nodes.flatMap((node) => node.sourceIds),
     ]);
     return clone({
-      dossier,
+      dossier: this.currentDossier(dossier, now),
       nodes,
       requirements,
       sources: [...sourceIds]
@@ -619,18 +644,437 @@ export class InMemoryDossierRepository implements AgentRepository {
 
   public node(id: string): NodeRecord | undefined {
     const value = this.nodeRows.get(id);
-    return value ? clone(value) : undefined;
+    return value ? this.currentNode(value, Date.now()) : undefined;
+  }
+
+  private currentNode(node: NodeRecord, now: number): NodeRecord {
+    const blockers = node.blockers.map((blocker) => {
+      const obligation = this.obligationRows.get(blocker.obligationId);
+      if (!obligation) return blocker;
+      const status = observationStatus(obligation, now);
+      return { ...blocker, status, reason: `Obligation status: ${status}` };
+    });
+    return clone({
+      ...node,
+      blockers,
+      prerequisiteStatus: combinePrerequisiteStatuses(
+        blockers.map((blocker) => blocker.status),
+        node.prerequisiteStatus,
+      ),
+    });
+  }
+
+  private currentDossier(dossier: DossierRecord, now: number): DossierRecord {
+    const statuses: PrerequisiteStatus[] = Object.values(dossier.lifecycleContext?.prerequisites ?? {}).map(
+      (observation) => observationStatus(observation, now),
+    );
+    for (const nodeId of dossier.nodeIds) {
+      const node = this.nodeRows.get(nodeId);
+      if (node) statuses.push(...this.currentNode(node, now).blockers.map((blocker) => blocker.status));
+    }
+    return clone({
+      ...dossier,
+      prerequisiteStatus: combinePrerequisiteStatuses(statuses, dossier.prerequisiteStatus),
+    });
   }
 
   public dependency(id: string): DependencyRecord | undefined {
     const value = this.dependencyRows.get(id);
-    return value ? clone(value) : undefined;
+    return value ? this.currentDependency(value) : undefined;
   }
 
   public dependencies(companyId: string, agency: Agency): readonly DependencyRecord[] {
     return [...this.dependencyRows.values()]
-      .filter((dependency) => dependency.companyId === companyId && dependency.agency === agency)
+      .filter(
+        (dependency) =>
+          dependency.companyId === companyId &&
+          (dependency.agency === agency || dependency.consumerAgencies.includes(agency)),
+      )
+      .map((dependency) => this.currentDependency(dependency));
+  }
+
+  private currentDependency(dependency: DependencyRecord): DependencyRecord {
+    const obligation = this.obligationRows.get(dependency.id);
+    if (!obligation) return clone(dependency);
+    return clone({
+      ...dependency,
+      status: observationStatus(obligation, Date.now()),
+    });
+  }
+
+  public obligation(id: string): ObligationRecord | undefined {
+    const value = this.obligationRows.get(id);
+    return value ? clone(value) : undefined;
+  }
+
+  public obligationEvents(id: string, afterVersion: number): readonly ObligationChangeEvent[] {
+    return [...this.obligationEventRows.values()]
+      .filter((event) => event.obligationId === id && event.version > afterVersion)
+      .sort((a, b) => a.version - b.version)
       .map(clone);
+  }
+
+  private procedureNodeDefinition(
+    dossier: DossierRecord,
+    node: NodeRecord,
+  ): ProcedureNodeDefinition | undefined {
+    const procedure = this.procedureRows.get(dossier.procedureVersionId);
+    // Older snapshots retain the node order used when instantiating the pinned procedure.
+    const definition = node.procedureNodeKey
+      ? procedure?.nodes.find((candidate) => candidate.key === node.procedureNodeKey)
+      : procedure?.nodes[dossier.nodeIds.indexOf(node.id)];
+    return node.procedureVersionId === dossier.procedureVersionId && definition?.type === node.type
+      ? definition
+      : undefined;
+  }
+
+  private relationshipBinding(relationship: ObligationRelationship): string {
+    const dossier = requireValue(this.dossierRows.get(relationship.dossierId));
+    const node = requireValue(this.nodeRows.get(relationship.nodeId));
+    const definition = requireValue(
+      this.procedureNodeDefinition(dossier, node),
+      "invalid_obligation_relationship",
+    );
+    return JSON.stringify([relationship.agency, definition.key, relationship.action]);
+  }
+
+  private expandObligationRelationships(
+    input: ObligationObservationInput,
+  ): readonly ObligationRelationship[] {
+    const bindings = new Set(
+      input.relationships.map((relationship) => this.relationshipBinding(relationship)),
+    );
+    const relationships = new Map<string, ObligationRelationship>();
+    for (const relationship of input.relationships) {
+      relationships.set(
+        JSON.stringify([relationship.dossierId, relationship.nodeId, relationship.action]),
+        relationship,
+      );
+    }
+    for (const dossier of this.dossierRows.values()) {
+      if (
+        dossier.companyId !== input.companyId ||
+        dossier.procedureVersionId !== input.ruleVersionId ||
+        (dossier.agency !== input.agency && !input.consumerAgencies.includes(dossier.agency))
+      )
+        continue;
+      for (const nodeId of dossier.nodeIds) {
+        const node = this.nodeRows.get(nodeId);
+        if (
+          !node ||
+          node.dossierId !== dossier.id ||
+          node.companyId !== dossier.companyId ||
+          node.agency !== dossier.agency
+        )
+          continue;
+        const definition = this.procedureNodeDefinition(dossier, node);
+        if (!definition) continue;
+        for (const action of ["submit", "resubmit", "execute_external"] as const) {
+          if (
+            !node.allowedActions.includes(action) ||
+            !definition.allowedActions.includes(action) ||
+            !bindings.has(JSON.stringify([dossier.agency, definition.key, action]))
+          )
+            continue;
+          const relationship = { dossierId: dossier.id, nodeId: node.id, agency: dossier.agency, action };
+          relationships.set(JSON.stringify([dossier.id, node.id, action]), relationship);
+        }
+      }
+    }
+    return [...relationships.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, relationship]) => relationship);
+  }
+
+  public recordObligationObservation(input: ObligationObservationInput): ObligationWriteResult {
+    const previous = this.obligationRows.get(input.id);
+    if (previous && (previous.companyId !== input.companyId || previous.agency !== input.agency)) {
+      throw new AccessError(409, "obligation_scope_conflict");
+    }
+    if (
+      previous &&
+      input.authority.kind !== "officer_reassessment" &&
+      previous.sourceVersion >= input.sourceVersion
+    ) {
+      return { applied: false, reason: "stale_or_duplicate", record: clone(previous) };
+    }
+    if (
+      previous &&
+      commandFingerprint({
+        ruleVersionId: previous.ruleVersionId,
+        consumerAgencies: [...previous.consumerAgencies].sort(),
+      }) !==
+        commandFingerprint({
+          ruleVersionId: input.ruleVersionId,
+          consumerAgencies: [...input.consumerAgencies].sort(),
+        })
+    ) {
+      throw new AccessError(409, "obligation_relationship_conflict");
+    }
+
+    const dates = [input.effectiveAt, input.observedAt, input.expiresAt, input.recordedAt].map(Date.parse);
+    if (
+      dates.some((date) => !Number.isFinite(date)) ||
+      Date.parse(input.expiresAt) <= Date.parse(input.effectiveAt) ||
+      Date.parse(input.recordedAt) < Date.parse(input.observedAt)
+    ) {
+      throw new AccessError(422, "invalid_obligation_freshness");
+    }
+    if (input.authority.agency !== input.agency) {
+      throw new AccessError(422, "obligation_authority_mismatch");
+    }
+
+    const rule = requireValue(this.procedureRows.get(input.ruleVersionId), "rule_version_not_found");
+    const reassessment = input.authority.kind === "officer_reassessment";
+    const synthetic = input.authority.kind === "synthetic" || (reassessment && previous?.simulated === true);
+    if (
+      synthetic
+        ? rule.status !== "synthetic" ||
+          input.verificationState !== "synthetic" ||
+          input.evidence.kind !== "synthetic_fixture"
+        : rule.status !== "approved" ||
+          input.verificationState === "synthetic" ||
+          input.evidence.kind === "synthetic_fixture"
+    ) {
+      throw new AccessError(422, "obligation_rule_or_source_not_authoritative");
+    }
+    if (
+      (input.authority.kind === "authorized_agency" && input.evidence.kind !== "official_record") ||
+      (reassessment &&
+        (input.evidence.kind !== (synthetic ? "synthetic_fixture" : "officer_attestation") ||
+          input.verificationState !== (synthetic ? "synthetic" : "verified") ||
+          !input.authority.officerId))
+    ) {
+      throw new AccessError(422, "obligation_evidence_not_authoritative");
+    }
+    if (
+      reassessment &&
+      (!previous ||
+        !input.correction?.reason.trim() ||
+        input.correction.previousEventId !== previous.lastEventId ||
+        input.correction.officerId !== input.authority.officerId ||
+        input.sourceVersion !== previous.sourceVersion)
+    ) {
+      throw new AccessError(422, "invalid_obligation_correction");
+    }
+
+    const permittedAgencies = new Set([input.agency, ...input.consumerAgencies]);
+    if (new Set(input.consumerAgencies).size !== input.consumerAgencies.length) {
+      throw new AccessError(422, "invalid_obligation_relationship");
+    }
+    const relationshipKeys = new Set<string>();
+    for (const relationship of input.relationships) {
+      const dossier = requireValue(this.dossierRows.get(relationship.dossierId));
+      const node = requireValue(this.nodeRows.get(relationship.nodeId));
+      const definition = this.procedureNodeDefinition(dossier, node);
+      const key = `${relationship.dossierId}:${relationship.nodeId}:${relationship.action}`;
+      if (
+        relationshipKeys.has(key) ||
+        !permittedAgencies.has(relationship.agency) ||
+        dossier.companyId !== input.companyId ||
+        dossier.agency !== relationship.agency ||
+        dossier.procedureVersionId !== rule.id ||
+        node.dossierId !== dossier.id ||
+        node.companyId !== dossier.companyId ||
+        node.agency !== dossier.agency ||
+        !dossier.nodeIds.includes(node.id) ||
+        !node.allowedActions.includes(relationship.action) ||
+        !definition?.allowedActions.includes(relationship.action)
+      ) {
+        throw new AccessError(422, "invalid_obligation_relationship");
+      }
+      relationshipKeys.add(key);
+    }
+    // Source refreshes retain previously attached dossiers and the pinned action scope.
+    if (previous) {
+      const previousBindings = new Set(
+        previous.relationships.map((relationship) => this.relationshipBinding(relationship)),
+      );
+      if (
+        input.relationships.some(
+          (relationship) => !previousBindings.has(this.relationshipBinding(relationship)),
+        )
+      ) {
+        throw new AccessError(409, "obligation_relationship_conflict");
+      }
+    }
+    return this.commitObligation({
+      ...clone(input),
+      relationships: this.expandObligationRelationships({
+        ...input,
+        relationships: [...(previous?.relationships ?? []), ...input.relationships],
+      }),
+      ruleVersionStatus: rule.status as "approved" | "synthetic",
+      simulated: synthetic,
+    });
+  }
+
+  private commitObligation(
+    input: Omit<ObligationRecord, "version" | "lastEventId">,
+    type: ObligationChangeEvent["type"] = "obligation_status_changed",
+    occurredAt = input.recordedAt,
+    dossierIds?: readonly string[],
+  ): ObligationWriteResult {
+    const previous = this.obligationRows.get(input.id);
+    const version = (previous?.version ?? 0) + 1;
+    const eventId = `obligation:${input.id}:v${version}`;
+    const record: ObligationRecord = {
+      ...clone(input),
+      version,
+      lastEventId: eventId,
+    };
+    const event: ObligationChangeEvent = {
+      id: eventId,
+      type,
+      obligationId: record.id,
+      companyId: record.companyId,
+      version: record.version,
+      sourceVersion: record.sourceVersion,
+      status: record.status,
+      verificationState: record.verificationState,
+      authority: record.authority,
+      evidence: record.evidence,
+      effectiveAt: record.effectiveAt,
+      observedAt: record.observedAt,
+      expiresAt: record.expiresAt,
+      occurredAt,
+      ruleVersionId: record.ruleVersionId,
+      ruleVersionStatus: record.ruleVersionStatus,
+      consumerAgencies: record.consumerAgencies,
+      relationships: record.relationships,
+      ...(record.correction ? { correction: record.correction } : {}),
+    };
+    this.obligationRows.set(record.id, clone(record));
+    this.obligationEventRows.set(event.id, clone(event));
+    this.dependencyRows.set(record.id, {
+      id: record.id,
+      companyId: record.companyId,
+      agency: record.agency,
+      consumerAgencies: record.consumerAgencies,
+      status: observationStatus(record, Date.parse(occurredAt)),
+      observedAt: record.observedAt,
+      simulated: record.simulated,
+    });
+    this.applyObligationToDossiers(record, occurredAt, dossierIds);
+    return { applied: true, record: clone(record), event: clone(event) };
+  }
+
+  public reassessObligation(input: OfficerReassessmentInput): ObligationWriteResult {
+    const previous = requireValue(this.obligationRows.get(input.obligationId));
+    assertVersion(previous.version, input.expectedVersion);
+    return this.recordObligationObservation({
+      id: previous.id,
+      companyId: previous.companyId,
+      agency: previous.agency,
+      consumerAgencies: previous.consumerAgencies,
+      sourceVersion: previous.sourceVersion,
+      status: input.status,
+      authority: {
+        agency: previous.agency,
+        kind: "officer_reassessment",
+        sourceId: `officer:${input.officerId}`,
+        officerId: input.officerId,
+      },
+      evidence: {
+        kind: previous.simulated ? "synthetic_fixture" : "officer_attestation",
+        reference: input.evidenceReference,
+      },
+      effectiveAt: input.effectiveAt,
+      observedAt: input.recordedAt,
+      expiresAt: input.expiresAt,
+      recordedAt: input.recordedAt,
+      verificationState: previous.simulated ? "synthetic" : "verified",
+      ruleVersionId: previous.ruleVersionId,
+      relationships: previous.relationships,
+      correction: {
+        kind: input.kind,
+        reason: input.reason,
+        officerId: input.officerId,
+        previousEventId: previous.lastEventId,
+      },
+    });
+  }
+
+  private applyObligationToDossiers(
+    record: ObligationRecord,
+    occurredAt: string,
+    dossierIds?: readonly string[],
+  ): void {
+    const prerequisiteStatus = observationStatus(record, Date.parse(occurredAt));
+    const byDossier = new Map<string, typeof record.relationships>();
+    for (const relationship of record.relationships) {
+      if (dossierIds && !dossierIds.includes(relationship.dossierId)) continue;
+      byDossier.set(relationship.dossierId, [...(byDossier.get(relationship.dossierId) ?? []), relationship]);
+    }
+
+    for (const [dossierId, relationships] of byDossier) {
+      const dossier = requireValue(this.dossierRows.get(dossierId));
+      const context: LifecycleContext = clone(
+        dossier.lifecycleContext ?? { prerequisites: {}, correctionNodeIds: [] },
+      );
+      const actions = [
+        ...new Set(
+          relationships.flatMap((relationship) =>
+            relationship.action === "submit"
+              ? ["submission_requested" as const]
+              : relationship.action === "resubmit"
+                ? ["resubmission_requested" as const]
+                : [],
+          ),
+        ),
+      ];
+      if (actions.length) {
+        const observation: PrerequisiteObservation = {
+          obligationId: record.id,
+          version: record.version,
+          status: record.status,
+          ruleVersionId: record.ruleVersionId,
+          sourceRef: record.evidence.reference,
+          effectiveAt: record.effectiveAt,
+          expiresAt: record.expiresAt,
+          verificationState: record.verificationState,
+          actions,
+        };
+        context.prerequisites[record.id] = observation;
+      }
+      const statuses = Object.values(context.prerequisites).map((observation) =>
+        observationStatus(observation, Date.parse(occurredAt)),
+      );
+      const aggregate = combinePrerequisiteStatuses(statuses, dossier.prerequisiteStatus);
+      this.dossierRows.set(dossier.id, {
+        ...dossier,
+        version: dossier.version + 1,
+        prerequisiteStatus: aggregate,
+        lifecycleContext: context,
+        updatedAt: occurredAt,
+      });
+
+      for (const nodeId of new Set(relationships.map((relationship) => relationship.nodeId))) {
+        const node = requireValue(this.nodeRows.get(nodeId));
+        const nodeRelationships = relationships.filter((relationship) => relationship.nodeId === nodeId);
+        const blockers = [
+          ...node.blockers.filter((blocker) => blocker.obligationId !== record.id),
+          ...nodeRelationships.map((relationship) => ({
+            obligationId: record.id,
+            action: relationship.action,
+            status: prerequisiteStatus,
+            reason: `Obligation status: ${prerequisiteStatus}`,
+          })),
+        ];
+        const nodePrerequisiteStatus = combinePrerequisiteStatuses(
+          blockers.map((blocker) => blocker.status),
+          node.prerequisiteStatus,
+        );
+        this.nodeRows.set(node.id, {
+          ...node,
+          version: node.version + 1,
+          prerequisiteStatus: nodePrerequisiteStatus,
+          blockers,
+        });
+      }
+      const updated = requireValue(this.dossierRows.get(dossier.id));
+      this.dossierRows.set(dossier.id, this.currentDossier(updated, Date.parse(occurredAt)));
+    }
   }
 
   public grants(): readonly DocumentGrant[] {
@@ -694,6 +1138,7 @@ export class InMemoryDossierRepository implements AgentRepository {
         id: nodeId,
         version: 1,
         procedureVersionId: procedure.id,
+        procedureNodeKey: definition.key,
         type: definition.type,
         state: "not_started",
         title: definition.title,
@@ -733,6 +1178,21 @@ export class InMemoryDossierRepository implements AgentRepository {
       updatedAt: timestamp(),
     };
     this.dossierRows.set(dossier.id, dossier);
+    for (const obligation of this.obligationRows.values()) {
+      if (
+        obligation.companyId !== dossier.companyId ||
+        obligation.ruleVersionId !== dossier.procedureVersionId
+      )
+        continue;
+      const relationships = this.expandObligationRelationships(obligation);
+      if (relationships.length === obligation.relationships.length) continue;
+      this.commitObligation(
+        { ...obligation, relationships },
+        "obligation_dependencies_changed",
+        dossier.updatedAt,
+        [dossier.id],
+      );
+    }
     return requireValue(this.dossierDetail(dossier.id));
   }
 
@@ -984,6 +1444,11 @@ export class InMemoryDossierRepository implements AgentRepository {
 
   public addDependency(dependency: DependencyRecord): void {
     this.dependencyRows.set(dependency.id, clone(dependency));
+  }
+
+  public addObligationFixture(record: ObligationRecord, event: ObligationChangeEvent): void {
+    this.obligationRows.set(record.id, clone(record));
+    this.obligationEventRows.set(event.id, clone(event));
   }
 
   public agentSession(id: string, dossierId: string, principalId: string): AgentSessionRecord | undefined {
@@ -1298,6 +1763,7 @@ export function createDemoDossierRepository(
           id: nodeId,
           version: 1,
           procedureVersionId: procedureId,
+          procedureNodeKey: definition.key,
           type: definition.type,
           state: "not_started",
           title: definition.title,
@@ -1391,6 +1857,62 @@ export function createDemoDossierRepository(
       });
     }
   }
+
+  const obligation: ObligationRecord = {
+    id: "obligation-alpha-dgi-registration",
+    companyId: "company-alpha",
+    agency: "DGI",
+    consumerAgencies: ["RNE"],
+    version: 1,
+    sourceVersion: 1,
+    status: "fulfilled",
+    authority: {
+      agency: "DGI",
+      kind: "synthetic",
+      sourceId: "synthetic-dgi-obligation-adapter",
+    },
+    evidence: {
+      kind: "synthetic_fixture",
+      reference: "synthetic://dgi/company-alpha/registration",
+    },
+    effectiveAt: "2026-09-01T00:00:00.000Z",
+    observedAt: "2026-09-12T12:00:00.000Z",
+    expiresAt: "2099-12-31T23:59:59.000Z",
+    recordedAt: "2026-09-12T12:00:00.000Z",
+    verificationState: "synthetic",
+    ruleVersionId: "procedure-rne-v1",
+    ruleVersionStatus: "synthetic",
+    relationships: [
+      {
+        dossierId: "dossier-alpha-rne",
+        nodeId: "node-alpha-rne-submission",
+        agency: "RNE",
+        action: "submit",
+      },
+    ],
+    lastEventId: "obligation:obligation-alpha-dgi-registration:v1",
+    simulated: true,
+  };
+  repository.addObligationFixture(obligation, {
+    id: obligation.lastEventId,
+    type: "obligation_status_changed",
+    obligationId: obligation.id,
+    companyId: obligation.companyId,
+    version: obligation.version,
+    sourceVersion: obligation.sourceVersion,
+    status: obligation.status,
+    verificationState: obligation.verificationState,
+    authority: obligation.authority,
+    evidence: obligation.evidence,
+    effectiveAt: obligation.effectiveAt,
+    observedAt: obligation.observedAt,
+    expiresAt: obligation.expiresAt,
+    occurredAt: obligation.recordedAt,
+    ruleVersionId: obligation.ruleVersionId,
+    ruleVersionStatus: obligation.ruleVersionStatus,
+    consumerAgencies: obligation.consumerAgencies,
+    relationships: obligation.relationships,
+  });
 
   return repository;
 }

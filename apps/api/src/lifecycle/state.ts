@@ -1,4 +1,15 @@
 import type { PreparedCommand, Transition } from "./contracts";
+import { combinePrerequisiteStatuses, observationStatus } from "./prerequisites";
+
+function aggregatePrerequisiteStatus(
+  observations: PreparedCommand["state"]["context"]["prerequisites"],
+  now: string,
+) {
+  const statuses = Object.values(observations).map((observation) =>
+    observationStatus(observation, Date.parse(now)),
+  );
+  return combinePrerequisiteStatuses(statuses, "not_applicable");
+}
 
 // Pure transition logic is shared with replay tests. No I/O belongs here.
 export function transition({ command, state, now }: PreparedCommand): Transition {
@@ -29,13 +40,14 @@ export function transition({ command, state, now }: PreparedCommand): Transition
       if (!command.confirmed) return { error: "explicit_confirmation_required" };
       for (const observation of Object.values(state.context.prerequisites)) {
         if (!observation.actions.includes(command.type)) continue;
-        if (observation.status !== "fulfilled" || Date.parse(observation.expiresAt) <= Date.parse(now)) {
+        const status = observationStatus(observation, Date.parse(now));
+        if (status !== "satisfied") {
           return {
-            error:
-              observation.status === "unfulfilled" ? "prerequisite_blocked" : "prerequisite_needs_review",
+            error: status === "unsatisfied" ? "prerequisite_blocked" : "prerequisite_needs_review",
           };
         }
       }
+      next.prerequisiteStatus = aggregatePrerequisiteStatus(state.context.prerequisites, now);
       next.lifecycle = "awaiting_review";
       next.agencyAcceptance = "pending";
       next.context.correctionNodeIds = [];
@@ -63,16 +75,7 @@ export function transition({ command, state, now }: PreparedCommand): Transition
       const previous = state.context.prerequisites[observation.obligationId];
       if (previous && previous.version >= observation.version) return { error: "stale_observation" };
       next.context.prerequisites[observation.obligationId] = observation;
-      const observations = Object.values(next.context.prerequisites);
-      next.prerequisiteStatus = observations.some(
-        (o) =>
-          (o.status !== "fulfilled" && o.status !== "unfulfilled") ||
-          Date.parse(o.expiresAt) <= Date.parse(now),
-      )
-        ? "unknown"
-        : observations.some((o) => o.status === "unfulfilled")
-          ? "unsatisfied"
-          : "satisfied";
+      next.prerequisiteStatus = aggregatePrerequisiteStatus(next.context.prerequisites, now);
       break;
     }
     case "cancellation_requested":
