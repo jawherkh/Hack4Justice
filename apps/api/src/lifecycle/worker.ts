@@ -5,6 +5,8 @@ import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { PersistentRepository } from "../dossiers/persistent";
 import { FileStore } from "../dossiers/files";
+import { createAgentActivities } from "../agent/activity";
+import { createGeminiAgentModel } from "../agent/model";
 import { COMMAND_SIGNAL, DEFAULT_TASK_QUEUE, WORKFLOW_TYPE } from "./contracts";
 
 // Match the API's root .env loading while allowing deployment-provided variables to win.
@@ -16,12 +18,23 @@ const address = process.env.TEMPORAL_ADDRESS || "127.0.0.1:7233";
 const namespace = process.env.TEMPORAL_NAMESPACE || "default";
 const taskQueue = process.env.TEMPORAL_TASK_QUEUE || DEFAULT_TASK_QUEUE;
 const repository = new PersistentRepository(url, new FileStore(process.env.DOCUMENT_STORAGE_DIR || ".local-data/documents"));
+const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+const agentActivities = geminiApiKey
+  ? createAgentActivities(repository, {
+      model: createGeminiAgentModel({
+        apiKey: geminiApiKey,
+        model: process.env.AGENT_MODEL || process.env.GEMINI_LLM_MODEL || "gemini-2.5-flash",
+        baseURL: process.env.GEMINI_AGENT_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai/",
+      }),
+      sandbox: { image: process.env.SANDBOX_IMAGE || "alpine:3.20", workspaceBaseDir: process.env.SANDBOX_BASE_DIR || ".local-data/agent-sandboxes" },
+    })
+  : {};
 const connection = await Connection.connect({ address });
 const nativeConnection = await NativeConnection.connect({ address });
 const client = new Client({ connection, namespace });
 const worker = await Worker.create({ connection: nativeConnection, namespace, taskQueue,
   workflowsPath: fileURLToPath(new URL("./workflows.ts", import.meta.url)),
-  activities: { prepare: repository.prepare.bind(repository), commit: repository.commit.bind(repository) },
+  activities: { prepare: repository.prepare.bind(repository), commit: repository.commit.bind(repository), ...agentActivities },
   maxConcurrentActivityTaskExecutions: 5,
 });
 let stopped = false;

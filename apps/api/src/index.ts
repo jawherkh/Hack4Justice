@@ -22,6 +22,7 @@ const app = new Elysia({ adapter: node() })
       origin: env.WEB_ORIGIN,
       credentials: true,
       allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", ...(env.DEMO_ACCESS_ENABLED ? ["x-demo-user"] : [])],
+      exposeHeaders: ["x-agent-session-id"],
     }),
   )
   .use(openapi())

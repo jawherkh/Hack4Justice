@@ -27,6 +27,8 @@
     "@hack4justice/logger": "workspace:*",
     "@hack4justice/shared": "workspace:*",
     "@hack4justice/storage": "workspace:*",
+    "@openai/agents": "^0.18.0",
+    "openai": "^7.2.0",
     "@t3-oss/env-core": "^0.13.11",
     "@temporalio/client": "1.23.0",
     "@temporalio/worker": "1.23.0",

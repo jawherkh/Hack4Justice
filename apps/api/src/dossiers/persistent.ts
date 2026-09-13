@@ -6,17 +6,29 @@ import { storageSchema } from "./schema";
 import type { CommandReference, CommandResult, LifecycleEvent, PreparedCommand, Transition } from "../lifecycle/contracts";
 import { lifecycleCommandBody, prerequisiteBody } from "../lifecycle/validation";
 import { createDemoDossierRepository, InMemoryDossierRepository,
-  type AccessRepository, type CreateDossierInput, type ConfirmedFactsInput,
-  type LifecycleCommandInput, type RepositorySnapshot, type UploadDocumentInput } from "./store";
+  type AgentEventInput, type AgentEventRecord, type AgentRepository, type AgentSessionRecord,
+  type ArtifactRecord, type BinaryEvidenceInput, type CreateAgentSessionInput, type CreateDossierInput, type ConfirmedFactsInput,
+  type CreateHelperTaskInput, type HelperTaskRecord, type LifecycleCommandInput, type PublishArtifactInput,
+  type AccessRepository, type RepositorySnapshot, type UploadDocumentInput } from "./store";
 
 type UploadResult = ReturnType<AccessRepository["uploadDocument"]>;
 export type BinaryUpload = Omit<UploadDocumentInput, "content" | "binary"> & { bytes: Uint8Array; idempotencyKey?: string };
 export type TextUpload = UploadDocumentInput & { idempotencyKey?: string };
 export type AsyncAccessRepository = {
-  [K in keyof AccessRepository]: (...args: Parameters<AccessRepository[K]>) =>
-    ReturnType<AccessRepository[K]> | Promise<ReturnType<AccessRepository[K]>>;
-} & {
+  dossiers(): ReturnType<AccessRepository["dossiers"]> | Promise<ReturnType<AccessRepository["dossiers"]>>;
+  dossier(id: string): ReturnType<AccessRepository["dossier"]> | Promise<ReturnType<AccessRepository["dossier"]>>;
+  dossierDetail(id: string): ReturnType<AccessRepository["dossierDetail"]> | Promise<ReturnType<AccessRepository["dossierDetail"]>>;
+  document(id: string): ReturnType<AccessRepository["document"]> | Promise<ReturnType<AccessRepository["document"]>>;
+  node(id: string): ReturnType<AccessRepository["node"]> | Promise<ReturnType<AccessRepository["node"]>>;
+  dependency(id: string): ReturnType<AccessRepository["dependency"]> | Promise<ReturnType<AccessRepository["dependency"]>>;
+  grants(): ReturnType<AccessRepository["grants"]> | Promise<ReturnType<AccessRepository["grants"]>>;
+  procedures(): ReturnType<AccessRepository["procedures"]> | Promise<ReturnType<AccessRepository["procedures"]>>;
+  procedure(id: string): ReturnType<AccessRepository["procedure"]> | Promise<ReturnType<AccessRepository["procedure"]>>;
+  createDossier(input: CreateDossierInput): ReturnType<AccessRepository["createDossier"]> | Promise<ReturnType<AccessRepository["createDossier"]>>;
   uploadDocument(input: TextUpload): UploadResult | Promise<UploadResult>;
+  updateConfirmedFacts(input: ConfirmedFactsInput): ReturnType<AccessRepository["updateConfirmedFacts"]> | Promise<ReturnType<AccessRepository["updateConfirmedFacts"]>>;
+  dispatchCommand(input: LifecycleCommandInput): ReturnType<AccessRepository["dispatchCommand"]> | Promise<ReturnType<AccessRepository["dispatchCommand"]>>;
+} & {
   uploadFile?(input: BinaryUpload): Promise<UploadResult>;
   readContent?(id: string): Promise<Uint8Array>;
   commandResult?(reference: CommandReference): Promise<CommandResult | undefined>;
@@ -24,7 +36,7 @@ export type AsyncAccessRepository = {
 };
 interface Connection { query<T>(statement: string, parameters?: unknown[]): Promise<T[]> }
 
-export class PersistentRepository implements AsyncAccessRepository {
+export class PersistentRepository implements AsyncAccessRepository, AgentRepository {
   private readonly sql;
   constructor(url: string, readonly files: FileStore, readonly schema = "h4j_api") {
     if (!/^[a-z][a-z0-9_]{0,62}$/.test(schema)) throw new Error("Invalid database schema");
@@ -75,6 +87,7 @@ export class PersistentRepository implements AsyncAccessRepository {
   dossiers() { return this.read((r) => r.dossiers()); }
   dossier(id: string) { return this.read((r) => r.dossier(id)); }
   dossierDetail(id: string) { return this.read((r) => r.dossierDetail(id)); }
+  dependencies(companyId: string, agency: "DGI" | "RNE" | "APII") { return this.read((r) => r.dependencies(companyId, agency)); }
   document(id: string) { return this.read((r) => r.document(id)); }
   node(id: string) { return this.read((r) => r.node(id)); }
   dependency(id: string) { return this.read((r) => r.dependency(id)); }
@@ -179,7 +192,7 @@ export class PersistentRepository implements AsyncAccessRepository {
     const { binary: _untrusted, ...text } = input;
     return this.storeUpload(text, new TextEncoder().encode(input.content));
   }
-  async uploadFile(input: BinaryUpload) {
+  async uploadFile(input: BinaryUpload | BinaryEvidenceInput) {
     const { bytes, ...metadata } = input;
     inspectFile(bytes, metadata.mimeType);
     return this.storeUpload({ ...metadata, content: "" }, bytes);
@@ -226,4 +239,60 @@ export class PersistentRepository implements AsyncAccessRepository {
     if (!document.storageRef.startsWith("memory://")) throw new AccessError(500, "original_not_available");
     return new TextEncoder().encode(document.originalText);
   }
+
+  agentSession(id: string, dossierId: string, principalId: string): Promise<AgentSessionRecord | undefined> {
+    return this.read((r) => r.agentSession(id, dossierId, principalId));
+  }
+
+  createAgentSession(input: CreateAgentSessionInput): Promise<AgentSessionRecord> {
+    return this.write((r) => r.createAgentSession(input));
+  }
+
+  saveAgentSession(session: AgentSessionRecord): Promise<AgentSessionRecord> {
+    return this.write((r) => r.saveAgentSession(session));
+  }
+
+  appendAgentEvent(input: AgentEventInput): Promise<AgentEventRecord> {
+    return this.write((r) => r.appendAgentEvent(input));
+  }
+
+  agentEvents(sessionId: string, after: number): Promise<readonly AgentEventRecord[]> {
+    return this.read((r) => r.agentEvents(sessionId, after));
+  }
+
+  createHelperTask(input: CreateHelperTaskInput): Promise<HelperTaskRecord> {
+    return this.write((r) => r.createHelperTask(input));
+  }
+
+  helperTask(id: string): Promise<HelperTaskRecord | undefined> {
+    return this.read((r) => r.helperTask(id));
+  }
+
+  async publishArtifact(input: PublishArtifactInput): Promise<ArtifactRecord> {
+    const key = randomUUID();
+    return this.write(async (r) => {
+      const artifact = r.publishArtifact({ ...input, storageRef: `file://${key}` });
+      if (!artifact.storageRef.startsWith("file://")) return artifact;
+      // An idempotent replay returns the already stored file and must not try to create a
+      // second object under a different key.
+      if (artifact.storageRef === `file://${key}`) {
+        await this.files.put(key, input.bytes);
+      }
+      return artifact;
+    });
+  }
+
+  async artifact(id: string): Promise<ArtifactRecord | undefined> {
+    return this.read((r) => r.artifact(id));
+  }
+
+  async readArtifact(id: string): Promise<Uint8Array> {
+    const artifact = await this.artifact(id);
+    if (!artifact) throw new AccessError(404, "not_found");
+    if (!artifact.storageRef.startsWith("file://")) {
+      return await this.read((r) => r.readArtifact(id));
+    }
+    return this.files.read(artifact.storageRef.slice("file://".length), artifact.sha256);
+  }
+
 }
