@@ -12,6 +12,6 @@ export default defineConfig({
   noExternal: [/^@hack4justice\//],
   // Their CommonJS deps (pino, ...) end up in the bundle too and call require().
   banner: {
-    js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+    js: "import { createRequire as createRequireForBundle } from 'node:module'; const require = createRequireForBundle(import.meta.url);",
   },
 });

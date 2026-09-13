@@ -6,17 +6,17 @@ import PDFDocument from "pdfkit";
 
 const ink = "#172033";
 const muted = "#526079";
-const require = createRequire(import.meta.url);
+const moduleRequire = createRequire(import.meta.url);
 const bidi = bidiFactory();
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const fonts = {
   regular: {
-    latin: require.resolve("@fontsource/noto-sans-arabic/files/noto-sans-arabic-latin-400-normal.woff"),
-    arabic: require.resolve("@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-400-normal.woff"),
+    latin: moduleRequire.resolve("@fontsource/noto-sans-arabic/files/noto-sans-arabic-latin-400-normal.woff"),
+    arabic: moduleRequire.resolve("@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-400-normal.woff"),
   },
   bold: {
-    latin: require.resolve("@fontsource/noto-sans-arabic/files/noto-sans-arabic-latin-700-normal.woff"),
-    arabic: require.resolve("@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-700-normal.woff"),
+    latin: moduleRequire.resolve("@fontsource/noto-sans-arabic/files/noto-sans-arabic-latin-700-normal.woff"),
+    arabic: moduleRequire.resolve("@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-700-normal.woff"),
   },
 } as const;
 
