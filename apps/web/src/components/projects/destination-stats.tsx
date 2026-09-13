@@ -41,7 +41,6 @@ export function DestinationStats({ counts, total, value, onChange }: Destination
             title={t(meta.label)}
             subtitle={t(meta.full)}
             count={counts[destination] ?? 0}
-            accent={meta.dot}
             media={
               <span className="flex h-11 w-16 items-center justify-center">
                 <img
@@ -66,7 +65,6 @@ function StatCard({
   subtitle,
   count,
   media,
-  accent,
 }: {
   selected: boolean
   onSelect: () => void
@@ -74,7 +72,6 @@ function StatCard({
   subtitle: string
   count: number
   media: React.ReactNode
-  accent?: string
 }) {
   return (
     <button
@@ -90,10 +87,7 @@ function StatCard({
     >
       {media}
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="flex items-center gap-2 text-sm font-semibold">
-          {accent ? <span aria-hidden className={cn('size-1.5 rounded-full', accent)} /> : null}
-          {title}
-        </span>
+        <span className="text-sm font-semibold">{title}</span>
         <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
       </span>
       <span
