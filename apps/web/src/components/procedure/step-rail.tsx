@@ -15,8 +15,8 @@ interface StepRailProps {
 }
 
 /**
- * Compact, sticky version of the timeline: one row per step with its state,
- * linking to the full step below. Horizontal strip on small screens.
+ * Compact, sticky version of the timeline: progress plus one chip per step
+ * with its state, linking to the full step below.
  */
 export function StepRail({ project, done, total, className }: StepRailProps) {
   const { t } = useI18n()
@@ -24,7 +24,7 @@ export function StepRail({ project, done, total, className }: StepRailProps) {
   const percent = total ? Math.round((done / total) * 100) : 0
 
   return (
-    <nav aria-label={t('procedure.overview.steps')} className={cn('flex flex-col gap-3', className)}>
+    <nav aria-label={t('procedure.overview.steps')} className={cn('flex flex-col gap-2', className)}>
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between text-xs">
           <span className="font-medium">{t('procedure.overview.progress', { done, total })}</span>
@@ -38,7 +38,7 @@ export function StepRail({ project, done, total, className }: StepRailProps) {
         </div>
       </div>
 
-      <ol className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
+      <ol className="flex flex-wrap gap-1">
         {steps.map(({ step, state, requirementIds, satisfied }, index) => (
           <li key={step} className="shrink-0">
             <a
@@ -69,7 +69,7 @@ export function StepRail({ project, done, total, className }: StepRailProps) {
               >
                 {state === 'done' ? <Check className="size-3" /> : index + 1}
               </span>
-              <span className="whitespace-nowrap lg:truncate lg:whitespace-normal">{t(stepTitle(step))}</span>
+              <span className="whitespace-nowrap">{t(stepTitle(step))}</span>
               {requirementIds.length ? (
                 <span className="ms-auto hidden text-xs text-muted-foreground tabular-nums lg:inline">
                   {satisfied}/{requirementIds.length}

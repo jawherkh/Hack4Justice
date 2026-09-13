@@ -100,17 +100,15 @@ function Overview() {
         </div>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[15rem_1fr] lg:gap-10">
-        {/* Sticky rail: keeps the step list and progress in view while the timeline scrolls. */}
-        <div className="sticky top-0 z-10 -mx-4 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 md:-mx-6 md:px-6 lg:top-4 lg:mx-0 lg:self-start lg:rounded-xl lg:border lg:px-4 lg:py-4">
-          <StepRail project={data} done={done} total={total} />
-        </div>
-
-        <section className="flex min-w-0 flex-col gap-4">
-          <h2 className="font-semibold">{t('procedure.overview.steps')}</h2>
-          <StepsTimeline project={data} onSelectRequirement={(r) => setSelectedId(r.requirementId)} />
-        </section>
+      {/* Sticky strip: keeps progress and the step list in view while the timeline scrolls. */}
+      <div className="sticky top-0 z-10 -mx-4 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 md:-mx-6 md:px-6">
+        <StepRail project={data} done={done} total={total} />
       </div>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="font-semibold">{t('procedure.overview.steps')}</h2>
+        <StepsTimeline project={data} onSelectRequirement={(r) => setSelectedId(r.requirementId)} />
+      </section>
 
       <RequirementSheet
         projectId={id}
