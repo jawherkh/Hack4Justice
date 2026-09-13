@@ -180,17 +180,44 @@ export class DockerRunner {
       collect(child.stdout, "stdout");
       collect(child.stderr, "stderr");
 
-      const stop = () => {
-        spawn(this.dockerBinary, ["rm", "--force", name], { stdio: "ignore" });
+      const run = (args: string[]) => new Promise<number | null>((settle) => {
+        const child = spawn(this.dockerBinary, args, { stdio: "ignore" });
+        child.on("error", () => settle(null));
+        child.on("close", (code) => settle(code));
+      });
+
+      /**
+       * Removes the container and confirms it is gone.
+       *
+       * A single remove can miss: the request can land while the container is still being
+       * created, and the container then keeps running after the client is killed. So the
+       * remove is repeated until the runtime reports no such container, within a bound.
+       */
+      const stop = async () => {
         child.kill("SIGKILL");
+        const deadline = Date.now() + 15_000;
+        while (Date.now() < deadline) {
+          if (await run(["rm", "--force", name]) === 0) return;
+          const remaining = await new Promise<string>((settle) => {
+            const check = spawn(this.dockerBinary, ["ps", "--all", "--quiet", "--filter", `name=^${name}$`], { stdio: ["ignore", "pipe", "ignore"] });
+            let text = "";
+            check.stdout.on("data", (chunk: Buffer) => { text += chunk.toString(); });
+            check.on("error", () => settle(""));
+            check.on("close", () => settle(text.trim()));
+          });
+          if (remaining === "") return;
+          await new Promise((settle) => setTimeout(settle, 300));
+        }
       };
+
+      let stopping: Promise<void> | undefined;
 
       // A run can write many files, so the workspace total is watched while it executes.
       const watcher = setInterval(() => {
         void workspace.usage().then((used) => {
           if (used > workspace.limits.totalBytes && !finished) {
             limitExceeded = true;
-            stop();
+            stopping = stop();
           }
         }).catch(() => {});
       }, usagePollMs);
@@ -198,7 +225,7 @@ export class DockerRunner {
       const timer = setTimeout(() => {
         timedOut = true;
         // Removing the container by name stops the workload even when the client is wedged.
-        stop();
+        stopping = stop();
       }, this.limits.timeoutMs);
 
       const done = (exitCode: number | null) => {
@@ -206,8 +233,12 @@ export class DockerRunner {
         finished = true;
         clearTimeout(timer);
         clearInterval(watcher);
-        settle({ exitCode, stdout: output.stdout, stderr: output.stderr, truncated: output.truncated,
-          timedOut, limitExceeded, durationMs: Date.now() - startedAt });
+        // A stopped run reports back only once its container is gone, so a caller is never
+        // told the work ended while it is still running on the host.
+        void Promise.resolve(stopping).then(() => {
+          settle({ exitCode, stdout: output.stdout, stderr: output.stderr, truncated: output.truncated,
+            timedOut, limitExceeded, durationMs: Date.now() - startedAt });
+        });
       };
 
       child.on("error", (error) => {
@@ -218,13 +249,32 @@ export class DockerRunner {
     });
   }
 
-  /** Stops a run that is still going. Safe to call when the container is already gone. */
+  /**
+   * Stops a run that is still going. Safe to call when the container is already gone.
+   *
+   * Uses the same repeated removal as a timed-out run: one request can land while the
+   * container is still being created and miss it, leaving the run going after the caller
+   * believes it stopped.
+   */
   async terminate(workspace: Workspace): Promise<void> {
     const name = this.containerName(workspace);
-    await new Promise<void>((settle) => {
-      const child = spawn(this.dockerBinary, ["rm", "--force", name], { stdio: "ignore" });
-      child.on("error", () => settle());
-      child.on("close", () => settle());
-    });
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
+      const removed = await new Promise<number | null>((settle) => {
+        const child = spawn(this.dockerBinary, ["rm", "--force", name], { stdio: "ignore" });
+        child.on("error", () => settle(null));
+        child.on("close", (code) => settle(code));
+      });
+      if (removed === 0) return;
+      const remaining = await new Promise<string>((settle) => {
+        const check = spawn(this.dockerBinary, ["ps", "--all", "--quiet", "--filter", `name=^${name}$`], { stdio: ["ignore", "pipe", "ignore"] });
+        let text = "";
+        check.stdout.on("data", (chunk: Buffer) => { text += chunk.toString(); });
+        check.on("error", () => settle(""));
+        check.on("close", () => settle(text.trim()));
+      });
+      if (remaining === "") return;
+      await new Promise((settle) => setTimeout(settle, 300));
+    }
   }
 }

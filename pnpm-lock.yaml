@@ -68,6 +68,9 @@ importers:
       '@t3-oss/env-core':
         specifier: ^0.13.11
         version: 0.13.11(typescript@6.0.3)(zod@4.6.2)
+      '@temporalio/activity':
+        specifier: 1.23.0
+        version: 1.23.0
       '@temporalio/client':
         specifier: 1.23.0
         version: 1.23.0
