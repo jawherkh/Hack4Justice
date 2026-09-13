@@ -11,6 +11,7 @@ import { toLocaleParam, useI18n } from '#/i18n'
 import { formatDate, formatRelative } from '#/lib/format'
 import type { ProjectSummary } from '#/lib/projects'
 import { DESTINATION_META } from './destination'
+import { ProcedureStatusBadge } from '#/components/procedure/status-badges'
 import { DestinationBadge } from './destination-badge'
 import { Highlight } from './highlight'
 import { ProjectActions } from './project-actions'
@@ -29,6 +30,9 @@ export function ProjectsTable({ projects, query = '' }: { projects: ProjectSumma
             </TableHead>
             <TableHead className="h-10 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               {t('projects.table.destination')}
+            </TableHead>
+            <TableHead className="h-10 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              {t('projects.table.status')}
             </TableHead>
             <TableHead className="hidden h-10 text-xs font-semibold tracking-wide text-muted-foreground uppercase md:table-cell">
               {t('projects.table.created')}
@@ -74,6 +78,9 @@ export function ProjectsTable({ projects, query = '' }: { projects: ProjectSumma
                 </TableCell>
                 <TableCell>
                   <DestinationBadge destination={project.destination} />
+                </TableCell>
+                <TableCell>
+                  <ProcedureStatusBadge status={project.status} />
                 </TableCell>
                 <TableCell className="hidden text-muted-foreground md:table-cell">
                   {formatDate(project.createdAt, locale)}

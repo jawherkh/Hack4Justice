@@ -1,13 +1,16 @@
-import type { ProjectDestination } from '@hack4justice/shared'
+import type { ProjectDestination, SubmissionStatus } from '@hack4justice/shared'
 import { api } from '#/lib/api'
 import { unwrap } from '#/lib/api-error'
 
 export type ProjectSummary = Awaited<ReturnType<typeof listProjects>>[number]
 export type ProjectDetail = Awaited<ReturnType<typeof getProject>>
+export type ProjectRequirementView = ProjectDetail['requirements'][number]
+export type ProjectUpload = Awaited<ReturnType<typeof listProjectUploads>>[number]
 
 export const projectKeys = {
   all: ['projects'] as const,
   detail: (id: string) => ['projects', id] as const,
+  uploads: (id: string) => ['projects', id, 'uploads'] as const,
 }
 
 export async function listProjects() {
@@ -28,6 +31,32 @@ export async function createProject(input: {
 
 export async function deleteProject(id: string) {
   unwrap(await api.api.v1.projects({ id }).delete(), 'Delete failed')
+}
+
+export async function onboardProject(id: string, input: { serviceId: string; waived: string[] }) {
+  return unwrap(await api.api.v1.projects({ id }).onboarding.post(input), 'Could not set up the procedure')
+}
+
+export interface RequirementPatch {
+  status?: string
+  value?: Record<string, string>
+  uploadId?: string | null
+  note?: string
+}
+
+export async function updateRequirement(id: string, requirementId: string, patch: RequirementPatch) {
+  return unwrap(
+    await api.api.v1.projects({ id }).requirements({ requirementId }).put(patch),
+    'Could not update requirement',
+  )
+}
+
+export async function setSubmissionStatus(id: string, status: SubmissionStatus | null) {
+  return unwrap(await api.api.v1.projects({ id }).submission.patch({ status }), 'Could not update status')
+}
+
+export async function listProjectUploads(id: string) {
+  return unwrap(await api.api.v1.projects({ id }).uploads.get(), 'Could not load files')
 }
 
 export interface ProjectFilters {

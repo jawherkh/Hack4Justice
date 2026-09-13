@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate, useRouter } from '@tanstack/react-router'
+import { Link, useMatchRoute, useNavigate, useRouter } from '@tanstack/react-router'
 import {
   Sidebar,
   SidebarContent,
@@ -10,7 +10,6 @@ import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuAction,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
@@ -19,16 +18,15 @@ import {
   SidebarRail,
 } from '@hack4justice/ui/components/sidebar'
 import { ArrowLeftIcon } from '@hack4justice/ui/components/icons/arrow-left'
-import { ClipboardCheckIcon } from '@hack4justice/ui/components/icons/clipboard-check'
 import { FileTextIcon } from '@hack4justice/ui/components/icons/file-text'
 import { LayoutPanelTopIcon } from '@hack4justice/ui/components/icons/layout-panel-top'
 import { LogoutIcon } from '@hack4justice/ui/components/icons/logout'
 import { SendIcon } from '@hack4justice/ui/components/icons/send'
+import { cn } from '@hack4justice/ui/lib/utils'
 import { toLocaleParam, useI18n, type MessageKey } from '#/i18n'
 import { signOut } from '#/lib/auth'
 import { listProjects, projectKeys, type ProjectDetail } from '#/lib/projects'
 import type { SessionData } from '#/lib/session'
-import { cn } from '@hack4justice/ui/lib/utils'
 import { DESTINATION_META } from './destination'
 
 interface ProjectSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -46,11 +44,12 @@ type AnimatedIcon = React.ForwardRefExoticComponent<
   React.HTMLAttributes<HTMLDivElement> & { size?: number } & React.RefAttributes<IconHandle>
 >
 
-const SECTIONS: { key: MessageKey; icon: AnimatedIcon; ready: boolean }[] = [
-  { key: 'projects.sidebar.overview', icon: LayoutPanelTopIcon, ready: true },
-  { key: 'projects.sidebar.documents', icon: FileTextIcon, ready: false },
-  { key: 'projects.sidebar.requirements', icon: ClipboardCheckIcon, ready: false },
-  { key: 'projects.sidebar.submissions', icon: SendIcon, ready: false },
+type Section = 'overview' | 'documents' | 'submission'
+
+const SECTIONS: { key: Section; label: MessageKey; icon: AnimatedIcon }[] = [
+  { key: 'overview', label: 'projects.sidebar.overview', icon: LayoutPanelTopIcon },
+  { key: 'documents', label: 'projects.sidebar.documents', icon: FileTextIcon },
+  { key: 'submission', label: 'projects.sidebar.submission', icon: SendIcon },
 ]
 
 /** Plays the icon animation while the whole row is hovered, not just the icon. */
@@ -84,19 +83,24 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
   const params = { locale: toLocaleParam(locale) }
   const navigate = useNavigate()
   const router = useRouter()
+  const matchRoute = useMatchRoute()
   const meta = DESTINATION_META[project.destination]
   const projects = useQuery({ queryKey: projectKeys.all, queryFn: listProjects })
   const logoutIcon = useIconHover()
+
+  const idParams = { ...params, id: project.id }
+  const active: Section = matchRoute({ to: '/{-$locale}/projects/$id/documents', params: idParams })
+    ? 'documents'
+    : matchRoute({ to: '/{-$locale}/projects/$id/submission', params: idParams })
+      ? 'submission'
+      : 'overview'
 
   return (
     <Sidebar variant="floating" side={locale === 'ar' ? 'right' : 'left'} {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              size="lg"
-              render={<Link to="/{-$locale}/projects/$id" params={{ ...params, id: project.id }} />}
-            >
+            <SidebarMenuButton size="lg" render={<Link to="/{-$locale}/projects/$id" params={idParams} />}>
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg border bg-white p-1">
                 <img src={meta.logo} alt="" draggable={false} className="size-full object-contain" />
               </div>
@@ -113,26 +117,23 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
         <SidebarGroup>
           <SidebarGroupLabel>{t('projects.sidebar.project')}</SidebarGroupLabel>
           <SidebarMenu>
-            {SECTIONS.map(({ key, icon, ready }) => (
+            {SECTIONS.map(({ key, label, icon }) => (
               <SidebarMenuItem key={key}>
-                {ready ? (
-                  <AnimatedMenuButton
-                    icon={icon}
-                    isActive
-                    render={<Link to="/{-$locale}/projects/$id" params={{ ...params, id: project.id }} />}
-                  >
-                    {t(key)}
-                  </AnimatedMenuButton>
-                ) : (
-                  <>
-                    <AnimatedMenuButton icon={icon} disabled aria-disabled>
-                      {t(key)}
-                    </AnimatedMenuButton>
-                    <SidebarMenuBadge className="rtl:right-auto rtl:left-1">
-                      {t('projects.sidebar.soon')}
-                    </SidebarMenuBadge>
-                  </>
-                )}
+                <AnimatedMenuButton
+                  icon={icon}
+                  isActive={active === key}
+                  render={
+                    key === 'overview' ? (
+                      <Link to="/{-$locale}/projects/$id" params={idParams} />
+                    ) : key === 'documents' ? (
+                      <Link to="/{-$locale}/projects/$id/documents" params={idParams} />
+                    ) : (
+                      <Link to="/{-$locale}/projects/$id/submission" params={idParams} />
+                    )
+                  }
+                >
+                  {t(label)}
+                </AnimatedMenuButton>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>

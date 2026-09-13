@@ -26,7 +26,13 @@ const LANGUAGE_LABEL: Record<OcrLanguages, MessageKey> = {
   'ara+fra': 'uploads.lang.ara_fra',
 }
 
-export function UploadDropzone() {
+interface UploadDropzoneProps {
+  /** File the upload under a project and refresh that project's file list. */
+  projectId?: string
+  onUploaded?: (upload: Awaited<ReturnType<typeof uploadPdf>>) => void
+}
+
+export function UploadDropzone({ projectId, onUploaded }: UploadDropzoneProps = {}) {
   const { t, locale } = useI18n()
   const queryClient = useQueryClient()
   const inputRef = React.useRef<HTMLInputElement>(null)
@@ -41,6 +47,8 @@ export function UploadDropzone() {
       toast.add({ type: 'success', title: t('uploads.toast.uploaded', { filename: result.filename }) })
       setFile(null)
       void queryClient.invalidateQueries({ queryKey: ['uploads'] })
+      if (projectId) void queryClient.invalidateQueries({ queryKey: ['projects', projectId] })
+      onUploaded?.(result)
     },
     onError: (err) => {
       toast.add({
@@ -133,7 +141,9 @@ export function UploadDropzone() {
           </Field>
           <Button
             disabled={!file || upload.isPending}
-            onClick={() => file && upload.mutate({ file, languages })}
+            onClick={() =>
+              file && upload.mutate(projectId ? { file, languages, projectId } : { file, languages })
+            }
           >
             {upload.isPending ? (
               <Spinner data-icon="inline-start" />

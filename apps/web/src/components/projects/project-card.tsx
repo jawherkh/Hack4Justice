@@ -5,6 +5,7 @@ import { toLocaleParam, useI18n } from '#/i18n'
 import { formatRelative } from '#/lib/format'
 import type { ProjectSummary } from '#/lib/projects'
 import { DESTINATION_META } from './destination'
+import { ProcedureStatusBadge } from '#/components/procedure/status-badges'
 import { DestinationBadge } from './destination-badge'
 import { Highlight } from './highlight'
 import { ProjectActions } from './project-actions'
@@ -39,6 +40,7 @@ export function ProjectCard({ project, query = '' }: ProjectCardProps) {
           className="h-9 w-auto max-w-24 object-contain"
         />
         <div className="flex items-center gap-1">
+          <ProcedureStatusBadge status={project.status} />
           <DestinationBadge destination={project.destination} />
           <ProjectActions
             project={project}
