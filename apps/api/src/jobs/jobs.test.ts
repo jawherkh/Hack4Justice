@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
