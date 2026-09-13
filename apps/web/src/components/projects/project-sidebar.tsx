@@ -1,7 +1,6 @@
 import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useRouter } from '@tanstack/react-router'
-import { ArrowLeft, ClipboardList, FileText, LayoutDashboard, LogOut, Send } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -19,10 +18,17 @@ import {
   SidebarMenuSubItem,
   SidebarRail,
 } from '@hack4justice/ui/components/sidebar'
+import { ArrowLeftIcon } from '@hack4justice/ui/components/icons/arrow-left'
+import { ClipboardCheckIcon } from '@hack4justice/ui/components/icons/clipboard-check'
+import { FileTextIcon } from '@hack4justice/ui/components/icons/file-text'
+import { LayoutPanelTopIcon } from '@hack4justice/ui/components/icons/layout-panel-top'
+import { LogoutIcon } from '@hack4justice/ui/components/icons/logout'
+import { SendIcon } from '@hack4justice/ui/components/icons/send'
 import { toLocaleParam, useI18n, type MessageKey } from '#/i18n'
 import { signOut } from '#/lib/auth'
 import { listProjects, projectKeys, type ProjectDetail } from '#/lib/projects'
 import type { SessionData } from '#/lib/session'
+import { cn } from '@hack4justice/ui/lib/utils'
 import { DESTINATION_META } from './destination'
 
 interface ProjectSidebarProps extends React.ComponentProps<typeof Sidebar> {
@@ -30,12 +36,47 @@ interface ProjectSidebarProps extends React.ComponentProps<typeof Sidebar> {
   session: NonNullable<SessionData>
 }
 
-const SECTIONS: { key: MessageKey; icon: typeof FileText; ready: boolean }[] = [
-  { key: 'projects.sidebar.overview', icon: LayoutDashboard, ready: true },
-  { key: 'projects.sidebar.documents', icon: FileText, ready: false },
-  { key: 'projects.sidebar.requirements', icon: ClipboardList, ready: false },
-  { key: 'projects.sidebar.submissions', icon: Send, ready: false },
+interface IconHandle {
+  startAnimation: () => void
+  stopAnimation: () => void
+}
+
+/** lucide-animated icon: a div-wrapped SVG whose animation we drive from the parent button. */
+type AnimatedIcon = React.ForwardRefExoticComponent<
+  React.HTMLAttributes<HTMLDivElement> & { size?: number } & React.RefAttributes<IconHandle>
+>
+
+const SECTIONS: { key: MessageKey; icon: AnimatedIcon; ready: boolean }[] = [
+  { key: 'projects.sidebar.overview', icon: LayoutPanelTopIcon, ready: true },
+  { key: 'projects.sidebar.documents', icon: FileTextIcon, ready: false },
+  { key: 'projects.sidebar.requirements', icon: ClipboardCheckIcon, ready: false },
+  { key: 'projects.sidebar.submissions', icon: SendIcon, ready: false },
 ]
+
+/** Plays the icon animation while the whole row is hovered, not just the icon. */
+function useIconHover() {
+  const ref = React.useRef<IconHandle>(null)
+  return {
+    ref,
+    onMouseEnter: () => ref.current?.startAnimation(),
+    onMouseLeave: () => ref.current?.stopAnimation(),
+  }
+}
+
+function AnimatedMenuButton({
+  icon: Icon,
+  iconClassName,
+  children,
+  ...props
+}: React.ComponentProps<typeof SidebarMenuButton> & { icon: AnimatedIcon; iconClassName?: string }) {
+  const { ref, onMouseEnter, onMouseLeave } = useIconHover()
+  return (
+    <SidebarMenuButton {...props} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+      <Icon ref={ref} size={16} className={cn('flex shrink-0', iconClassName)} />
+      {children}
+    </SidebarMenuButton>
+  )
+}
 
 /** Workspace navigation for one project, plus a quick switch to the user's other projects. */
 export function ProjectSidebar({ project, session, ...props }: ProjectSidebarProps) {
@@ -45,6 +86,7 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
   const router = useRouter()
   const meta = DESTINATION_META[project.destination]
   const projects = useQuery({ queryKey: projectKeys.all, queryFn: listProjects })
+  const logoutIcon = useIconHover()
 
   return (
     <Sidebar variant="floating" side={locale === 'ar' ? 'right' : 'left'} {...props}>
@@ -71,22 +113,21 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
         <SidebarGroup>
           <SidebarGroupLabel>{t('projects.sidebar.project')}</SidebarGroupLabel>
           <SidebarMenu>
-            {SECTIONS.map(({ key, icon: Icon, ready }) => (
+            {SECTIONS.map(({ key, icon, ready }) => (
               <SidebarMenuItem key={key}>
                 {ready ? (
-                  <SidebarMenuButton
+                  <AnimatedMenuButton
+                    icon={icon}
                     isActive
                     render={<Link to="/{-$locale}/projects/$id" params={{ ...params, id: project.id }} />}
                   >
-                    <Icon />
                     {t(key)}
-                  </SidebarMenuButton>
+                  </AnimatedMenuButton>
                 ) : (
                   <>
-                    <SidebarMenuButton disabled aria-disabled>
-                      <Icon />
+                    <AnimatedMenuButton icon={icon} disabled aria-disabled>
                       {t(key)}
-                    </SidebarMenuButton>
+                    </AnimatedMenuButton>
                     <SidebarMenuBadge className="rtl:right-auto rtl:left-1">
                       {t('projects.sidebar.soon')}
                     </SidebarMenuBadge>
@@ -101,10 +142,13 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
           <SidebarGroupLabel>{t('projects.sidebar.projects')}</SidebarGroupLabel>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton render={<Link to="/{-$locale}/projects" params={params} />}>
-                <ArrowLeft className="rtl:rotate-180" />
+              <AnimatedMenuButton
+                icon={ArrowLeftIcon}
+                iconClassName="rtl:rotate-180"
+                render={<Link to="/{-$locale}/projects" params={params} />}
+              >
                 {t('projects.sidebar.allProjects')}
-              </SidebarMenuButton>
+              </AnimatedMenuButton>
               {projects.data?.length ? (
                 <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
                   {projects.data.map((item) => (
@@ -144,13 +188,15 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
               aria-label={t('nav.logout')}
               title={t('nav.logout')}
               className="top-1/2 -translate-y-1/2 rtl:right-auto rtl:left-1"
+              onMouseEnter={logoutIcon.onMouseEnter}
+              onMouseLeave={logoutIcon.onMouseLeave}
               onClick={async () => {
                 await signOut()
                 await router.invalidate()
                 await navigate({ to: '/{-$locale}', params })
               }}
             >
-              <LogOut />
+              <LogoutIcon ref={logoutIcon.ref} size={16} className="flex" />
             </SidebarMenuAction>
           </SidebarMenuItem>
         </SidebarMenu>
