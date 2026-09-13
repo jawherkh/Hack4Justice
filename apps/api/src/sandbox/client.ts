@@ -71,7 +71,11 @@ function matchesBytes(bytes: Uint8Array, offset: number, expected: readonly numb
 }
 
 function matchesAscii(bytes: Uint8Array, offset: number, expected: string): boolean {
-  return matchesBytes(bytes, offset, Array.from(expected, (character) => character.charCodeAt(0)));
+  return matchesBytes(
+    bytes,
+    offset,
+    Array.from(expected, (character) => character.charCodeAt(0)),
+  );
 }
 
 function imageMediaType(bytes: Uint8Array, path: string): string | undefined {
@@ -81,15 +85,20 @@ function imageMediaType(bytes: Uint8Array, path: string): string | undefined {
   if (matchesAscii(bytes, 0, "RIFF") && matchesAscii(bytes, 8, "WEBP")) return "image/webp";
   if (matchesAscii(bytes, 0, "BM")) return "image/bmp";
   if (
-    matchesBytes(bytes, 0, [0x49, 0x49, 0x2a, 0x00])
-    || matchesBytes(bytes, 0, [0x4d, 0x4d, 0x00, 0x2a])
-    || matchesBytes(bytes, 0, [0x49, 0x49, 0x2b, 0x00])
-    || matchesBytes(bytes, 0, [0x4d, 0x4d, 0x00, 0x2b])
-  ) return "image/tiff";
+    matchesBytes(bytes, 0, [0x49, 0x49, 0x2a, 0x00]) ||
+    matchesBytes(bytes, 0, [0x4d, 0x4d, 0x00, 0x2a]) ||
+    matchesBytes(bytes, 0, [0x49, 0x49, 0x2b, 0x00]) ||
+    matchesBytes(bytes, 0, [0x4d, 0x4d, 0x00, 0x2b])
+  )
+    return "image/tiff";
 
-  const prefix = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.byteLength, 512))).trimStart().toLowerCase();
+  const prefix = new TextDecoder()
+    .decode(bytes.subarray(0, Math.min(bytes.byteLength, 512)))
+    .trimStart()
+    .toLowerCase();
   if (prefix.startsWith("<svg") || /^<\?xml[\s\S]*<svg/u.test(prefix)) return "image/svg+xml";
-  if (path.trim().toLowerCase().endsWith(".svg") || path.trim().toLowerCase().endsWith(".svgz")) return "image/svg+xml";
+  if (path.trim().toLowerCase().endsWith(".svg") || path.trim().toLowerCase().endsWith(".svgz"))
+    return "image/svg+xml";
   return undefined;
 }
 

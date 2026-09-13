@@ -37,5 +37,9 @@
   "project_not_found": "المشروع غير موجود",
   "requirement_not_found": "المتطلب غير موجود",
   "project_not_ready": "قائمة المتطلبات لم تكتمل بعد",
-  "submission_in_progress": "يوجد إيداع مسجّل بالفعل؛ حدّث حالته أو عد إلى الإعداد أولاً"
+  "submission_in_progress": "يوجد إيداع مسجّل بالفعل؛ حدّث حالته أو عد إلى الإعداد أولاً",
+  "email_taken": "يوجد حساب بهذا البريد الإلكتروني",
+  "cannot_demote_self": "لا يمكنك تخفيض دورك",
+  "cannot_delete_self": "لا يمكنك حذف حسابك",
+  "banned": "هذا الحساب معلّق"
 }

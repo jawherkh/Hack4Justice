@@ -535,5 +535,6 @@
   "procedure.requirement.fields": "Information to provide",
   "procedure.submissions.export.pdf": "Cover sheet (PDF)",
   "procedure.submissions.export.zip": "Full dossier (ZIP)",
-  "procedure.submissions.export.error": "Could not export the dossier."
+  "procedure.submissions.export.error": "Could not export the dossier.",
+  "auth.error.banned": "This account has been suspended. Contact support."
 }

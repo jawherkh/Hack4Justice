@@ -1,11 +1,6 @@
 import { z } from "zod";
 
-import {
-  DEFAULT_PAGE,
-  DEFAULT_PAGE_SIZE,
-  MAX_PAGE_SIZE,
-  MIN_PAGE_SIZE,
-} from "../constants/pagination";
+import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MIN_PAGE_SIZE } from "../constants/pagination";
 
 export const pageSchema = z.coerce.number().int().min(1).default(DEFAULT_PAGE);
 

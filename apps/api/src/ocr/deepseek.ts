@@ -45,7 +45,8 @@ export function createDeepSeekOcrClient(settings: DeepSeekOcrSettings) {
     model: settings.model,
 
     async extractPage(input: OcrPageInput, signal?: AbortSignal): Promise<OcrPageResult> {
-      if (!settings.apiKey) throw new DeepSeekOcrError("OCR provider is not configured", 503, "ocr_not_configured");
+      if (!settings.apiKey)
+        throw new DeepSeekOcrError("OCR provider is not configured", 503, "ocr_not_configured");
 
       const language = input.language ? `The expected document language is ${input.language}.` : "";
       const content = [
@@ -99,19 +100,25 @@ export function createDeepSeekOcrClient(settings: DeepSeekOcrSettings) {
           choices?: { finish_reason?: string; message?: { content?: string } }[];
         };
         const choice = payload.choices?.[0];
-        if (!choice || choice.finish_reason !== "stop" || !choice.message?.content) throw new Error("Incomplete result");
+        if (!choice || choice.finish_reason !== "stop" || !choice.message?.content)
+          throw new Error("Incomplete result");
 
         const parsed = JSON.parse(choice.message.content) as {
           text?: unknown;
           confidence?: unknown;
         };
         const text = typeof parsed.text === "string" ? parsed.text.trim() : "";
-        const confidence = typeof parsed.confidence === "number" && parsed.confidence >= 0 && parsed.confidence <= 1
-          ? parsed.confidence
-          : null;
+        const confidence =
+          typeof parsed.confidence === "number" && parsed.confidence >= 0 && parsed.confidence <= 1
+            ? parsed.confidence
+            : null;
         return { text, confidence };
       } catch {
-        throw new DeepSeekOcrError("OCR provider returned an invalid response", 502, "invalid_extraction_response");
+        throw new DeepSeekOcrError(
+          "OCR provider returned an invalid response",
+          502,
+          "invalid_extraction_response",
+        );
       }
     },
   };

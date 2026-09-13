@@ -12,18 +12,14 @@ export const searchQuerySchema = z.object({
 
 export type SearchQuery = z.infer<typeof searchQuerySchema>;
 
-export function createSortQuerySchema<TFields extends readonly [string, ...string[]]>(
-  fields: TFields,
-) {
+export function createSortQuerySchema<TFields extends readonly [string, ...string[]]>(fields: TFields) {
   return z.object({
     sortBy: z.enum(fields).optional(),
     sortOrder: sortOrderSchema,
   });
 }
 
-export function createListQuerySchema<TFields extends readonly [string, ...string[]]>(
-  fields: TFields,
-) {
+export function createListQuerySchema<TFields extends readonly [string, ...string[]]>(fields: TFields) {
   return paginationQuerySchema.extend({
     search: z.string().trim().min(1).max(200).optional(),
     sortBy: z.enum(fields).optional(),

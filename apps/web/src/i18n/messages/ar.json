@@ -535,5 +535,6 @@
   "procedure.requirement.fields": "المعلومات المطلوبة",
   "procedure.submissions.export.pdf": "ورقة الغلاف (PDF)",
   "procedure.submissions.export.zip": "الملف الكامل (ZIP)",
-  "procedure.submissions.export.error": "تعذّر تصدير الملف."
+  "procedure.submissions.export.error": "تعذّر تصدير الملف.",
+  "auth.error.banned": "تم تعليق هذا الحساب. تواصل مع الدعم."
 }

@@ -61,7 +61,10 @@ function fontName(script: FontScript, weight: FontWeight): string {
 }
 
 function usesArabicFont(character: string, previousScript?: FontScript): boolean {
-  return /\p{Script_Extensions=Arabic}/u.test(character) || (/^[\u200c\u200d]$/u.test(character) && previousScript === "arabic");
+  return (
+    /\p{Script_Extensions=Arabic}/u.test(character) ||
+    (/^[\u200c\u200d]$/u.test(character) && previousScript === "arabic")
+  );
 }
 
 function fontRuns(text: string): { script: FontScript; text: string }[] {
@@ -79,7 +82,8 @@ function fontScriptAt(text: string, index: number): FontScript {
   const character = text[index] ?? "";
   if (/\p{Script_Extensions=Arabic}/u.test(character)) return "arabic";
   if (/^[\u200c\u200d]$/u.test(character)) {
-    return /\p{Script_Extensions=Arabic}/u.test(text[index - 1] ?? "") || /\p{Script_Extensions=Arabic}/u.test(text[index + 1] ?? "")
+    return /\p{Script_Extensions=Arabic}/u.test(text[index - 1] ?? "") ||
+      /\p{Script_Extensions=Arabic}/u.test(text[index + 1] ?? "")
       ? "arabic"
       : "latin";
   }
@@ -105,7 +109,13 @@ export function pdfVisualLine(text: string, baseDirection: TextDirection | "auto
     const current = groups.at(-1);
     const previousIndex = current?.indices.at(-1);
     const step = previousIndex === undefined ? undefined : index - previousIndex;
-    if (!current || current.direction !== runDirection || current.script !== script || (step !== 1 && step !== -1) || (current.step !== undefined && current.step !== step)) {
+    if (
+      !current ||
+      current.direction !== runDirection ||
+      current.script !== script ||
+      (step !== 1 && step !== -1) ||
+      (current.step !== undefined && current.step !== step)
+    ) {
       groups.push({ direction: runDirection, script, indices: [index] });
       continue;
     }
@@ -118,7 +128,10 @@ export function pdfVisualLine(text: string, baseDirection: TextDirection | "auto
     runs: groups.map(({ direction: runDirection, script, indices: groupIndices }) => ({
       direction: runDirection,
       script,
-      text: (script === "arabic" && runDirection === "rtl" ? [...groupIndices].sort((left, right) => left - right) : groupIndices)
+      text: (script === "arabic" && runDirection === "rtl"
+        ? [...groupIndices].sort((left, right) => left - right)
+        : groupIndices
+      )
         .map((index) => mirrored.get(index) ?? text[index])
         .join(""),
     })),
@@ -127,7 +140,10 @@ export function pdfVisualLine(text: string, baseDirection: TextDirection | "auto
 
 export function pdfKitRunText(run: PdfVisualRun): string {
   if (run.script !== "arabic" || run.direction !== "ltr") return run.text;
-  return [...graphemeSegmenter.segment(run.text)].map(({ segment }) => segment).reverse().join("");
+  return [...graphemeSegmenter.segment(run.text)]
+    .map(({ segment }) => segment)
+    .reverse()
+    .join("");
 }
 
 function decodeEntities(value: string): string {
@@ -138,8 +154,12 @@ function decodeEntities(value: string): string {
     if (normalized === "gt") return ">";
     if (normalized === "lt") return "<";
     if (normalized === "quot") return '"';
-    const codePoint = normalized.startsWith("#x") ? Number.parseInt(normalized.slice(2), 16) : Number.parseInt(normalized.slice(1), 10);
-    return Number.isSafeInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : entity;
+    const codePoint = normalized.startsWith("#x")
+      ? Number.parseInt(normalized.slice(2), 16)
+      : Number.parseInt(normalized.slice(1), 10);
+    return Number.isSafeInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+      ? String.fromCodePoint(codePoint)
+      : entity;
   });
 }
 
@@ -175,7 +195,10 @@ function blockText(tokens: readonly Token[]): string {
         case "list": {
           const start = typeof token.start === "number" ? token.start : 1;
           return token.items
-            .map((item: Tokens.ListItem, index: number) => `${token.ordered ? `${start + index}.` : "•"} ${blockText(item.tokens).trim()}`)
+            .map(
+              (item: Tokens.ListItem, index: number) =>
+                `${token.ordered ? `${start + index}.` : "•"} ${blockText(item.tokens).trim()}`,
+            )
             .join("\n");
         }
         case "html":
@@ -211,7 +234,14 @@ function collectBlocks(tokens: readonly Token[], blocks: MarkdownPdfBlock[], dep
     switch (token.type) {
       case "heading": {
         const sizes = [24, 20, 17, 15, 13, 12];
-        blocks.push(textBlock(inlineText(token.tokens ?? []), { weight: "bold", size: sizes[token.depth - 1] ?? 12, spacing: 0.45, lineGap: 2 }));
+        blocks.push(
+          textBlock(inlineText(token.tokens ?? []), {
+            weight: "bold",
+            size: sizes[token.depth - 1] ?? 12,
+            spacing: 0.45,
+            lineGap: 2,
+          }),
+        );
         break;
       }
       case "paragraph":
@@ -239,7 +269,15 @@ function collectBlocks(tokens: readonly Token[], blocks: MarkdownPdfBlock[], dep
         break;
       }
       case "code":
-        blocks.push(textBlock(token.text, { size: 9, spacing: 0.75, indent: 12 + depth * 12, lineGap: 2, preserveWhitespace: true }));
+        blocks.push(
+          textBlock(token.text, {
+            size: 9,
+            spacing: 0.75,
+            indent: 12 + depth * 12,
+            lineGap: 2,
+            preserveWhitespace: true,
+          }),
+        );
         break;
       case "list": {
         const list = token as Tokens.List;
@@ -251,7 +289,8 @@ function collectBlocks(tokens: readonly Token[], blocks: MarkdownPdfBlock[], dep
           let pending: Token[] = [];
           const flush = () => {
             const body = blockText(pending).trim();
-            if (body) blocks.push(textBlock(`${leading}${body}`, { indent: (leading ? 12 : 24) + depth * 12 }));
+            if (body)
+              blocks.push(textBlock(`${leading}${body}`, { indent: (leading ? 12 : 24) + depth * 12 }));
             if (body) leading = "";
             pending = [];
           };
@@ -274,7 +313,14 @@ function collectBlocks(tokens: readonly Token[], blocks: MarkdownPdfBlock[], dep
       case "table": {
         const rows: Tokens.TableCell[][] = [token.header, ...token.rows];
         rows.forEach((row, index) => {
-          blocks.push(textBlock(row.map((cell) => inlineText(cell.tokens)).join("  |  "), { weight: index === 0 ? "bold" : "regular", size: 9, spacing: 0.35, lineGap: 2 }));
+          blocks.push(
+            textBlock(row.map((cell) => inlineText(cell.tokens)).join("  |  "), {
+              weight: index === 0 ? "bold" : "regular",
+              size: 9,
+              spacing: 0.35,
+              lineGap: 2,
+            }),
+          );
         });
         break;
       }
@@ -299,10 +345,19 @@ export function markdownToPdfBlocks(markdown: string): MarkdownPdfBlock[] {
 
 function measureText(document: PDFKit.PDFDocument, text: string, weight: FontWeight, size: number): number {
   document.fontSize(size);
-  return fontRuns(text).reduce((width, run) => width + document.font(fontName(run.script, weight)).widthOfString(run.text), 0);
+  return fontRuns(text).reduce(
+    (width, run) => width + document.font(fontName(run.script, weight)).widthOfString(run.text),
+    0,
+  );
 }
 
-function splitLongToken(document: PDFKit.PDFDocument, token: string, weight: FontWeight, size: number, maxWidth: number): string[] {
+function splitLongToken(
+  document: PDFKit.PDFDocument,
+  token: string,
+  weight: FontWeight,
+  size: number,
+  maxWidth: number,
+): string[] {
   const pieces: string[] = [];
   let current = "";
   for (const { segment } of graphemeSegmenter.segment(token)) {
@@ -326,9 +381,10 @@ function wrapLogicalLine(
   preserveWhitespace: boolean,
 ): string[] {
   if (!text) return [""];
-  if (preserveWhitespace) return measureText(document, text, weight, size) <= maxWidth
-    ? [text]
-    : splitLongToken(document, text, weight, size, maxWidth);
+  if (preserveWhitespace)
+    return measureText(document, text, weight, size) <= maxWidth
+      ? [text]
+      : splitLongToken(document, text, weight, size, maxWidth);
   const lines: string[] = [];
   let current = "";
   for (const token of text.match(/\s+|\S+/gu) ?? []) {
@@ -359,23 +415,39 @@ function ensureVerticalSpace(document: PDFKit.PDFDocument, height: number): void
 function writeText(document: PDFKit.PDFDocument, block: Extract<MarkdownPdfBlock, { kind: "text" }>): void {
   document.font(fontName("latin", block.weight)).fontSize(block.size).fillColor(block.color);
   const lineHeight = document.currentLineHeight(true) + block.lineGap;
-  const availableWidth = document.page.width - document.page.margins.left - document.page.margins.right - block.indent * 2;
+  const availableWidth =
+    document.page.width - document.page.margins.left - document.page.margins.right - block.indent * 2;
 
   for (const logicalLine of block.text.replace(/\r\n?/gu, "\n").split("\n")) {
     const paragraph = bidi.getEmbeddingLevels(logicalLine);
     const baseDirection: TextDirection = (paragraph.paragraphs[0]?.level ?? 0) % 2 === 1 ? "rtl" : "ltr";
-    for (const line of wrapLogicalLine(document, logicalLine, block.weight, block.size, availableWidth, block.preserveWhitespace)) {
+    for (const line of wrapLogicalLine(
+      document,
+      logicalLine,
+      block.weight,
+      block.size,
+      availableWidth,
+      block.preserveWhitespace,
+    )) {
       ensureVerticalSpace(document, lineHeight);
       const y = document.y;
       if (line) {
         const visual = pdfVisualLine(line, baseDirection);
-        const measuredRuns = visual.runs.map((run) => ({ ...run, width: measureText(document, run.text, block.weight, block.size) }));
+        const measuredRuns = visual.runs.map((run) => ({
+          ...run,
+          width: measureText(document, run.text, block.weight, block.size),
+        }));
         const lineWidth = measuredRuns.reduce((width, run) => width + run.width, 0);
-        let x = visual.direction === "rtl"
-          ? document.page.width - document.page.margins.right - block.indent - lineWidth
-          : document.page.margins.left + block.indent;
+        let x =
+          visual.direction === "rtl"
+            ? document.page.width - document.page.margins.right - block.indent - lineWidth
+            : document.page.margins.left + block.indent;
         for (const run of measuredRuns) {
-          document.font(fontName(run.script, block.weight)).fontSize(block.size).fillColor(block.color).text(pdfKitRunText(run), x, y, { lineBreak: false });
+          document
+            .font(fontName(run.script, block.weight))
+            .fontSize(block.size)
+            .fillColor(block.color)
+            .text(pdfKitRunText(run), x, y, { lineBreak: false });
           x += run.width;
         }
       }

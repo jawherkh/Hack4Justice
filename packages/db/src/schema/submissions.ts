@@ -37,6 +37,10 @@ export const submission = pgTable(
     note: text(),
     snapshot: jsonb().$type<SubmissionSnapshot>().notNull(),
     submittedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    /** Staff review (admin panel). Null until a reviewer acts. */
+    reviewedAt: timestamp({ withTimezone: true }),
+    reviewedBy: uuid(),
+    reviewNote: text(),
     ...timestamps,
   },
   (table) => [

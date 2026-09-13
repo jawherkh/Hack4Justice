@@ -16,11 +16,16 @@ const require = createRequire(import.meta.url);
 
 function shapedCodePoints(text: string): number[] {
   const document = new PDFDocument();
-  document.registerFont("ArabicProbe", require.resolve("@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-400-normal.woff"));
+  document.registerFont(
+    "ArabicProbe",
+    require.resolve("@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-400-normal.woff"),
+  );
   document.font("ArabicProbe");
-  const font = (document as unknown as {
-    _font: { font: { layout(value: string): { glyphs: { codePoints: number[] }[] } } };
-  })._font.font;
+  const font = (
+    document as unknown as {
+      _font: { font: { layout(value: string): { glyphs: { codePoints: number[] }[] } } };
+    }
+  )._font.font;
   const codePoints = font.layout(text).glyphs.flatMap((glyph) => glyph.codePoints);
   document.end();
   return codePoints;
@@ -49,15 +54,19 @@ function fixture() {
       data: { runId, finalOutput, interrupted },
     });
   };
-  const server = new Elysia({ prefix: "/api/v1" }).use(errorHandler).use(createAgentRoutes(repository, createDemoIdentity(true, "test"), undefined, false));
-  const exportPath = (runId: string, format: string) => `/dossiers/${dossierId}/agent/sessions/${session.id}/runs/${runId}/export?format=${format}`;
+  const server = new Elysia({ prefix: "/api/v1" })
+    .use(errorHandler)
+    .use(createAgentRoutes(repository, createDemoIdentity(true, "test"), undefined, false));
+  const exportPath = (runId: string, format: string) =>
+    `/dossiers/${dossierId}/agent/sessions/${session.id}/runs/${runId}/export?format=${format}`;
   return { repository, session, complete, server, exportPath };
 }
 
 describe("agent response exports", () => {
   test("keeps nested lists and paragraph breaks when converting Markdown", () => {
-    const blocks = markdownToPdfBlocks("- Before\n  - Nested\n\n  After\n\n> first paragraph\n>\n> second paragraph")
-      .filter((block) => block.kind === "text");
+    const blocks = markdownToPdfBlocks(
+      "- Before\n  - Nested\n\n  After\n\n> first paragraph\n>\n> second paragraph",
+    ).filter((block) => block.kind === "text");
 
     expect(blocks.map(({ text }) => text)).toEqual([
       "• Before",
@@ -72,7 +81,11 @@ describe("agent response exports", () => {
     const blocks = markdownToPdfBlocks("```python\nif ready:\n    submit()\n```");
 
     expect(blocks).toHaveLength(1);
-    expect(blocks[0]).toMatchObject({ kind: "text", text: "if ready:\n    submit()", preserveWhitespace: true });
+    expect(blocks[0]).toMatchObject({
+      kind: "text",
+      text: "if ready:\n    submit()",
+      preserveWhitespace: true,
+    });
   });
 
   test("keeps code blocks separate from surrounding list and quote text", () => {
@@ -101,14 +114,29 @@ describe("agent response exports", () => {
 
     const mixed = pdfVisualLine("المبلغ 123.45 TND (2026)");
     expect(mixed.direction).toBe("rtl");
-    expect(mixed.runs.filter(({ script }) => script === "arabic").map(({ text }) => text)).toEqual(["المبلغ"]);
-    expect(mixed.runs.filter(({ script }) => script === "latin").every(({ text }) => !/\p{Script_Extensions=Arabic}/u.test(text))).toBe(true);
+    expect(mixed.runs.filter(({ script }) => script === "arabic").map(({ text }) => text)).toEqual([
+      "المبلغ",
+    ]);
+    expect(
+      mixed.runs
+        .filter(({ script }) => script === "latin")
+        .every(({ text }) => !/\p{Script_Extensions=Arabic}/u.test(text)),
+    ).toBe(true);
     expect(mixed.runs.map(({ text }) => text).join("")).toBe("TND (2026) 123.45 المبلغ");
 
-    expect(pdfVisualLine("جاهزة (المستندات).").runs[0]).toEqual({ direction: "rtl", script: "latin", text: ".(" });
-    const numericRuns = pdfVisualLine("المبلغ ١٢٣.٤٥").runs.filter((run) => run.script === "arabic" && run.direction === "ltr");
+    expect(pdfVisualLine("جاهزة (المستندات).").runs[0]).toEqual({
+      direction: "rtl",
+      script: "latin",
+      text: ".(",
+    });
+    const numericRuns = pdfVisualLine("المبلغ ١٢٣.٤٥").runs.filter(
+      (run) => run.script === "arabic" && run.direction === "ltr",
+    );
     expect(numericRuns.map(({ text }) => text)).toEqual(["١٢٣", "٤٥"]);
-    expect(numericRuns.map((run) => String.fromCodePoint(...shapedCodePoints(pdfKitRunText(run))))).toEqual(["١٢٣", "٤٥"]);
+    expect(numericRuns.map((run) => String.fromCodePoint(...shapedCodePoints(pdfKitRunText(run))))).toEqual([
+      "١٢٣",
+      "٤٥",
+    ]);
   });
 
   test("downloads the requested completed run as its original Markdown", async () => {
@@ -128,7 +156,10 @@ describe("agent response exports", () => {
 
   test("renders a valid PDF without resolving markup resources", async () => {
     const { complete, server, exportPath } = fixture();
-    complete("run-pdf", "# Report\n\nPièces vérifiées. المستندات جاهزة.\n\n![remote](https://example.invalid/file.png)\n\n<script>alert(1)</script>");
+    complete(
+      "run-pdf",
+      "# Report\n\nPièces vérifiées. المستندات جاهزة.\n\n![remote](https://example.invalid/file.png)\n\n<script>alert(1)</script>",
+    );
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     try {

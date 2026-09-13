@@ -37,5 +37,9 @@
   "project_not_found": "Projet introuvable",
   "requirement_not_found": "Exigence introuvable",
   "project_not_ready": "La liste des pièces n’est pas encore complète",
-  "submission_in_progress": "Un dépôt est déjà enregistré ; mettez à jour son statut ou revenez à la préparation"
+  "submission_in_progress": "Un dépôt est déjà enregistré ; mettez à jour son statut ou revenez à la préparation",
+  "email_taken": "Un compte existe déjà avec cet e-mail",
+  "cannot_demote_self": "Vous ne pouvez pas abaisser votre propre rôle",
+  "cannot_delete_self": "Vous ne pouvez pas supprimer votre propre compte",
+  "banned": "Ce compte est suspendu"
 }

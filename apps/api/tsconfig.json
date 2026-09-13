@@ -1,22 +1,10 @@
 {
   "extends": "@hack4justice/typescript-config/base.json",
   "compilerOptions": {
-    "types": [
-      "node"
-    ],
+    "types": ["node"],
     "noEmit": true,
-    "lib": [
-      "ES2022"
-    ]
+    "lib": ["ES2022"]
   },
-  "include": [
-    "src",
-    "tsup.config.ts",
-    "vitest.config.ts",
-    "scripts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["src", "tsup.config.ts", "vitest.config.ts", "scripts"],
+  "exclude": ["node_modules", "dist"]
 }

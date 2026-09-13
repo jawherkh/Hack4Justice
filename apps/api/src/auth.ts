@@ -5,12 +5,14 @@ import { Elysia } from "elysia";
 import { db } from "./db";
 import { env } from "./env";
 import { sendMail } from "./mail";
+import { isBanned } from "./admin-auth";
+import { trustedOrigins } from "./trusted-origins";
 
 export const auth = createAuth({
   db,
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
-  trustedOrigins: [env.WEB_ORIGIN],
+  trustedOrigins: trustedOrigins([env.WEB_ORIGIN]),
   rateLimit: { enabled: env.NODE_ENV !== "test" },
   sendResetPassword: ({ to, url }) =>
     sendMail({
@@ -27,8 +29,10 @@ export const auth = createAuth({
 export const authGuard = new Elysia({ name: "auth-guard" }).macro({
   auth: {
     async resolve({ request: { headers } }) {
-      const result = await auth.api.getSession({ headers });
+      // Bypass the cookie cache so bans and revocations apply immediately.
+      const result = await auth.api.getSession({ headers, query: { disableCookieCache: true } });
       if (!result) throw new AppError({ status: 401, code: "unauthorized" });
+      if (isBanned(result.user)) throw new AppError({ status: 403, code: "banned" });
       return { user: result.user, session: result.session };
     },
   },

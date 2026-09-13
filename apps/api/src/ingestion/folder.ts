@@ -32,7 +32,10 @@ export interface FolderIngestionResult {
 }
 
 export class FolderIngestionError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
     super(message);
     this.name = "FolderIngestionError";
   }
@@ -56,8 +59,11 @@ async function sourceFiles(root: string, directory = root): Promise<string[]> {
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     const path = `${directory}/${entry.name}`;
     if (entry.isDirectory()) {
-      files.push(...await sourceFiles(root, path));
-    } else if (entry.isFile() && SUPPORTED_SOURCE_EXTENSIONS.has(entry.name.slice(entry.name.lastIndexOf(".")).toLowerCase())) {
+      files.push(...(await sourceFiles(root, path)));
+    } else if (
+      entry.isFile() &&
+      SUPPORTED_SOURCE_EXTENSIONS.has(entry.name.slice(entry.name.lastIndexOf(".")).toLowerCase())
+    ) {
       files.push(path);
     }
   }
@@ -66,7 +72,11 @@ async function sourceFiles(root: string, directory = root): Promise<string[]> {
 
 function contentTypeFor(file: string): string {
   const extension = file.slice(file.lastIndexOf(".")).toLowerCase();
-  return extension === ".pdf" ? "application/pdf" : extension === ".html" || extension === ".htm" ? "text/html" : "text/plain";
+  return extension === ".pdf"
+    ? "application/pdf"
+    : extension === ".html" || extension === ".htm"
+      ? "text/html"
+      : "text/plain";
 }
 
 function sourceUri(file: string, root: string, prefix?: string): string {
@@ -88,14 +98,15 @@ async function sendBatch(
   });
   if (!response.ok) throw new FolderIngestionError(502, `Graphiti ingestion failed with ${response.status}`);
 
-  const result = await response.json().catch(() => ({})) as {
+  const result = (await response.json().catch(() => ({}))) as {
     documents?: { status?: string; skipped_chunks?: unknown[] }[];
   };
   const documentResults = Array.isArray(result.documents) ? result.documents : [];
   return {
     partialDocuments: documentResults.filter((document) => document.status === "partial").length,
     skippedChunks: documentResults.reduce(
-      (count, document) => count + (Array.isArray(document.skipped_chunks) ? document.skipped_chunks.length : 0),
+      (count, document) =>
+        count + (Array.isArray(document.skipped_chunks) ? document.skipped_chunks.length : 0),
       0,
     ),
   };
@@ -110,14 +121,18 @@ export async function ingestPdfFolder(options: FolderIngestionOptions): Promise<
   if (!(await stat(root)).isDirectory()) throw new FolderIngestionError(400, "folder must be a directory");
   const files = await sourceFiles(root);
   const request: HttpRequest = options.request ?? fetch;
-  const batchSize = Math.min(Math.max(options.maxDocumentsPerRequest ?? MAX_DOCUMENTS_PER_BATCH, 1), MAX_DOCUMENTS_PER_BATCH);
+  const batchSize = Math.min(
+    Math.max(options.maxDocumentsPerRequest ?? MAX_DOCUMENTS_PER_BATCH, 1),
+    MAX_DOCUMENTS_PER_BATCH,
+  );
   const documents: LegalDocumentPayload[] = [];
 
   for (const file of files) {
     const bytes = new Uint8Array(await readFile(file));
     const contentType = contentTypeFor(file);
     if (contentType === "application/pdf") {
-      if (bytes.byteLength > MAX_PDF_SIZE_BYTES) throw new FolderIngestionError(413, `PDF is larger than 25 MB: ${file}`);
+      if (bytes.byteLength > MAX_PDF_SIZE_BYTES)
+        throw new FolderIngestionError(413, `PDF is larger than 25 MB: ${file}`);
       if (!isPdfBytes(bytes)) throw new FolderIngestionError(415, `File is not a valid PDF: ${file}`);
     }
     const extracted = await options.extractor.extract({
@@ -128,7 +143,10 @@ export async function ingestPdfFolder(options: FolderIngestionOptions): Promise<
     });
     documents.push({
       document_id: createHash("sha256").update(bytes).digest("hex"),
-      title: file.split(sep).at(-1)!.replace(/\.(pdf|html?|txt|md)$/i, ""),
+      title: file
+        .split(sep)
+        .at(-1)!
+        .replace(/\.(pdf|html?|txt|md)$/i, ""),
       text: extracted.text,
       source_uri: sourceUri(file, root, options.sourceUriPrefix),
       source_kind: "official",

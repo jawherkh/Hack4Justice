@@ -43,6 +43,20 @@
       "when": 1789274097930,
       "tag": "0005_dear_mysterio",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789276496135,
+      "tag": "0006_harsh_blue_blade",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789278101795,
+      "tag": "0007_open_jean_grey",
+      "breakpoints": true
     }
   ]
 }

@@ -132,9 +132,9 @@ export function createGeminiAgentModel(options: GeminiAgentModelOptions): Model 
       "x-goog-api-client": "hack4justice-agents/0.1.0",
     },
   });
-  return new GeminiChatCompletionsThoughtSignatureModel(new OpenAIChatCompletionsModel(
-    client,
-    options.model ?? DEFAULT_GEMINI_AGENT_MODEL,
-    { strictFeatureValidation: true },
-  ));
+  return new GeminiChatCompletionsThoughtSignatureModel(
+    new OpenAIChatCompletionsModel(client, options.model ?? DEFAULT_GEMINI_AGENT_MODEL, {
+      strictFeatureValidation: true,
+    }),
+  );
 }

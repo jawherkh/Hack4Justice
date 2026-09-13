@@ -30,7 +30,9 @@ describe("document text extraction", () => {
     });
 
     const result = await extractor.extract({
-      bytes: new TextEncoder().encode("<h1>Identifiant fiscal</h1><p>La demande se fait auprès de la DGI.</p>"),
+      bytes: new TextEncoder().encode(
+        "<h1>Identifiant fiscal</h1><p>La demande se fait auprès de la DGI.</p>",
+      ),
       filename: "tax.html",
       contentType: "text/html",
     });
@@ -91,10 +93,7 @@ describe("document text extraction", () => {
 
   test("marks a PDF as mixed when only some pages need OCR", async () => {
     const extractor = createDocumentTextExtractor({
-      pdf: reader([
-        "Article 1. This native page contains enough text to be trusted by the extractor.",
-        "",
-      ]),
+      pdf: reader(["Article 1. This native page contains enough text to be trusted by the extractor.", ""]),
       ocr: {
         async extractPage() {
           return { text: "Page scannée", confidence: 0.88 };

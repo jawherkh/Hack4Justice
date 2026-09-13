@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@hack4justice/db": "workspace:*",
-    "better-auth": "^1.7.4"
+    "better-auth": "^1.7.4",
+    "@hack4justice/shared": "workspace:*"
   },
   "devDependencies": {
     "@hack4justice/typescript-config": "workspace:*",
@@ -29,6 +30,9 @@
   "exports": {
     ".": "./src/server.ts",
     "./server": "./src/server.ts",
-    "./client": "./src/client.ts"
+    "./client": "./src/client.ts",
+    "./admin/server": "./src/admin/server.ts",
+    "./admin/client": "./src/admin/client.ts",
+    "./admin/access": "./src/admin/access.ts"
   }
 }
