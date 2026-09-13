@@ -4,7 +4,7 @@ import { env } from "../env";
 import { createTikaClient } from "../ocr/tika";
 import { extractDocumentText, runSandboxCommand, type ExtractTextInput, type SandboxCommandInput } from "./activities";
 import { retrieveLegalContext, runAgentTurn, type AgentRunner, type AgentTurnInput, type LegalContextInput, type LegalKnowledge } from "./agent";
-import type { JobContext } from "./contracts";
+import type { JobContext, JobReceipt } from "./contracts";
 import { PostgresJobStore } from "./store";
 
 /**
@@ -24,6 +24,29 @@ function activityContext(): JobContext {
   } catch {
     return {};
   }
+}
+
+/**
+ * Trims a receipt to what a workflow history should carry.
+ *
+ * The stored receipt keeps the whole result so a repeated call can hand back the same
+ * answer. The value returned to the workflow keeps references and counts instead, because
+ * a history is a record of what happened, not a second copy of the documents.
+ */
+export function forHistory(receipt: JobReceipt): JobReceipt {
+  const output = receipt.output;
+  if (!output) return receipt;
+  const { text, sources, ...rest } = output as Record<string, unknown>;
+  return {
+    ...receipt,
+    output: {
+      ...rest,
+      ...(typeof text === "string" ? { textCharacters: text.length } : {}),
+      ...(Array.isArray(sources)
+        ? { sourceRefs: (sources as { sourceRef: string }[]).map((source) => source.sourceRef) }
+        : {}),
+    },
+  };
 }
 
 export interface DocumentActivityInputs {
@@ -67,20 +90,20 @@ export function createDocumentActivities(databaseUrl: string, dependencies: Agen
       async extractDocumentText(input: DocumentActivityInputs["extractDocumentText"]) {
         const bytes = input.bytes instanceof Uint8Array ? input.bytes : new Uint8Array(input.bytes);
         const { receipt } = await extractDocumentText(store, extractor, { ...input, bytes }, activityContext());
-        return receipt;
+        return forHistory(receipt);
       },
       async runAgentTurn(input: AgentTurnInput) {
         if (!dependencies.agent) throw new Error("agent_not_configured");
         const { receipt } = await runAgentTurn(store, dependencies.agent, input, activityContext());
-        return receipt;
+        return forHistory(receipt);
       },
       async retrieveLegalContext(input: LegalContextInput) {
         if (!dependencies.knowledge) throw new Error("knowledge_not_configured");
         const { receipt } = await retrieveLegalContext(store, dependencies.knowledge, input, activityContext());
-        return receipt;
+        return forHistory(receipt);
       },
       async runSandboxCommand(input: SandboxCommandInput) {
-        return await runSandboxCommand(
+        return forHistory(await runSandboxCommand(
           store,
           {
             baseDir: env.DOCUMENT_STORAGE_DIR,
@@ -88,7 +111,7 @@ export function createDocumentActivities(databaseUrl: string, dependencies: Agen
           },
           input,
           activityContext(),
-        );
+        ));
       },
     },
   };

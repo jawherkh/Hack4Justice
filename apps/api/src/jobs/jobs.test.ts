@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { extractDocumentText, runSandboxCommand, type TextExtractor } from "./activities";
 import { defaultRunLimits } from "../sandbox/runner";
 import { AgentUnavailable, retrieveLegalContext, runAgentTurn, type AgentRunner, type LegalKnowledge } from "./agent";
+import { forHistory } from "./worker-activities";
 import { PostgresJobStore } from "./store";
 import { JobCancelled, type JobReceipt, type JobRequest, type JobStore } from "./contracts";
 import { abandonedJobs, RetryableJobError, runJob } from "./runner";
@@ -175,7 +176,9 @@ describe("document text extraction", () => {
     expect(receipt.status).toBe("succeeded");
     expect(text).toBe("Quittance fiscale");
     expect(receipt.output).toMatchObject({ documentId: "doc-1", characters: 17, pageCount: 2 });
-    expect(JSON.stringify(receipt.output)).not.toContain("Quittance fiscale");
+    // The workflow is told what was read, not handed the document's contents.
+    expect(JSON.stringify(forHistory(receipt).output)).not.toContain("Quittance fiscale");
+    expect(forHistory(receipt).output).toMatchObject({ textCharacters: 17 });
   });
 
   test("repeating the job does not call the extraction service again", async () => {
@@ -193,6 +196,24 @@ describe("document text extraction", () => {
 
     expect(calls).toBe(1);
     expect(repeat.receipt.status).toBe("succeeded");
+  });
+
+  test("a repeated extraction returns the same text without calling the service again", async () => {
+    const store = new MemoryJobStore();
+    let calls = 0;
+    const counting: TextExtractor = {
+      async extract() { calls += 1; return { text: "Quittance fiscale", pageCount: 1 }; },
+    };
+    const input = {
+      jobId: "extract-repeat", dossierId: "dossier-1", documentId: "doc-1",
+      filename: "scan.pdf", bytes: new Uint8Array([1]),
+    };
+
+    await extractDocumentText(store, counting, input);
+    const again = await extractDocumentText(store, counting, input);
+
+    expect(calls).toBe(1);
+    expect(again.text).toBe("Quittance fiscale");
   });
 
   test("an unavailable extraction service is retryable", async () => {
@@ -406,6 +427,33 @@ describe("agent turns", () => {
     expect(store.receipts[0]!.attempts).toBe(2);
   });
 
+  test("a repeated call returns the same answer without running the turn again", async () => {
+    const store = new MemoryJobStore();
+    let calls = 0;
+    const once: AgentRunner = {
+      async runTurn() {
+        calls += 1;
+        return {
+          conversationRef: "conv-1",
+          reply: "Il manque l'attestation CNSS.",
+          question: "Avez-vous le numero CNSS ?",
+          proposals: [{ action: "attach_evidence", nodeId: "node-1", reason: "piece manquante", sourceRefs: ["src-1"] }],
+        };
+      },
+    };
+    const input = { jobId: "turn-repeat", dossierId: "dossier-1", conversationId: "conv", context: turnContext };
+
+    const first = await runAgentTurn(store, once, input);
+    const again = await runAgentTurn(store, once, input);
+
+    expect(calls).toBe(1);
+    // The user still has to be shown an answer on the second call.
+    expect(again.result?.reply).toBe(first.result!.reply);
+    expect(again.result?.question).toBe("Avez-vous le numero CNSS ?");
+    expect(again.result?.proposals?.map((proposal) => proposal.action)).toEqual(["attach_evidence"]);
+    expect(again.result?.conversationRef).toBe("conv-1");
+  });
+
   test("a completed turn is not run a second time", async () => {
     const store = new MemoryJobStore();
     let calls = 0;
@@ -487,8 +535,31 @@ describe("legal retrieval", () => {
     });
 
     expect(sources![0]!.passage).toBe("texte");
-    expect(receipt.output).toMatchObject({ ruleVersionIds: ["rule-1"], count: 1 });
-    expect(JSON.stringify(receipt.output)).not.toContain("texte");
+    expect(receipt.output).toMatchObject({ count: 1 });
+    // The workflow gets the references it can cite, not the corpus.
+    expect(JSON.stringify(forHistory(receipt).output)).not.toContain("texte");
+    expect(forHistory(receipt).output).toMatchObject({ sourceRefs: ["code-2026-art-12"] });
+  });
+
+  test("a repeated retrieval returns the same sources without asking again", async () => {
+    const store = new MemoryJobStore();
+    let calls = 0;
+    const counting: LegalKnowledge = {
+      async retrieve() {
+        calls += 1;
+        return [{ ruleVersionId: "rule-1", sourceRef: "code-2026-art-12", passage: "texte" }];
+      },
+    };
+    const input = {
+      jobId: "retrieve-repeat", dossierId: "dossier-1", agency: "DGI",
+      procedureVersionId: "procedure-1", question: "quelles pieces",
+    };
+
+    await retrieveLegalContext(store, counting, input);
+    const again = await retrieveLegalContext(store, counting, input);
+
+    expect(calls).toBe(1);
+    expect(again.sources).toEqual([{ ruleVersionId: "rule-1", sourceRef: "code-2026-art-12", passage: "texte" }]);
   });
 
   test("an unreachable knowledge service is retryable", async () => {

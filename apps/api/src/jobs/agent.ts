@@ -133,15 +133,30 @@ export async function runAgentTurn(
           proposals,
           // Recorded so an agent repeatedly reaching past its permissions is visible.
           refusedProposals: refused,
-          askedQuestion: Boolean(turn.question),
-          replyCharacters: turn.reply.length,
+          // The reply and question are stored because a repeated call returns the receipt
+          // without running the turn again, and the user still has to be shown an answer.
+          reply: turn.reply,
+          question: turn.question,
         },
       };
     },
     context,
   );
 
-  return { receipt, result };
+  return { receipt, result: result ?? storedTurn(receipt) };
+}
+
+/** Rebuilds a turn's answer from its receipt, for a call that did not run the turn again. */
+function storedTurn(receipt: JobReceipt): AgentTurnResult | undefined {
+  if (receipt.status !== "succeeded") return undefined;
+  const output = receipt.output;
+  if (!output || typeof output.conversationRef !== "string" || typeof output.reply !== "string") return undefined;
+  return {
+    conversationRef: output.conversationRef,
+    reply: output.reply,
+    proposals: (output.proposals as ProposedAction[] | undefined) ?? [],
+    question: typeof output.question === "string" ? output.question : undefined,
+  };
 }
 
 export interface LegalContextInput {
@@ -201,15 +216,20 @@ export async function retrieveLegalContext(
 
       sources = found;
       return {
-        output: {
-          ruleVersionIds: found.map((source) => source.ruleVersionId),
-          sourceRefs: found.map((source) => source.sourceRef),
-          count: found.length,
-        },
+        // Stored whole: a repeated call returns the receipt without retrieving again, and
+        // the turn that asked still needs the passages it was going to cite.
+        output: { sources: found, count: found.length },
       };
     },
     context,
   );
 
-  return { receipt, sources };
+  return { receipt, sources: sources ?? storedSources(receipt) };
+}
+
+/** Rebuilds retrieved sources from a receipt, for a call that did not retrieve again. */
+function storedSources(receipt: JobReceipt): LegalSource[] | undefined {
+  if (receipt.status !== "succeeded") return undefined;
+  const stored = receipt.output?.sources;
+  return Array.isArray(stored) ? stored as LegalSource[] : undefined;
 }
