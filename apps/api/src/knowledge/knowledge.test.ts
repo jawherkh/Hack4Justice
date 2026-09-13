@@ -87,10 +87,13 @@ describe("legal knowledge search", () => {
       expect(JSON.parse(String(init.body))).toEqual({ query: "attestation", max_results: 10 });
 
       expect(context.needsReview).toBe(false);
+      // The reference is the document, not the extracted relation: that is what a person
+      // can go and read.
       expect(context.passages).toEqual([{
         fact: "Le dossier exige une attestation de situation fiscale.",
         source: "Code de la TVA, article 12",
-        reference: "edge-1",
+        reference: "episode-1",
+        statement: "edge-1",
         validFrom: "2024-01-01T00:00:00Z",
         excerpt: "Attestation exigee avant le depot.",
       }]);
@@ -105,6 +108,42 @@ describe("legal knowledge search", () => {
       const context = await createKnowledgeSearch("http://knowledge.test").search({ agency: "RNE", query: "inconnu" });
       expect(context.passages).toEqual([]);
       expect(context.needsReview).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("refuses to present a statement with no document behind it", async () => {
+    // The shape the service returns when it matched a relation but attached no episode.
+    // Its relation name is not a source, and an answer citing it could not be checked.
+    vi.stubGlobal("fetch", respondWith({
+      agency: "DGI", group_id: "dgi", query: "quittance",
+      edges: [{ uuid: "edge-1", name: "REQUIRES", fact: "A quittance fiscale is required.", episodes: [], attributes: {} }],
+      nodes: [], episodes: [],
+    }));
+    try {
+      const context = await createKnowledgeSearch("http://knowledge.test").search({ agency: "DGI", query: "quittance" });
+      expect(context.passages).toEqual([]);
+      expect(context.unsourcedStatements).toBe(1);
+      expect(context.needsReview).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("keeps matching legal text that no relation was extracted from", async () => {
+    vi.stubGlobal("fetch", respondWith({ ...serviceBody, edges: [] }));
+    try {
+      const context = await createKnowledgeSearch("http://knowledge.test").search({ agency: "DGI", query: "attestation" });
+      // The episode is the document itself. Reporting it as nothing found would hide law
+      // the service did return.
+      expect(context.needsReview).toBe(false);
+      expect(context.passages).toEqual([{
+        fact: "Attestation exigee avant le depot.",
+        source: "Code de la TVA, article 12",
+        reference: "episode-1",
+        excerpt: "Attestation exigee avant le depot.",
+      }]);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -144,7 +183,8 @@ describe("legal knowledge search", () => {
 const found = (agency: string): LegalContext => ({
   agency: agency as LegalContext["agency"],
   query: "attestation",
-  passages: [{ fact: "une attestation est exigee", source: "Code de la TVA, article 12", reference: "edge-1" }],
+  passages: [{ fact: "une attestation est exigee", source: "Code de la TVA, article 12", reference: "episode-1" }],
+  unsourcedStatements: 0,
   needsReview: false,
 });
 
