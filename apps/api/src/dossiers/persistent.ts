@@ -54,6 +54,10 @@ export type AsyncAccessRepository = {
   dependency(
     id: string,
   ): ReturnType<AccessRepository["dependency"]> | Promise<ReturnType<AccessRepository["dependency"]>>;
+  dependencies(
+    companyId: string,
+    agency: "DGI" | "RNE" | "APII",
+  ): ReturnType<AccessRepository["dependencies"]> | Promise<ReturnType<AccessRepository["dependencies"]>>;
   grants(): ReturnType<AccessRepository["grants"]> | Promise<ReturnType<AccessRepository["grants"]>>;
   procedures():
     ReturnType<AccessRepository["procedures"]> | Promise<ReturnType<AccessRepository["procedures"]>>;

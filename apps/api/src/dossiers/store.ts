@@ -8,6 +8,7 @@ import {
   type DocumentGrant,
   type ResourceScope,
 } from "../access/policy";
+import { evaluateActionGate, resolveActionNode } from "../requirements/evaluator";
 
 export type DossierLifecycle =
   "draft" | "active" | "awaiting_review" | "correction_requested" | "closed" | "cancelled";
@@ -407,6 +408,7 @@ export interface AccessRepository {
   document(id: string): DocumentRecord | undefined;
   node(id: string): NodeRecord | undefined;
   dependency(id: string): DependencyRecord | undefined;
+  dependencies(companyId: string, agency: Agency): readonly DependencyRecord[];
   grants(): readonly DocumentGrant[];
   procedures(): readonly ProcedureVersionRecord[];
   procedure(id: string): ProcedureVersionRecord | undefined;
@@ -629,7 +631,11 @@ export class InMemoryDossierRepository implements AgentRepository {
 
   public dependencies(companyId: string, agency: Agency): readonly DependencyRecord[] {
     return [...this.dependencyRows.values()]
-      .filter((dependency) => dependency.companyId === companyId && dependency.agency === agency)
+      .filter(
+        (dependency) =>
+          dependency.companyId === companyId &&
+          (dependency.agency === agency || dependency.consumerAgencies.includes(agency)),
+      )
       .map(clone);
   }
 
@@ -942,6 +948,26 @@ export class InMemoryDossierRepository implements AgentRepository {
     if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled")
       throw new AccessError(409, "dossier_closed");
     if (input.nodeId && !dossier.nodeIds.includes(input.nodeId)) throw new AccessError(404, "not_found");
+
+    const action =
+      input.type === "submission_requested"
+        ? "submit"
+        : input.type === "resubmission_requested"
+          ? "resubmit"
+          : undefined;
+    if (action) {
+      const detail = requireValue(this.dossierDetail(dossier.id));
+      const target = resolveActionNode(detail, action, input.nodeId);
+      if (!target) throw new AccessError(422, "action_not_available");
+      const gate = evaluateActionGate(
+        detail,
+        this.dependencies(dossier.companyId, dossier.agency),
+        target,
+        action,
+      );
+      if (gate.decision === "blocked") throw new AccessError(409, "prerequisite_blocked");
+      if (gate.decision === "needs_review") throw new AccessError(409, "prerequisite_needs_review");
+    }
 
     const acknowledgement: LifecycleCommandAcknowledgement = {
       commandId: `command-${dossier.id}-${++this.sequence}`,
@@ -1288,6 +1314,7 @@ export function createDemoDossierRepository(
         procedureNodes.map((definition, index) => [definition.key, nodeIds[index]]),
       );
       const prerequisiteStatus: PrerequisiteStatus = agency === "DGI" ? "satisfied" : "unknown";
+      const seededRequirementReview = agency === "DGI" ? "ready" : "needs_review";
 
       for (const [index, definition] of procedureNodes.entries()) {
         const nodeId = nodeIds[index];
@@ -1314,7 +1341,7 @@ export function createDemoDossierRepository(
           sourceIds: [source.id],
           allowedActions: [...definition.allowedActions],
           blockers: [],
-          readiness: "unknown",
+          readiness: definition.type === "document_evidence" ? seededRequirementReview : "unknown",
           agencyAcceptance: "not_submitted",
           prerequisiteStatus,
         };
@@ -1339,7 +1366,7 @@ export function createDemoDossierRepository(
         sizeBytes: new TextEncoder().encode("Synthetic confidential document content").byteLength,
         uploadedBy: `demo-member-${company}`,
         uploadedAt: "2026-09-12T12:00:00.000Z",
-        reviewStatus: "unreviewed",
+        reviewStatus: agency === "DGI" ? "confirmed" : "unreviewed",
         immutable: true,
       };
       repository.addDocument(document);
@@ -1353,8 +1380,11 @@ export function createDemoDossierRepository(
         requirementId: requirementIds[0],
         evidenceIds: [documentId],
         evaluatedDossierVersion: 1,
-        outcome: "needs_review",
-        message: "Synthetic document awaits confirmation.",
+        outcome: agency === "DGI" ? "pass" : "needs_review",
+        message:
+          agency === "DGI"
+            ? "Synthetic document was confirmed for the demonstration."
+            : "Synthetic document awaits confirmation.",
         sourceIds: [source.id],
         validity: "current",
       };
@@ -1372,7 +1402,7 @@ export function createDemoDossierRepository(
         version: 1,
         procedureVersionId: procedureId,
         lifecycle: "active",
-        readiness: "needs_review",
+        readiness: seededRequirementReview,
         agencyAcceptance: "not_submitted",
         prerequisiteStatus,
         nodeIds,
