@@ -349,6 +349,8 @@
   "procedure.explorer.empty.description": "Upload a PDF or link an existing file to a requirement.",
   "procedure.explorer.linkTo": "Link to requirement",
   "procedure.explorer.unlink": "Unlink",
+  "procedure.explorer.delete": "Delete",
+  "procedure.explorer.deleteLinkedDescription": "The file and its extracted text will be permanently removed, and the requirement it is linked to will lose its document.",
   "procedure.explorer.open": "Open",
   "procedure.explorer.linked": "Linked",
   "procedure.explorer.uploaded": "File uploaded.",

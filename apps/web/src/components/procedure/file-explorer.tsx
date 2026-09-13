@@ -12,8 +12,19 @@ import {
   Link2,
   Link2Off,
   MoreHorizontal,
+  Trash2,
   Upload,
 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@hack4justice/ui/components/alert-dialog'
 import { Badge } from '@hack4justice/ui/components/badge'
 import { Button } from '@hack4justice/ui/components/button'
 import {
@@ -45,7 +56,7 @@ import { toLocaleParam, useI18n } from '#/i18n'
 import { ApiError } from '#/lib/api-error'
 import { formatBytes, formatRelative } from '#/lib/format'
 import { listProjectUploads, projectKeys, updateRequirement, type ProjectDetail } from '#/lib/projects'
-import { downloadUpload, pollingInterval, type OcrLanguages } from '#/lib/uploads'
+import { deleteUpload, downloadUpload, pollingInterval, type OcrLanguages } from '#/lib/uploads'
 import { requirementLabel } from './labels'
 
 const ALL = '__all__'
@@ -58,6 +69,7 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
   const [folder, setFolder] = React.useState<string>(ALL)
   const [languages, setLanguages] = React.useState<OcrLanguages>('fra+eng')
   const [previewId, setPreviewId] = React.useState<string | null>(null)
+  const [deleteId, setDeleteId] = React.useState<string | null>(null)
 
   const uploads = useQuery({
     queryKey: projectKeys.uploads(project.id),
@@ -76,6 +88,24 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
       toast.add({
         type: 'error',
         title: t('procedure.requirement.error'),
+        description: err instanceof ApiError ? err.message : t('auth.error.generic'),
+      }),
+  })
+
+  const remove = useMutation({
+    mutationFn: deleteUpload,
+    onSuccess: async () => {
+      setDeleteId(null)
+      toast.add({ type: 'success', title: t('uploads.toast.deleted') })
+      await queryClient.invalidateQueries({ queryKey: projectKeys.uploads(project.id) })
+      // A linked requirement loses its file (the API nulls the reference), so the checklist changes too.
+      void queryClient.invalidateQueries({ queryKey: projectKeys.detail(project.id) })
+      void queryClient.invalidateQueries({ queryKey: ['uploads'] })
+    },
+    onError: (err) =>
+      toast.add({
+        type: 'error',
+        title: t('uploads.toast.error'),
         description: err instanceof ApiError ? err.message : t('auth.error.generic'),
       }),
   })
@@ -301,17 +331,19 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
                       ) : null}
+                      <DropdownMenuSeparator />
                       {linkedTo ? (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => link.mutate({ requirementId: linkedTo, uploadId: null })}
-                          >
-                            <Link2Off />
-                            {t('procedure.explorer.unlink')}
-                          </DropdownMenuItem>
-                        </>
+                        <DropdownMenuItem
+                          onClick={() => link.mutate({ requirementId: linkedTo, uploadId: null })}
+                        >
+                          <Link2Off />
+                          {t('procedure.explorer.unlink')}
+                        </DropdownMenuItem>
                       ) : null}
+                      <DropdownMenuItem variant="destructive" onClick={() => setDeleteId(file.id)}>
+                        <Trash2 />
+                        {t('procedure.explorer.delete')}
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </li>
@@ -322,6 +354,29 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
       </section>
 
       <FilePreviewDialog uploadId={previewId} onOpenChange={(open) => !open && setPreviewId(null)} />
+
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('uploads.detail.confirmTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteId && requirementByUpload.has(deleteId)
+                ? t('procedure.explorer.deleteLinkedDescription')
+                : t('uploads.detail.confirmDescription')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('uploads.detail.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={remove.isPending}
+              onClick={() => deleteId && remove.mutate(deleteId)}
+            >
+              {t('uploads.detail.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

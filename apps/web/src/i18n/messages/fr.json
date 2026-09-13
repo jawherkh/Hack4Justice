@@ -349,6 +349,8 @@
   "procedure.explorer.empty.description": "Importez un PDF ou liez un fichier existant à une pièce.",
   "procedure.explorer.linkTo": "Lier à une pièce",
   "procedure.explorer.unlink": "Délier",
+  "procedure.explorer.delete": "Supprimer",
+  "procedure.explorer.deleteLinkedDescription": "Le fichier et son texte extrait seront définitivement supprimés, et l’exigence à laquelle il est lié n’aura plus de document.",
   "procedure.explorer.open": "Ouvrir",
   "procedure.explorer.linked": "Lié",
   "procedure.explorer.uploaded": "Fichier importé.",

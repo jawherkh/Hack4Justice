@@ -349,6 +349,8 @@
   "procedure.explorer.empty.description": "استورد ملف PDF أو اربط ملفًا موجودًا بمتطلب.",
   "procedure.explorer.linkTo": "ربط بمتطلب",
   "procedure.explorer.unlink": "إلغاء الربط",
+  "procedure.explorer.delete": "حذف",
+  "procedure.explorer.deleteLinkedDescription": "سيتم حذف الملف ونصه المستخرج نهائيًا، وسيفقد المتطلب المرتبط به مستنده.",
   "procedure.explorer.open": "فتح",
   "procedure.explorer.linked": "مرتبط",
   "procedure.explorer.uploaded": "تم استيراد الملف.",
