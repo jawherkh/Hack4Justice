@@ -30,13 +30,14 @@ function activityContext(): JobContext {
  * Trims a receipt to what a workflow history should carry.
  *
  * The stored receipt keeps the whole result so a repeated call can hand back the same
- * answer. The value returned to the workflow keeps references and counts instead, because
- * a history is a record of what happened, not a second copy of the documents.
+ * answer. A workflow history is different: it is replayed, retained, and readable by
+ * anyone who can inspect the workflow, so it carries references and counts rather than a
+ * second copy of a dossier's documents or of what the agent said about them.
  */
 export function forHistory(receipt: JobReceipt): JobReceipt {
   const output = receipt.output;
   if (!output) return receipt;
-  const { text, sources, ...rest } = output as Record<string, unknown>;
+  const { text, sources, reply, question, proposals, ...rest } = output as Record<string, unknown>;
   return {
     ...receipt,
     output: {
@@ -44,6 +45,16 @@ export function forHistory(receipt: JobReceipt): JobReceipt {
       ...(typeof text === "string" ? { textCharacters: text.length } : {}),
       ...(Array.isArray(sources)
         ? { sourceRefs: (sources as { sourceRef: string }[]).map((source) => source.sourceRef) }
+        : {}),
+      ...(typeof reply === "string" ? { replyCharacters: reply.length } : {}),
+      ...(question === undefined ? {} : { askedQuestion: typeof question === "string" }),
+      // The actions and the sources they rest on, without the wording that explains them.
+      ...(Array.isArray(proposals)
+        ? {
+            proposals: (proposals as { action: string; nodeId?: string; sourceRefs: string[] }[]).map(
+              ({ action, nodeId, sourceRefs }) => ({ action, nodeId, sourceRefs }),
+            ),
+          }
         : {}),
     },
   };

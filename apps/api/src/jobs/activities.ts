@@ -8,14 +8,12 @@ import { RetryableJobError, runJob } from "./runner";
 /** The container runtime's own exit code for a run it could not start. */
 const containerStartFailure = 125;
 
-/**
- * How much extracted text a receipt keeps.
- *
- * A repeated call returns the receipt without extracting again, so the text has to be
- * recoverable from it. Beyond this the receipt keeps the beginning and says so, and the
- * caller reads the rest from where it stored the document's text.
+/*
+ * The receipt keeps the whole extracted text. A repeated call returns the receipt without
+ * extracting again, so anything left out would be lost for precisely the long documents
+ * that cost the most to read. The value handed to the workflow is trimmed separately, so
+ * keeping it here does not enlarge a workflow history.
  */
-const storedTextLimit = 200_000;
 
 export interface ExtractTextInput {
   jobId: string;
@@ -64,15 +62,13 @@ export async function extractDocumentText(
       }
 
       text = result.text;
-      const withinLimit = result.text.length <= storedTextLimit;
       return {
         output: {
           documentId: input.documentId,
           characters: result.text.length,
           checksum: createHash("sha256").update(result.text).digest("hex"),
           pageCount: result.pageCount ?? null,
-          text: withinLimit ? result.text : result.text.slice(0, storedTextLimit),
-          textTruncated: !withinLimit,
+          text: result.text,
         },
       };
     },
@@ -82,17 +78,10 @@ export async function extractDocumentText(
   return { receipt, text: text ?? storedText(receipt) };
 }
 
-/**
- * The text a receipt kept, for a call that did not extract again.
- *
- * Returns nothing when the stored copy was cut short, so a caller is handed the whole text
- * or none of it, never a silent fragment presented as the document.
- */
+/** The text a receipt kept, for a call that did not extract again. */
 function storedText(receipt: JobReceipt): string | undefined {
   if (receipt.status !== "succeeded") return undefined;
-  const output = receipt.output;
-  if (!output || output.textTruncated === true) return undefined;
-  return typeof output.text === "string" ? output.text : undefined;
+  return typeof receipt.output?.text === "string" ? receipt.output.text : undefined;
 }
 
 export interface SandboxCommandInput {

@@ -198,6 +198,27 @@ describe("document text extraction", () => {
     expect(repeat.receipt.status).toBe("succeeded");
   });
 
+  test("a long document's text survives a repeated call", async () => {
+    const store = new MemoryJobStore();
+    const long = "Article 12. ".repeat(40_000); // well past any reasonable inline limit
+    let calls = 0;
+    const counting: TextExtractor = {
+      async extract() { calls += 1; return { text: long, pageCount: 120 }; },
+    };
+    const input = {
+      jobId: "extract-long", dossierId: "dossier-1", documentId: "doc-long",
+      filename: "long.pdf", bytes: new Uint8Array([1]),
+    };
+
+    const first = await extractDocumentText(store, counting, input);
+    const again = await extractDocumentText(store, counting, input);
+
+    expect(calls).toBe(1);
+    expect(first.text).toBe(long);
+    // The whole text comes back, not a fragment and not nothing.
+    expect(again.text).toBe(long);
+  });
+
   test("a repeated extraction returns the same text without calling the service again", async () => {
     const store = new MemoryJobStore();
     let calls = 0;
@@ -483,6 +504,38 @@ describe("agent turns", () => {
 
     expect(result!.proposals!.map((proposal) => proposal.action)).toEqual(["attach_evidence"]);
     expect(receipt.output).toMatchObject({ refusedProposals: 1 });
+  });
+
+  test("what the agent said stays out of the workflow history", async () => {
+    const store = new MemoryJobStore();
+    const speaking: AgentRunner = {
+      async runTurn() {
+        return {
+          conversationRef: "conv-1",
+          reply: "Votre matricule fiscal 1234567X est absent du dossier.",
+          question: "Pouvez-vous confirmer le matricule ?",
+          proposals: [{
+            action: "attach_evidence", nodeId: "node-1",
+            reason: "le matricule 1234567X figure sur la patente", sourceRefs: ["src-1"],
+          }],
+        };
+      },
+    };
+
+    const { receipt } = await runAgentTurn(store, speaking, {
+      jobId: "turn-history", dossierId: "dossier-1", conversationId: "conv", context: turnContext,
+    });
+
+    const history = JSON.stringify(forHistory(receipt).output);
+    expect(history).not.toContain("1234567X");
+    expect(history).not.toContain("Pouvez-vous confirmer");
+    expect(history).not.toContain("figure sur la patente");
+    // The action and the source it rests on are still there.
+    expect(forHistory(receipt).output).toMatchObject({
+      replyCharacters: "Votre matricule fiscal 1234567X est absent du dossier.".length,
+      askedQuestion: true,
+    });
+    expect((forHistory(receipt).output!.proposals as { action: string }[])[0]!.action).toBe("attach_evidence");
   });
 
   test("progress from the agent is reported while the turn runs", async () => {
