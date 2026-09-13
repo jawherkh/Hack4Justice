@@ -1,5 +1,8 @@
 <div align="center">
-  <img src="apps/web/public/brand/dalil-mark.svg" width="104" height="104" alt="Dalil logo" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/brand/dalil-mark-dark.svg" />
+    <img src="apps/web/public/brand/dalil-mark.svg" width="160" height="160" alt="Dalil logo" />
+  </picture>
   <h1>Dalil · دليل</h1>
   <p>
     <strong>From paperwork to a submission-ready Tunisian administrative dossier.</strong>

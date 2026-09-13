@@ -11,6 +11,7 @@ import type {
   Transition,
 } from "../lifecycle/contracts";
 import { lifecycleCommandBody, prerequisiteBody } from "../lifecycle/validation";
+import type { ObligationObservationInput, OfficerReassessmentInput } from "../obligations/contracts";
 import {
   createDemoDossierRepository,
   InMemoryDossierRepository,
@@ -54,12 +55,31 @@ export type AsyncAccessRepository = {
   dependency(
     id: string,
   ): ReturnType<AccessRepository["dependency"]> | Promise<ReturnType<AccessRepository["dependency"]>>;
+  obligation(
+    id: string,
+  ): ReturnType<AccessRepository["obligation"]> | Promise<ReturnType<AccessRepository["obligation"]>>;
+  obligationEvents(
+    id: string,
+    afterVersion: number,
+  ):
+    | ReturnType<AccessRepository["obligationEvents"]>
+    | Promise<ReturnType<AccessRepository["obligationEvents"]>>;
   grants(): ReturnType<AccessRepository["grants"]> | Promise<ReturnType<AccessRepository["grants"]>>;
   procedures():
     ReturnType<AccessRepository["procedures"]> | Promise<ReturnType<AccessRepository["procedures"]>>;
   procedure(
     id: string,
   ): ReturnType<AccessRepository["procedure"]> | Promise<ReturnType<AccessRepository["procedure"]>>;
+  recordObligationObservation(
+    input: ObligationObservationInput,
+  ):
+    | ReturnType<AccessRepository["recordObligationObservation"]>
+    | Promise<ReturnType<AccessRepository["recordObligationObservation"]>>;
+  reassessObligation(
+    input: OfficerReassessmentInput,
+  ):
+    | ReturnType<AccessRepository["reassessObligation"]>
+    | Promise<ReturnType<AccessRepository["reassessObligation"]>>;
   createDossier(
     input: CreateDossierInput,
   ): ReturnType<AccessRepository["createDossier"]> | Promise<ReturnType<AccessRepository["createDossier"]>>;
@@ -194,6 +214,12 @@ export class PersistentRepository implements AsyncAccessRepository, AgentReposit
   dependency(id: string) {
     return this.read((r) => r.dependency(id));
   }
+  obligation(id: string) {
+    return this.read((r) => r.obligation(id));
+  }
+  obligationEvents(id: string, afterVersion: number) {
+    return this.read((r) => r.obligationEvents(id, afterVersion));
+  }
   grants() {
     return this.read((r) => r.grants());
   }
@@ -202,6 +228,14 @@ export class PersistentRepository implements AsyncAccessRepository, AgentReposit
   }
   procedure(id: string) {
     return this.read((r) => r.procedure(id));
+  }
+  recordObligationObservation(input: ObligationObservationInput) {
+    return this.write((r) => r.recordObligationObservation(input), {
+      actorId: input.authority.officerId ?? input.authority.sourceId,
+    });
+  }
+  reassessObligation(input: OfficerReassessmentInput) {
+    return this.write((r) => r.reassessObligation(input), { actorId: input.officerId });
   }
   createDossier(input: CreateDossierInput) {
     return this.write((r) => r.createDossier(input));

@@ -21,6 +21,7 @@ import { createKnowledgeSearch } from "../knowledge/search";
 import { createAdminRoutes } from "../modules/admin/index";
 import { createCopilotModule } from "../modules/copilot/index";
 import { ProjectCopilotService } from "../copilot/service";
+import { createObligationRoutes } from "../obligations/routes";
 
 const repository = env.DATABASE_URL
   ? new PersistentRepository(env.DATABASE_URL, new FileStore(env.DOCUMENT_STORAGE_DIR))
@@ -62,5 +63,6 @@ export const v1 = new Elysia({ prefix: "/api/v1" })
   .use(helloModule)
   .use(itemsModule)
   .use(createAccessRoutes(repository, resolvePrincipal))
+  .use(createObligationRoutes(repository, resolvePrincipal))
   .use(createAdminRoutes(repository, resolvePrincipal))
   .use(createAgentRoutes(repository, resolvePrincipal, agentService, Boolean(geminiApiKey)));
