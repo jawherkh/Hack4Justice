@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { Elysia } from "elysia";
 import { createAccessRoutes } from "../access/routes";
 import { createDemoIdentity } from "../access/identity";

@@ -11,7 +11,7 @@ export interface CreateDbOptions {
 }
 
 /**
- * Creates a Drizzle client backed by postgres.js. Works under Bun and Node.
+ * Creates a Drizzle client backed by postgres.js.
  * Call once per process and share the instance.
  */
 export function createDb(connectionString: string, options: CreateDbOptions = {}) {

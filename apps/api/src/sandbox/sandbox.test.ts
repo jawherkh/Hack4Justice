@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -22,21 +22,21 @@ const workspace = (dossier = "dossier1", run = "run1") => Workspace.create(base,
 describe("workspace containment", () => {
   test("rejects identifiers that could alter a path or a container name", async () => {
     for (const bad of ["../escape", "a/b", "with space", "", "x".repeat(80), "semi;colon"]) {
-      expect(Workspace.create(base, bad, "run1")).rejects.toBeInstanceOf(SandboxPathError);
+      await expect(Workspace.create(base, bad, "run1")).rejects.toBeInstanceOf(SandboxPathError);
     }
   });
 
   test("refuses a relative path that climbs out of the workspace", async () => {
     const space = await workspace("dossier2");
     for (const bad of ["../secret", "nested/../../secret", "./../../secret"]) {
-      expect(space.resolvePath(bad)).rejects.toBeInstanceOf(SandboxPathError);
+      await expect(space.resolvePath(bad)).rejects.toBeInstanceOf(SandboxPathError);
     }
   });
 
   test("refuses an absolute path", async () => {
     const space = await workspace("dossier3");
-    expect(space.resolvePath("/etc/passwd")).rejects.toBeInstanceOf(SandboxPathError);
-    expect(space.resolvePath("C:/Windows/win.ini")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(space.resolvePath("/etc/passwd")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(space.resolvePath("C:/Windows/win.ini")).rejects.toBeInstanceOf(SandboxPathError);
   });
 
   test("refuses a pre-existing run root that is a symbolic link", async () => {
@@ -75,8 +75,8 @@ describe("workspace containment", () => {
     } catch {
       return; // creating links can require a privilege the test runner lacks
     }
-    expect(space.resolvePath("link.txt")).rejects.toBeInstanceOf(SandboxPathError);
-    expect(space.readFile("link.txt")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(space.resolvePath("link.txt")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(space.readFile("link.txt")).rejects.toBeInstanceOf(SandboxPathError);
   });
 
   test("refuses to write through a link planted at the target path", async () => {
@@ -89,7 +89,7 @@ describe("workspace containment", () => {
       return; // creating links can require a privilege the test runner lacks
     }
 
-    expect(space.writeFile("swapped.txt", "overwritten")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(space.writeFile("swapped.txt", "overwritten")).rejects.toBeInstanceOf(SandboxPathError);
     expect(new TextDecoder().decode(await readFile(outside))).toBe("original");
   });
 
@@ -104,9 +104,9 @@ describe("workspace containment", () => {
       return; // creating links can require a privilege the test runner lacks
     }
 
-    expect(space.resolvePath("out/final.txt")).rejects.toBeInstanceOf(SandboxPathError);
-    expect(space.readFile("out/final.txt")).rejects.toBeInstanceOf(SandboxPathError);
-    expect(space.writeFile("out/final.txt", "overwritten")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(space.resolvePath("out/final.txt")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(space.readFile("out/final.txt")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(space.writeFile("out/final.txt", "overwritten")).rejects.toBeInstanceOf(SandboxPathError);
     expect(new TextDecoder().decode(await readFile(join(outside, "final.txt")))).toBe("outside content");
   });
 
@@ -120,7 +120,7 @@ describe("workspace containment", () => {
       return; // creating links can require a privilege the test runner lacks
     }
 
-    expect(space.writeFile("decoy.txt", "x")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(space.writeFile("decoy.txt", "x")).rejects.toBeInstanceOf(SandboxPathError);
     // Opening for a write must not empty the target before the path is refused.
     expect(new TextDecoder().decode(await readFile(outside))).toBe("valuable contents");
   });
@@ -136,8 +136,8 @@ describe("workspace containment", () => {
       return;
     }
 
-    expect(space.resolvePath("parent\\inner.txt")).rejects.toBeInstanceOf(SandboxPathError);
-    expect(space.readFile("parent\\inner.txt")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(space.resolvePath("parent\\inner.txt")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(space.readFile("parent\\inner.txt")).rejects.toBeInstanceOf(SandboxPathError);
   });
 
   test("one dossier cannot reach another dossier's files by path", async () => {
@@ -146,23 +146,23 @@ describe("workspace containment", () => {
     await first.writeFile("private.txt", "alpha only");
 
     expect(first.root).not.toBe(second.root);
-    expect(second.resolvePath("../../dossieralpha/runa/private.txt")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(second.resolvePath("../../dossieralpha/runa/private.txt")).rejects.toBeInstanceOf(SandboxPathError);
   });
 
   test("keeps a file written and read through the workspace", async () => {
     const space = await workspace("dossier5");
     await space.writeFile("nested/report.txt", "bonjour");
     expect(new TextDecoder().decode(await space.readFile("nested/report.txt"))).toBe("bonjour");
-    expect(await space.resolvePath("nested/report.txt")).toStartWith(space.root);
+    expect((await space.resolvePath("nested/report.txt")).startsWith(space.root)).toBe(true);
   });
 
   test("enforces the per-file and total size limits", async () => {
     const space = await Workspace.create(base, "dossier6", "run1", { fileBytes: 64, totalBytes: 128 });
-    expect(space.writeFile("big.txt", "x".repeat(65))).rejects.toBeInstanceOf(SandboxLimitError);
+    await expect(space.writeFile("big.txt", "x".repeat(65))).rejects.toBeInstanceOf(SandboxLimitError);
 
     await space.writeFile("a.txt", "x".repeat(64));
     await space.writeFile("b.txt", "x".repeat(64));
-    expect(space.writeFile("c.txt", "x")).rejects.toBeInstanceOf(SandboxLimitError);
+    await expect(space.writeFile("c.txt", "x")).rejects.toBeInstanceOf(SandboxLimitError);
   });
 
   test("refuses to read anything that is not a plain file", async () => {
@@ -172,7 +172,7 @@ describe("workspace containment", () => {
     // The type is checked before the open, so a pipe left by a run cannot make the reader
     // wait for a writer that never arrives. A directory stands in for that check here,
     // since it is a non-regular file on every platform.
-    expect(space.readFile("adirectory")).rejects.toThrow("path is not a regular file");
+    await expect(space.readFile("adirectory")).rejects.toThrow("path is not a regular file");
   });
 
   test("an exported artifact carries its checksum and origin", async () => {
@@ -189,7 +189,7 @@ describe("workspace containment", () => {
     const space = await workspace("dossier8");
     await space.writeFile("temp.txt", "temporary");
     await space.destroy();
-    expect(space.readFile("temp.txt")).rejects.toBeTruthy();
+    await expect(space.readFile("temp.txt")).rejects.toBeTruthy();
   });
 });
 

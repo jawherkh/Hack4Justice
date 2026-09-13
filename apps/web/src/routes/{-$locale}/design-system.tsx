@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, notFound } from '@tanstack/react-router'
 import { ArrowRight, Check, Mail, Plus, Search } from 'lucide-react'
 import {
   Avatar,
@@ -31,29 +31,19 @@ import { OverlaysShowcase } from '#/components/showcase/overlays'
 import { Row, Section } from '#/components/showcase/primitives'
 
 export const Route = createFileRoute('/{-$locale}/design-system')({
+  // Internal reference page: development builds only.
+  beforeLoad: () => {
+    if (!import.meta.env.DEV) throw notFound()
+  },
   head: () => ({ meta: [{ title: 'Design system · Hack4Justice' }] }),
   component: DesignSystem,
 })
 
-const BUTTON_VARIANTS = [
-  'default',
-  'secondary',
-  'outline',
-  'ghost',
-  'destructive',
-  'link',
-] as const
+const BUTTON_VARIANTS = ['default', 'secondary', 'outline', 'ghost', 'destructive', 'link'] as const
 
 const BUTTON_SIZES = ['xs', 'sm', 'default', 'lg'] as const
 
-const BADGE_VARIANTS = [
-  'default',
-  'secondary',
-  'outline',
-  'ghost',
-  'destructive',
-  'link',
-] as const
+const BADGE_VARIANTS = ['default', 'secondary', 'outline', 'ghost', 'destructive', 'link'] as const
 
 const COLOR_TOKENS = [
   ['background', 'foreground'],
@@ -74,8 +64,8 @@ function DesignSystem() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Design system</h1>
         <p className="text-muted-foreground">
-          Every component exported from <code>@hack4justice/ui</code>, in every
-          variant. Internal reference page.
+          Every component exported from <code>@hack4justice/ui</code>, in every variant. Internal reference
+          page.
         </p>
       </div>
 
@@ -112,9 +102,7 @@ function DesignSystem() {
           <p className="text-3xl font-bold tracking-tight">Heading 2</p>
           <p className="text-2xl font-semibold tracking-tight">Heading 3</p>
           <p className="text-xl font-semibold">Heading 4</p>
-          <p className="text-base">
-            Body. The quick brown fox jumps over the lazy dog. 0123456789
-          </p>
+          <p className="text-base">Body. The quick brown fox jumps over the lazy dog. 0123456789</p>
           <p className="text-sm text-muted-foreground">
             Small muted. The quick brown fox jumps over the lazy dog.
           </p>
@@ -179,8 +167,7 @@ function DesignSystem() {
             Verified
           </Badge>
           <Badge variant="secondary">
-            <Mail data-icon="inline-start" />
-            3 new
+            <Mail data-icon="inline-start" />3 new
           </Badge>
         </Row>
       </Section>
@@ -197,8 +184,8 @@ function DesignSystem() {
             </CardHeader>
             <CardContent>
               <p>
-                Card content uses the default spacing. Body copy is small and
-                inherits the card foreground colour.
+                Card content uses the default spacing. Body copy is small and inherits the card foreground
+                colour.
               </p>
             </CardContent>
             <CardFooter className="justify-end gap-2">
@@ -324,17 +311,7 @@ function DesignSystem() {
   )
 }
 
-
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string
-  htmlFor: string
-  children: React.ReactNode
-}) {
+function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
       <Label htmlFor={htmlFor}>{label}</Label>

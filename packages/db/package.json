@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "dev": "echo \"db is source-only\" && exit 0",
-    "lint": "echo \"lint not configured yet\" && exit 0",
+    "lint": "eslint .",
     "check-types": "tsc --noEmit",
     "test": "echo \"no tests yet\" && exit 0",
     "db:generate": "drizzle-kit generate",

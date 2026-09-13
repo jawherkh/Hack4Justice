@@ -30,5 +30,6 @@
   "document_storage_not_configured": "Document storage is not configured",
   "identity_provider_not_configured": "Identity provider is not configured",
   "storage_not_initialized": "Storage is not initialized",
-  "workflow_not_configured": "Workflow is not configured"
+  "workflow_not_configured": "Workflow is not configured",
+  "extraction_in_progress": "An extraction is already running for this upload"
 }

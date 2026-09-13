@@ -4,12 +4,20 @@ import { Elysia } from "elysia";
 
 import { db } from "./db";
 import { env } from "./env";
+import { sendMail } from "./mail";
 
 export const auth = createAuth({
   db,
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
   trustedOrigins: [env.WEB_ORIGIN],
+  rateLimit: { enabled: env.NODE_ENV !== "test" },
+  sendResetPassword: ({ to, url }) =>
+    sendMail({
+      to,
+      subject: "Reset your Hack4Justice password",
+      text: `Hello ${to.name},\n\nReset your password using this link (valid for one hour):\n${url}\n\nIf you did not ask for this, ignore this email.`,
+    }),
 });
 
 /**

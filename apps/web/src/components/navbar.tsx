@@ -1,7 +1,9 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate, useRouteContext, useRouter } from '@tanstack/react-router'
 import { Button } from '@hack4justice/ui/components/button'
 import { LanguageSwitcher } from '#/components/language-switcher'
+import { MobileNav } from '#/components/mobile-nav'
 import { toLocaleParam, useI18n } from '#/i18n'
+import { signOut } from '#/lib/auth'
 
 const navLinkClass =
   'text-sm text-muted-foreground transition-colors hover:text-foreground data-[status=active]:text-foreground data-[status=active]:font-medium'
@@ -9,26 +11,18 @@ const navLinkClass =
 export function Navbar() {
   const { locale, t } = useI18n()
   const params = { locale: toLocaleParam(locale) }
+  const { session } = useRouteContext({ from: '/{-$locale}' })
 
   return (
     <header className="border-b">
       <nav className="mx-auto flex h-14 w-full max-w-5xl items-center gap-6 px-4">
-        <Link
-          to="/{-$locale}"
-          params={params}
-          className="font-semibold tracking-tight"
-        >
+        <Link to="/{-$locale}" params={params} className="font-semibold tracking-tight">
           Hack4Justice
         </Link>
 
-        <ul className="flex items-center gap-4">
+        <ul className="hidden items-center gap-4 md:flex">
           <li>
-            <Link
-              to="/{-$locale}"
-              params={params}
-              activeOptions={{ exact: true }}
-              className={navLinkClass}
-            >
+            <Link to="/{-$locale}" params={params} activeOptions={{ exact: true }} className={navLinkClass}>
               {t('nav.home')}
             </Link>
           </li>
@@ -37,15 +31,61 @@ export function Navbar() {
               {t('nav.about')}
             </Link>
           </li>
+          {session ? (
+            <li>
+              <Link to="/{-$locale}/uploads" params={params} className={navLinkClass}>
+                {t('nav.uploads')}
+              </Link>
+            </li>
+          ) : null}
         </ul>
 
-        <div className="ms-auto flex items-center gap-4">
+        <div className="ms-auto hidden items-center gap-4 md:flex">
           <LanguageSwitcher />
-          <Button render={<Link to="/{-$locale}/login" params={params} />}>
-            {t('nav.login')}
-          </Button>
+          <SessionActions />
+        </div>
+        <div className="ms-auto md:hidden">
+          <MobileNav session={session} />
         </div>
       </nav>
     </header>
+  )
+}
+
+function SessionActions() {
+  const { locale, t } = useI18n()
+  const params = { locale: toLocaleParam(locale) }
+  const navigate = useNavigate()
+  const router = useRouter()
+  // Resolved server-side in the locale layout's beforeLoad, so SSR already knows.
+  const { session } = useRouteContext({ from: '/{-$locale}' })
+
+  if (session) {
+    return (
+      <div className="flex items-center gap-3">
+        <Link to="/{-$locale}/account" params={params} className={navLinkClass}>
+          {session.user.name}
+        </Link>
+        <Button
+          variant="outline"
+          onClick={async () => {
+            await signOut()
+            await router.invalidate()
+            await navigate({ to: '/{-$locale}', params })
+          }}
+        >
+          {t('nav.logout')}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button variant="ghost" render={<Link to="/{-$locale}/login" params={params} />}>
+        {t('nav.login')}
+      </Button>
+      <Button render={<Link to="/{-$locale}/register" params={params} />}>{t('nav.register')}</Button>
+    </div>
   )
 }
