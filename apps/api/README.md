@@ -76,11 +76,13 @@ from `/api/v1/agent/artifacts/:artifactId` after the agent publishes them.
 
 The SDK `SandboxAgent` is connected to the project `ProjectDockerSandboxClient`,
 and the server-authorized document tools use its live session for Docker-backed
-work. Gemini is accessed through Chat Completions, so the native SDK
-`shell()`/`filesystem()` capabilities are not attached: Agents SDK 0.18
-serializes those capabilities as Responses-only tool types. Containers remain
-non-root, network-disabled, resource-limited and restricted to one private
-dossier/session workspace.
+work. The SDK's default sandbox capabilities are enabled for filesystem, shell
+and compaction. Gemini is accessed through Chat Completions, so the adapter
+selects the SDK's function-tool fallbacks for filesystem editing and shell
+execution; these include `apply_patch`, `view_image` and `exec_command`, with
+scripts able to read and write the same workspace. Containers remain non-root,
+network-disabled, resource-limited and restricted to one private dossier/session
+workspace.
 
 The agent model is Gemini. The OpenAI Agents SDK uses its Chat Completions-compatible
 adapter only as the transport, configured with Gemini's OpenAI-compatible endpoint;

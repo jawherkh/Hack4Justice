@@ -10,7 +10,7 @@ import {
   type SessionHistoryRewriteArgs,
   type SessionHistoryTransactionArgs,
 } from "@openai/agents";
-import { SandboxAgent } from "@openai/agents/sandbox";
+import { Capabilities, SandboxAgent } from "@openai/agents/sandbox";
 
 import { AccessError, type Principal } from "../access/policy";
 import type {
@@ -235,11 +235,10 @@ export class PrincipalAgentService {
       handoffDescription: "The authenticated user's dossier and document-preparation assistant.",
       model: options.model,
       instructions: principalAgentInstructions,
-      // Gemini is reached through the Chat Completions compatibility endpoint. In Agents
-      // SDK 0.18, native shell/filesystem capabilities serialize as Responses-only tool
-      // types (shell/apply_patch), so Gemini must receive function tools instead. The
-      // project document tools still execute through the directly injected Docker sandbox.
-      capabilities: [],
+      // Bind every capability supported by the SDK sandbox runtime. The project sandbox
+      // session supplies the actual Docker-backed implementations for shell, filesystem and
+      // editor operations, so these tools remain confined to the dossier/session workspace.
+      capabilities: Capabilities.default(),
       tools: principalAgentTools as never,
       runAs: "65534:65534",
     });
