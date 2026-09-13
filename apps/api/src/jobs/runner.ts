@@ -68,8 +68,9 @@ export async function runJob(
   }
 
   if (context.signal?.aborted) {
+    // Cancelled before it began: finished, not pending, so no later attempt runs it.
     return await store.complete(request.jobId, {
-      status: "failed", error: "job_cancelled", retryable: true,
+      status: "failed", error: "job_cancelled", retryable: false,
     });
   }
 
@@ -93,8 +94,9 @@ export async function runJob(
     return await store.complete(request.jobId, {
       status: "failed",
       error: cancelled ? "job_cancelled" : describe(error),
-      // A cancelled job did not fail on its merits, so it stays eligible for a later run.
-      retryable: cancelled || error instanceof RetryableJobError,
+      // A cancelled job is finished, not pending. Leaving it retryable would let the next
+      // attempt run the work the caller just stopped.
+      retryable: !cancelled && error instanceof RetryableJobError,
       output: error instanceof RetryableJobError ? error.output : undefined,
     });
   }

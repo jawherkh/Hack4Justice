@@ -41,6 +41,14 @@ function activityContext(): JobContext {
  * record of that refusal is the useful answer.
  */
 function settle(receipt: JobReceipt): JobReceipt {
+  if (receipt.status === "running") {
+    // Another worker holds this job. Returning the record would tell the workflow the work
+    // finished while it is still going, so the activity fails and the retry reads the
+    // finished record instead.
+    const inProgress = new Error("job_in_progress");
+    inProgress.name = "RetryableJobFailure";
+    throw inProgress;
+  }
   if (receipt.status === "failed" && (receipt.retryable || receipt.error === "job_cancelled")) {
     const failure = new Error(receipt.error ?? "job_failed");
     failure.name = receipt.error === "job_cancelled" ? "JobCancelled" : "RetryableJobFailure";

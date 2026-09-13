@@ -122,7 +122,7 @@ describe("durable jobs", () => {
     expect(permanent.retryable).toBeFalsy();
   });
 
-  test("cancellation stops the work and stays eligible for a later run", async () => {
+  test("cancellation stops the work and does not leave it pending", async () => {
     const store = new MemoryJobStore();
     const controller = new AbortController();
     controller.abort();
@@ -133,7 +133,23 @@ describe("durable jobs", () => {
     expect(runs).toBe(0);
     expect(receipt.status).toBe("failed");
     expect(receipt.error).toBe("job_cancelled");
-    expect(receipt.retryable).toBe(true);
+    // Not retryable: a later attempt must not run the work the caller stopped.
+    expect(receipt.retryable).toBe(false);
+  });
+
+  test("a cancelled job is not run again by a later attempt", async () => {
+    const store = new MemoryJobStore();
+    const controller = new AbortController();
+    controller.abort();
+    let runs = 0;
+    const work = async () => { runs += 1; return {}; };
+
+    await runJob(store, request("cancelled-once"), work, { signal: controller.signal });
+    // A retry arrives after the cancellation, with no signal of its own.
+    const repeat = await runJob(store, request("cancelled-once"), work);
+
+    expect(runs).toBe(0);
+    expect(repeat.error).toBe("job_cancelled");
   });
 
   test("cancellation raised inside the work is reported as cancelled, not as a defect", async () => {
@@ -142,7 +158,7 @@ describe("durable jobs", () => {
     const receipt = await runJob(store, request(), async () => { throw new JobCancelled("stopped midway"); });
 
     expect(receipt.error).toBe("job_cancelled");
-    expect(receipt.retryable).toBe(true);
+    expect(receipt.retryable).toBe(false);
   });
 
   test("progress is reported so a long job is not mistaken for a stalled one", async () => {
