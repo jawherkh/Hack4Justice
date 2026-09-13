@@ -36,5 +36,6 @@
   "agent_output_not_available": "The agent response is not ready to export",
   "project_not_found": "Project not found",
   "requirement_not_found": "Requirement not found",
-  "project_not_ready": "The checklist is not complete yet"
+  "project_not_ready": "The checklist is not complete yet",
+  "submission_in_progress": "A submission is already recorded; update its status or go back to preparation first"
 }

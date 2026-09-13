@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { REQUIREMENTS, SERVICES, deriveSteps, type ProcedureStep } from '@hack4justice/shared'
-import { ArrowRight, Check, ChevronRight, Paperclip, Upload } from 'lucide-react'
+import { ArrowRight, Check, ChevronRight, Paperclip, Send, Upload } from 'lucide-react'
 import { toast } from '@hack4justice/ui/components/toast'
 import { useFileDrop, type FileDropError } from '#/components/uploads/use-file-drop'
 import { ApiError } from '#/lib/api-error'
@@ -23,13 +23,15 @@ import { stepAnchor } from './step-rail'
 interface StepsTimelineProps {
   project: ProjectDetail
   onSelectRequirement: (requirement: ProjectRequirementView) => void
+  /** Opens the submission confirmation; shown on the Ready step once everything is valid. */
+  onSubmit?: () => void
 }
 
 /** Steps that list their gating requirements as child nodes. */
 const STEPS_WITH_NODES: ReadonlySet<ProcedureStep> = new Set(['COLLECT_REQUIREMENTS', 'AUTHENTICATION'])
 
 /** Vertical timeline of the procedure: one node per state machine step, requirement nodes nested under it. */
-export function StepsTimeline({ project, onSelectRequirement }: StepsTimelineProps) {
+export function StepsTimeline({ project, onSelectRequirement, onSubmit }: StepsTimelineProps) {
   const { t, locale } = useI18n()
   const steps = deriveSteps(project.serviceId, project.requirements, project.submissionStatus)
   const byId = new Map(project.requirements.map((r) => [r.requirementId, r]))
@@ -103,9 +105,15 @@ export function StepsTimeline({ project, onSelectRequirement }: StepsTimelinePro
               ) : null}
 
               {step === 'READY_FOR_SUBMISSION' && state !== 'upcoming' ? (
-                <div>
+                <div className="flex flex-wrap gap-2">
+                  {onSubmit && project.status === 'READY_FOR_SUBMISSION' ? (
+                    <Button size="sm" onClick={onSubmit}>
+                      <Send data-icon="inline-start" />
+                      {t('procedure.submit.button')}
+                    </Button>
+                  ) : null}
                   <Button
-                    variant={state === 'current' ? 'default' : 'outline'}
+                    variant="outline"
                     size="sm"
                     render={
                       <Link

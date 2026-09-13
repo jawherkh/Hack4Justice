@@ -1,3 +1,4 @@
+import * as React from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
@@ -9,18 +10,20 @@ import {
 import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, Send } from 'lucide-react'
 import { Button } from '@hack4justice/ui/components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@hack4justice/ui/components/card'
-import { Spinner } from '@hack4justice/ui/components/spinner'
 import { toast } from '@hack4justice/ui/components/toast'
 import { toLocaleParam, useI18n } from '#/i18n'
+import { formatDate } from '#/lib/format'
 import { ApiError } from '#/lib/api-error'
 import { projectKeys, setSubmissionStatus, type ProjectDetail } from '#/lib/projects'
 import { humanize, requirementLabel, submissionModeLabel } from './labels'
 import { ProcedureStatusBadge } from './status-badges'
+import { SubmitDialog } from './submit-dialog'
 
 /** What the user records after acting on the official channel. The app itself never submits. */
 export function SubmissionPanel({ project }: { project: ProjectDetail }) {
   const { t, locale } = useI18n()
   const queryClient = useQueryClient()
+  const [submitting, setSubmitting] = React.useState(false)
   const params = { locale: toLocaleParam(locale), id: project.id }
   const service = project.serviceId ? SERVICES[project.serviceId] : undefined
 
@@ -111,13 +114,9 @@ export function SubmissionPanel({ project }: { project: ProjectDetail }) {
                 <CheckCircle2 className="size-4 text-primary" />
                 {t('procedure.submission.ready')}
               </p>
-              <Button
-                className="self-start"
-                disabled={pending}
-                onClick={() => update.mutate(SubmissionStatus.SUBMITTED)}
-              >
-                {pending ? <Spinner data-icon="inline-start" /> : <Send data-icon="inline-start" />}
-                {t('procedure.submission.mark.SUBMITTED')}
+              <Button className="self-start" onClick={() => setSubmitting(true)}>
+                <Send data-icon="inline-start" />
+                {t('procedure.submit.button')}
               </Button>
             </div>
           ) : null}
@@ -208,6 +207,43 @@ export function SubmissionPanel({ project }: { project: ProjectDetail }) {
           ) : null}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('procedure.submissions.history')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {project.submissions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t('procedure.submissions.empty')}</p>
+          ) : (
+            <ul className="divide-y rounded-lg border">
+              {project.submissions.map((item) => (
+                <li key={item.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5 text-sm">
+                  <span className="font-mono text-xs font-medium">{item.reference}</span>
+                  <ProcedureStatusBadge status={item.status} />
+                  <span className="text-muted-foreground">
+                    {t('procedure.submissions.submittedAt', { date: formatDate(item.submittedAt, locale) })}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {t('procedure.submissions.items', { count: item.snapshot.requirements.length })}
+                  </span>
+                  {item.receipt ? (
+                    <span className="text-muted-foreground">
+                      {t('procedure.submissions.receipt')}:{' '}
+                      <span className="text-foreground">{item.receipt}</span>
+                    </span>
+                  ) : null}
+                  {item.note ? (
+                    <span className="w-full text-xs text-muted-foreground">{item.note}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <SubmitDialog project={project} open={submitting} onOpenChange={setSubmitting} />
     </div>
   )
 }

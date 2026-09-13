@@ -36,5 +36,6 @@
   "agent_output_not_available": "La réponse de l'agent n'est pas prête à être exportée",
   "project_not_found": "Projet introuvable",
   "requirement_not_found": "Exigence introuvable",
-  "project_not_ready": "La liste des pièces n’est pas encore complète"
+  "project_not_ready": "La liste des pièces n’est pas encore complète",
+  "submission_in_progress": "Un dépôt est déjà enregistré ; mettez à jour son statut ou revenez à la préparation"
 }

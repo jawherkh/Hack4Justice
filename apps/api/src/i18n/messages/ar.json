@@ -36,5 +36,6 @@
   "agent_output_not_available": "رد المساعد غير جاهز للتصدير",
   "project_not_found": "المشروع غير موجود",
   "requirement_not_found": "المتطلب غير موجود",
-  "project_not_ready": "قائمة المتطلبات لم تكتمل بعد"
+  "project_not_ready": "قائمة المتطلبات لم تكتمل بعد",
+  "submission_in_progress": "يوجد إيداع مسجّل بالفعل؛ حدّث حالته أو عد إلى الإعداد أولاً"
 }
