@@ -489,6 +489,18 @@ describe("agent turns", () => {
     expect(calls).toBe(1);
   });
 
+  test("a turn that asked nothing reports the flag as false, not as missing", async () => {
+    const store = new MemoryJobStore();
+
+    const { receipt } = await runAgentTurn(store, replying(), {
+      jobId: "turn-noquestion", dossierId: "dossier-1", conversationId: "conv", context: turnContext,
+    });
+
+    const history = forHistory(receipt).output!;
+    expect(Object.keys(history)).toContain("askedQuestion");
+    expect(history.askedQuestion).toBe(false);
+  });
+
   test("a proposal outside the permitted actions is dropped and counted", async () => {
     const store = new MemoryJobStore();
     const overreaching = replying({
@@ -512,11 +524,11 @@ describe("agent turns", () => {
       async runTurn() {
         return {
           conversationRef: "conv-1",
-          reply: "Votre matricule fiscal 1234567X est absent du dossier.",
+          reply: "Votre matricule fiscal MATRICULE-PLACEHOLDER est absent du dossier.",
           question: "Pouvez-vous confirmer le matricule ?",
           proposals: [{
             action: "attach_evidence", nodeId: "node-1",
-            reason: "le matricule 1234567X figure sur la patente", sourceRefs: ["src-1"],
+            reason: "le matricule MATRICULE-PLACEHOLDER figure sur la patente", sourceRefs: ["src-1"],
           }],
         };
       },
@@ -527,12 +539,12 @@ describe("agent turns", () => {
     });
 
     const history = JSON.stringify(forHistory(receipt).output);
-    expect(history).not.toContain("1234567X");
+    expect(history).not.toContain("MATRICULE-PLACEHOLDER");
     expect(history).not.toContain("Pouvez-vous confirmer");
     expect(history).not.toContain("figure sur la patente");
     // The action and the source it rests on are still there.
     expect(forHistory(receipt).output).toMatchObject({
-      replyCharacters: "Votre matricule fiscal 1234567X est absent du dossier.".length,
+      replyCharacters: "Votre matricule fiscal MATRICULE-PLACEHOLDER est absent du dossier.".length,
       askedQuestion: true,
     });
     expect((forHistory(receipt).output!.proposals as { action: string }[])[0]!.action).toBe("attach_evidence");

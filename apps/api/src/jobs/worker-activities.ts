@@ -47,7 +47,9 @@ export function forHistory(receipt: JobReceipt): JobReceipt {
         ? { sourceRefs: (sources as { sourceRef: string }[]).map((source) => source.sourceRef) }
         : {}),
       ...(typeof reply === "string" ? { replyCharacters: reply.length } : {}),
-      ...(question === undefined ? {} : { askedQuestion: typeof question === "string" }),
+      // Always present for a turn: a reader branching on this must see false, not a
+      // missing key, when the agent asked nothing.
+      ...(typeof reply === "string" ? { askedQuestion: typeof question === "string" } : {}),
       // The actions and the sources they rest on, without the wording that explains them.
       ...(Array.isArray(proposals)
         ? {
