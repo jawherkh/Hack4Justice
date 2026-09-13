@@ -216,5 +216,9 @@
   "projects.sidebar.soon": "Soon",
   "projects.sidebar.projects": "Your projects",
   "projects.sidebar.allProjects": "All projects",
-  "projects.sidebar.toggle": "Toggle sidebar"
+  "projects.sidebar.toggle": "Toggle sidebar",
+  "theme.label": "Theme",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+  "theme.system": "System"
 }

@@ -216,5 +216,9 @@
   "projects.sidebar.soon": "Bientôt",
   "projects.sidebar.projects": "Vos projets",
   "projects.sidebar.allProjects": "Tous les projets",
-  "projects.sidebar.toggle": "Afficher ou masquer le menu"
+  "projects.sidebar.toggle": "Afficher ou masquer le menu",
+  "theme.label": "Thème",
+  "theme.light": "Clair",
+  "theme.dark": "Sombre",
+  "theme.system": "Système"
 }

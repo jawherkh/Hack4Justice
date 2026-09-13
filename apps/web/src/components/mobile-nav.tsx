@@ -5,6 +5,7 @@ import { Button } from '@hack4justice/ui/components/button'
 import { Separator } from '@hack4justice/ui/components/separator'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@hack4justice/ui/components/sheet'
 import { LanguageSwitcher } from '#/components/language-switcher'
+import { ThemeToggle } from '#/components/theme-toggle'
 import { toLocaleParam, useI18n } from '#/i18n'
 import type { SessionData } from '#/lib/session'
 
@@ -67,7 +68,10 @@ export function MobileNav({ session }: { session: SessionData }) {
           )}
         </nav>
         <Separator />
-        <LanguageSwitcher />
+        <div className="flex items-center justify-between">
+          <LanguageSwitcher />
+          <ThemeToggle />
+        </div>
       </SheetContent>
     </Sheet>
   )

@@ -216,5 +216,9 @@
   "projects.sidebar.soon": "قريبًا",
   "projects.sidebar.projects": "مشاريعك",
   "projects.sidebar.allProjects": "كل المشاريع",
-  "projects.sidebar.toggle": "إظهار أو إخفاء القائمة"
+  "projects.sidebar.toggle": "إظهار أو إخفاء القائمة",
+  "theme.label": "المظهر",
+  "theme.light": "فاتح",
+  "theme.dark": "داكن",
+  "theme.system": "النظام"
 }

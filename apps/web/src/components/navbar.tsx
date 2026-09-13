@@ -2,6 +2,7 @@ import { Link, useNavigate, useRouteContext, useRouter } from '@tanstack/react-r
 import { Button } from '@hack4justice/ui/components/button'
 import { LanguageSwitcher } from '#/components/language-switcher'
 import { MobileNav } from '#/components/mobile-nav'
+import { ThemeToggle } from '#/components/theme-toggle'
 import { toLocaleParam, useI18n } from '#/i18n'
 import { signOut } from '#/lib/auth'
 
@@ -48,7 +49,8 @@ export function Navbar() {
           </li>
         </ul>
 
-        <div className="ms-auto hidden items-center gap-4 md:flex">
+        <div className="ms-auto hidden items-center gap-2 md:flex">
+          <ThemeToggle />
           <LanguageSwitcher />
           <SessionActions />
         </div>
