@@ -87,7 +87,7 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
                       <Icon />
                       {t(key)}
                     </SidebarMenuButton>
-                    <SidebarMenuBadge className="end-1 right-auto">
+                    <SidebarMenuBadge className="rtl:right-auto rtl:left-1">
                       {t('projects.sidebar.soon')}
                     </SidebarMenuBadge>
                   </>
@@ -127,7 +127,11 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link to="/{-$locale}/account" params={params} />}>
+            <SidebarMenuButton
+              size="lg"
+              className="pe-9"
+              render={<Link to="/{-$locale}/account" params={params} />}
+            >
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-medium text-sidebar-primary-foreground uppercase">
                 {session.user.name.slice(0, 1)}
               </div>
@@ -139,7 +143,7 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
             <SidebarMenuAction
               aria-label={t('nav.logout')}
               title={t('nav.logout')}
-              className="end-1 top-1/2 right-auto -translate-y-1/2"
+              className="top-1/2 -translate-y-1/2 rtl:right-auto rtl:left-1"
               onClick={async () => {
                 await signOut()
                 await router.invalidate()
