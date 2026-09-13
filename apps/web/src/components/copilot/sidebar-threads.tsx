@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@hack4justice/ui/components/dropdown-menu'
 import { Input } from '@hack4justice/ui/components/input'
+import { cn } from '@hack4justice/ui/lib/utils'
 import {
   SidebarMenuAction,
   SidebarMenuSkeleton,
@@ -34,7 +35,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from '@hack4justice/ui/components/sidebar'
-import { MoreHorizontalIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { ChevronDownIcon, MoreHorizontalIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { toLocaleParam, useI18n } from '#/i18n'
 import {
   copilotKeys,
@@ -45,8 +46,11 @@ import {
   type CopilotConversation,
 } from '#/lib/copilot'
 
-/** How many threads the sidebar lists before the rest is only reachable from the welcome page. */
-const MAX_VISIBLE = 12
+/** How many threads the sidebar lists before the rest sits behind "see more". */
+const MAX_VISIBLE = 5
+
+/** Keeps the sidebar's thin guide line, mirrored for RTL, so threads read as children of "Copilot". */
+const SUB_LIST_CLASS = 'border-l-0 border-s rtl:-translate-x-px'
 
 /**
  * Conversations of the project, nested under the "Copilot" sidebar entry.
@@ -66,6 +70,7 @@ export function CopilotSidebarThreads({ projectId }: { projectId: string }) {
   })
   const [renaming, setRenaming] = React.useState<CopilotConversation | null>(null)
   const [deleting, setDeleting] = React.useState<CopilotConversation | null>(null)
+  const [expanded, setExpanded] = React.useState(false)
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: copilotKeys.all(projectId), exact: true })
@@ -98,6 +103,8 @@ export function CopilotSidebarThreads({ projectId }: { projectId: string }) {
   })
 
   const conversations = threads.data?.conversations ?? []
+  const hidden = Math.max(conversations.length - MAX_VISIBLE, 0)
+  const visible = expanded ? conversations : conversations.slice(0, MAX_VISIBLE)
 
   return (
     <>
@@ -111,7 +118,7 @@ export function CopilotSidebarThreads({ projectId }: { projectId: string }) {
       </SidebarMenuAction>
 
       {threads.isPending ? (
-        <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
+        <SidebarMenuSub className={SUB_LIST_CLASS}>
           <SidebarMenuSubItem>
             <SidebarMenuSkeleton />
           </SidebarMenuSubItem>
@@ -120,8 +127,8 @@ export function CopilotSidebarThreads({ projectId }: { projectId: string }) {
           </SidebarMenuSubItem>
         </SidebarMenuSub>
       ) : conversations.length > 0 ? (
-        <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
-          {conversations.slice(0, MAX_VISIBLE).map((conversation) => (
+        <SidebarMenuSub className={SUB_LIST_CLASS}>
+          {visible.map((conversation) => (
             <SidebarMenuSubItem key={conversation.id} className="group/thread relative">
               <SidebarMenuSubButton
                 isActive={conversation.id === activeId}
@@ -161,6 +168,21 @@ export function CopilotSidebarThreads({ projectId }: { projectId: string }) {
               </DropdownMenu>
             </SidebarMenuSubItem>
           ))}
+          {hidden > 0 ? (
+            <SidebarMenuSubItem>
+              <SidebarMenuSubButton
+                size="sm"
+                className="text-muted-foreground"
+                render={<button type="button" aria-expanded={expanded} />}
+                onClick={() => setExpanded((v) => !v)}
+              >
+                <ChevronDownIcon className={cn('transition-transform', expanded && 'rotate-180')} />
+                <span>
+                  {expanded ? t('copilot.threads.seeLess') : t('copilot.threads.seeMore', { count: hidden })}
+                </span>
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
+          ) : null}
         </SidebarMenuSub>
       ) : null}
 

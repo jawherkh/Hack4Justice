@@ -88,9 +88,25 @@ export async function fetchWorkspaceFile(
  */
 export type CopilotFileRef = { kind: 'document'; uploadId: string } | { kind: 'workspace'; path: string }
 
-const DOCUMENT_LINK = /^(?:\/work\/)?input\/documents\/([0-9a-f-]{36})(?:\.(?:md|txt))?$/i
-/** Any other relative path inside the workspace (no scheme, no leading slash except `/work/`). */
-const WORKSPACE_LINK = /^(?:\/work\/|\.\/)?(?!input\/)([^\s:?#][^\s:?#]*)$/
+const DOCUMENT_LINK = /^(?:\/work\/|\/)?input\/documents\/([0-9a-f-]{36})(?:\.(?:md|txt))?$/i
+/**
+ * Any other relative path inside the workspace: no scheme, and no leading slash except the
+ * `/work/` mount or a bare `/output/` (what the sanitizer turns `./output/` into).
+ */
+const WORKSPACE_LINK = /^(?:\/work\/|\.\/|\/(?=output\/))?(?!input\/)([^\s:?#][^\s:?#]*)$/
+
+/** Matches the target (and optional title) of a Markdown link to a bare workspace path. */
+const BARE_WORKSPACE_LINK = /\]\((?:\.\/)?((?:input|output)\/[^\s)]*)(\s[^)]*)?\)/g
+
+/**
+ * The chat renderer (Streamdown) sanitizes link targets and drops any it cannot parse as a
+ * URL, which includes bare relative paths such as `output/draft.md`: they show up as
+ * "[blocked]". Anchoring them at the sandbox mount turns them into path-relative links the
+ * sanitizer passes through unchanged, and `parseFileRef` accepts `/work/...`.
+ */
+export function anchorWorkspaceLinks(markdown: string): string {
+  return markdown.replace(BARE_WORKSPACE_LINK, '](/work/$1$2)')
+}
 
 /** Parses a Markdown link target into a file reference, or null for ordinary links. */
 export function parseFileRef(href: string | undefined): CopilotFileRef | null {

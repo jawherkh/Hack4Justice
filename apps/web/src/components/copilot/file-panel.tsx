@@ -15,12 +15,12 @@ import {
   FileTextIcon,
   FolderIcon,
   RefreshCwIcon,
-  XIcon,
 } from 'lucide-react'
 import { UploadStatusBadge } from '#/components/uploads/upload-status-badge'
 import { useI18n } from '#/i18n'
 import { ApiError } from '#/lib/api-error'
 import {
+  anchorWorkspaceLinks,
   copilotKeys,
   fetchWorkspaceFile,
   fileRefKey,
@@ -30,6 +30,7 @@ import {
   type CopilotFileRef,
   type CopilotWorkspaceFile,
 } from '#/lib/copilot'
+import { SlidePanel } from './slide-panel'
 import { formatBytes } from '#/lib/format'
 import { downloadUpload, getUpload } from '#/lib/uploads'
 
@@ -130,17 +131,21 @@ export const copilotMarkdownComponents = { a: MarkdownLink } as const
 interface CopilotFilesPanelProps {
   projectId: string
   conversationId: string
-  className?: string
 }
 
-/** Right-hand panel: the file list, or the viewer of the selected file. */
-export function CopilotFilesPanel({ projectId, conversationId, className }: CopilotFilesPanelProps) {
+/**
+ * Right-hand panel: the file list, or the viewer of the selected file. Slides open next to
+ * the chat like the steps panel and covers it on narrow screens.
+ */
+export function CopilotFilesPanel({ projectId, conversationId }: CopilotFilesPanelProps) {
   const { t } = useI18n()
   const panel = useFilePanel()
   const queryClient = useQueryClient()
+  const isOpen = panel?.isOpen ?? false
   const files = useQuery({
     queryKey: copilotKeys.files(projectId, conversationId),
     queryFn: () => listConversationFiles(projectId, conversationId),
+    enabled: isOpen,
   })
   const selected = panel?.selected ?? null
   const documents = files.data?.documents ?? []
@@ -155,24 +160,37 @@ export function CopilotFilesPanel({ projectId, conversationId, className }: Copi
         : null
 
   return (
-    <aside className={cn('flex h-full min-h-0 flex-col', className)} aria-label={t('copilot.files.title')}>
-      <header className="flex h-9 shrink-0 items-center gap-1 pb-2">
-        {selected ? (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t('copilot.files.back')}
-            onClick={() => panel?.showList()}
-          >
-            <ArrowLeftIcon className="rtl:rotate-180" />
-          </Button>
-        ) : (
-          <FolderIcon className="ms-1 size-4 text-muted-foreground" aria-hidden />
-        )}
-        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold" title={selectedTitle ?? undefined}>
-          {selectedTitle ?? t('copilot.files.title')}
-        </h2>
-        {!selected ? (
+    <SlidePanel
+      open={isOpen}
+      onClose={() => panel?.close()}
+      labels={{
+        panel: t('copilot.files.title'),
+        resize: t('copilot.files.resize'),
+        maximize: t('copilot.files.maximize'),
+        restore: t('copilot.files.restore'),
+        close: t('copilot.files.close'),
+      }}
+      heading={
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          {selected ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('copilot.files.back')}
+              onClick={() => panel?.showList()}
+            >
+              <ArrowLeftIcon className="rtl:rotate-180" />
+            </Button>
+          ) : (
+            <FolderIcon className="ms-1 size-4 shrink-0 text-muted-foreground" aria-hidden />
+          )}
+          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold" title={selectedTitle ?? undefined}>
+            {selectedTitle ?? t('copilot.files.title')}
+          </h2>
+        </div>
+      }
+      actions={
+        !selected ? (
           <Button
             variant="ghost"
             size="icon-sm"
@@ -184,17 +202,9 @@ export function CopilotFilesPanel({ projectId, conversationId, className }: Copi
           >
             <RefreshCwIcon className={cn(files.isFetching && 'animate-spin')} />
           </Button>
-        ) : null}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t('copilot.files.close')}
-          onClick={() => panel?.close()}
-        >
-          <XIcon />
-        </Button>
-      </header>
-
+        ) : null
+      }
+    >
       <div className="min-h-0 flex-1">
         {selected?.kind === 'document' ? (
           <DocumentViewer uploadId={selected.uploadId} />
@@ -214,7 +224,7 @@ export function CopilotFilesPanel({ projectId, conversationId, className }: Copi
           <FileList documents={documents} workspace={workspace} />
         )}
       </div>
-    </aside>
+    </SlidePanel>
   )
 }
 
@@ -438,7 +448,7 @@ function WorkspaceFileViewer({
           <ScrollArea className="h-full bg-card">
             <div className="p-4 text-sm">
               <MessageResponse mode="static" components={copilotMarkdownComponents}>
-                {data.text}
+                {anchorWorkspaceLinks(data.text)}
               </MessageResponse>
             </div>
           </ScrollArea>

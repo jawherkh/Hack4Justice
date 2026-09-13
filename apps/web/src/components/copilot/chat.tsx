@@ -23,16 +23,13 @@ import {
 import { Shimmer } from '@hack4justice/ui/components/ai-elements/shimmer'
 import { Suggestion, Suggestions } from '@hack4justice/ui/components/ai-elements/suggestion'
 import { Alert, AlertDescription, AlertTitle } from '@hack4justice/ui/components/alert'
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@hack4justice/ui/components/resizable'
-import { Sheet, SheetContent, SheetTitle } from '@hack4justice/ui/components/sheet'
 import { Skeleton } from '@hack4justice/ui/components/skeleton'
 import { Toggle } from '@hack4justice/ui/components/toggle'
-import { useIsMobile } from '@hack4justice/ui/hooks/use-mobile'
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertCircleIcon, CheckIcon, CopyIcon, FolderIcon, RouteIcon, SparklesIcon } from 'lucide-react'
 import { useI18n, type MessageKey } from '#/i18n'
 import { ApiError } from '#/lib/api-error'
-import { copilotKeys } from '#/lib/copilot'
+import { anchorWorkspaceLinks, copilotKeys } from '#/lib/copilot'
 import { CopilotFilesPanel, FilePanelProvider, copilotMarkdownComponents, useFilePanel } from './file-panel'
 import { useStepsPanel } from './steps-panel'
 import { ToolCallWidget } from './tool-widgets'
@@ -62,43 +59,15 @@ export function CopilotChat(props: CopilotChatProps) {
   )
 }
 
-/** Chat on the left, the files panel on the right when open (a sheet on small screens). */
+/** Chat on the left, the files panel sliding open on the right (covering the chat on small screens). */
 function CopilotChatLayout({ projectId, conversationId, ...props }: CopilotChatProps) {
-  const { t } = useI18n()
-  const panel = useFilePanel()
-  const isMobile = useIsMobile()
-  const open = panel?.isOpen ?? false
-  const filesPanel = <CopilotFilesPanel projectId={projectId} conversationId={conversationId} />
-  const chat = <CopilotConversation projectId={projectId} conversationId={conversationId} {...props} />
-
-  if (isMobile) {
-    return (
-      <>
-        {chat}
-        <Sheet open={open} onOpenChange={(next) => (next ? panel?.showList() : panel?.close())}>
-          <SheetContent side="right" showCloseButton={false} className="w-[90vw] p-3 sm:max-w-md">
-            <SheetTitle className="sr-only">{t('copilot.files.title')}</SheetTitle>
-            {filesPanel}
-          </SheetContent>
-        </Sheet>
-      </>
-    )
-  }
-
   return (
-    <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
-      <ResizablePanel id="copilot-chat" minSize="40" className="flex min-h-0 flex-col">
-        {chat}
-      </ResizablePanel>
-      {open ? (
-        <>
-          <ResizableHandle withHandle className="mx-3" />
-          <ResizablePanel id="copilot-files" defaultSize="38" minSize="24" maxSize="60">
-            {filesPanel}
-          </ResizablePanel>
-        </>
-      ) : null}
-    </ResizablePanelGroup>
+    <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <CopilotConversation projectId={projectId} conversationId={conversationId} {...props} />
+      </div>
+      <CopilotFilesPanel projectId={projectId} conversationId={conversationId} />
+    </div>
   )
 }
 
@@ -271,7 +240,7 @@ function ChatMessageView({
               isAnimating={streaming && index === groups.length - 1}
               components={copilotMarkdownComponents}
             >
-              {group.text}
+              {anchorWorkspaceLinks(group.text)}
             </MessageResponse>
           </MessageContent>
         ),
