@@ -207,5 +207,14 @@
   "projects.shortcut.search": "اضغط / للبحث",
   "projects.shortcut.new": "اضغط N للإنشاء",
   "projects.stats.all": "كل المشاريع",
-  "projects.stats.hint": "جميع الوجهات"
+  "projects.stats.hint": "جميع الوجهات",
+  "projects.sidebar.project": "المشروع",
+  "projects.sidebar.overview": "نظرة عامة",
+  "projects.sidebar.documents": "الوثائق",
+  "projects.sidebar.requirements": "المتطلبات",
+  "projects.sidebar.submissions": "الإيداعات",
+  "projects.sidebar.soon": "قريبًا",
+  "projects.sidebar.projects": "مشاريعك",
+  "projects.sidebar.allProjects": "كل المشاريع",
+  "projects.sidebar.toggle": "إظهار أو إخفاء القائمة"
 }

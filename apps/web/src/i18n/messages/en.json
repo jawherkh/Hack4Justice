@@ -207,5 +207,14 @@
   "projects.shortcut.search": "Press / to search",
   "projects.shortcut.new": "Press N to create",
   "projects.stats.all": "All projects",
-  "projects.stats.hint": "Every destination"
+  "projects.stats.hint": "Every destination",
+  "projects.sidebar.project": "Project",
+  "projects.sidebar.overview": "Overview",
+  "projects.sidebar.documents": "Documents",
+  "projects.sidebar.requirements": "Requirements",
+  "projects.sidebar.submissions": "Submissions",
+  "projects.sidebar.soon": "Soon",
+  "projects.sidebar.projects": "Your projects",
+  "projects.sidebar.allProjects": "All projects",
+  "projects.sidebar.toggle": "Toggle sidebar"
 }

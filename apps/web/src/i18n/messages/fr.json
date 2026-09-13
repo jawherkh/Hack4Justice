@@ -207,5 +207,14 @@
   "projects.shortcut.search": "Appuyez sur / pour rechercher",
   "projects.shortcut.new": "Appuyez sur N pour créer",
   "projects.stats.all": "Tous les projets",
-  "projects.stats.hint": "Toutes destinations"
+  "projects.stats.hint": "Toutes destinations",
+  "projects.sidebar.project": "Projet",
+  "projects.sidebar.overview": "Aperçu",
+  "projects.sidebar.documents": "Documents",
+  "projects.sidebar.requirements": "Pièces requises",
+  "projects.sidebar.submissions": "Dépôts",
+  "projects.sidebar.soon": "Bientôt",
+  "projects.sidebar.projects": "Vos projets",
+  "projects.sidebar.allProjects": "Tous les projets",
+  "projects.sidebar.toggle": "Afficher ou masquer le menu"
 }
