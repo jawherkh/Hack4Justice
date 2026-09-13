@@ -1,5 +1,6 @@
 import { Link, useNavigate, useRouteContext, useRouter } from '@tanstack/react-router'
 import { Button } from '@hack4justice/ui/components/button'
+import { BrandLogo } from '#/components/brand-logo'
 import { LanguageSwitcher } from '#/components/language-switcher'
 import { MobileNav } from '#/components/mobile-nav'
 import { NotificationsPopover } from '#/components/notifications/notifications-popover'
@@ -18,8 +19,8 @@ export function Navbar() {
   return (
     <header className="border-b">
       <nav className="mx-auto flex h-14 w-full max-w-5xl items-center gap-6 px-4">
-        <Link to="/{-$locale}" params={params} className="font-semibold tracking-tight">
-          Hack4Justice
+        <Link to="/{-$locale}" params={params} className="shrink-0">
+          <BrandLogo />
         </Link>
 
         <ul className="hidden items-center gap-4 md:flex">

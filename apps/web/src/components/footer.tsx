@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Separator } from '@hack4justice/ui/components/separator'
+import { BrandLogo } from '#/components/brand-logo'
 import { toLocaleParam, useI18n } from '#/i18n'
 
 const footerLinkClass = 'text-sm text-muted-foreground transition-colors hover:text-foreground'
@@ -14,8 +15,8 @@ export function Footer() {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10">
         <div className="grid gap-8 sm:grid-cols-[1fr_auto_auto] sm:gap-16">
           <div className="flex flex-col gap-2">
-            <Link to="/{-$locale}" params={params} className="font-semibold tracking-tight">
-              Hack4Justice
+            <Link to="/{-$locale}" params={params} className="w-fit">
+              <BrandLogo />
             </Link>
             <p className="max-w-xs text-sm text-muted-foreground">{t('footer.tagline')}</p>
           </div>

@@ -39,7 +39,7 @@ export const Route = createFileRoute('/{-$locale}')({
         { title: t('meta.title') },
         { name: 'description', content: t('meta.description') },
         { property: 'og:type', content: 'website' },
-        { property: 'og:site_name', content: 'Hack4Justice' },
+        { property: 'og:site_name', content: 'Dalil' },
         { property: 'og:title', content: t('meta.title') },
         { property: 'og:description', content: t('meta.description') },
         { property: 'og:locale', content: OG_LOCALE[locale] },
