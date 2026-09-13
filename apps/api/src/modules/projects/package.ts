@@ -1,8 +1,9 @@
 import {
   REQUIREMENTS,
+  RequirementStatus,
   SERVICES,
+  isSatisfied,
   type ProcedureStatus,
-  type RequirementStatus,
   type ServiceDef,
 } from "@hack4justice/shared";
 import type { SubmissionSnapshot } from "@hack4justice/db";
@@ -75,22 +76,27 @@ export interface PackageInput {
   assembledAt?: Date;
 }
 
-/** Statuses that leave a required item unsatisfied, so a reviewer sees it as outstanding. */
-const unsatisfied = new Set<RequirementStatus>(["MISSING", "INVALID", "PROVIDED"]);
-
 export function assemblePackage(input: PackageInput): ProcedurePackage {
   const service = SERVICES[input.project.serviceId];
   if (!service) throw new Error(`unknown service ${input.project.serviceId}`);
 
   const order = Object.keys(REQUIREMENTS);
-  const items = input.requirements
-    .map((requirement): PackageItem => {
-      const definition = REQUIREMENTS[requirement.requirementId];
+  const stored = new Map(input.requirements.map((requirement) => [requirement.requirementId, requirement]));
+  // The service decides which requirements exist, not the rows that happen to be stored.
+  // A requirement with no row yet is still part of the procedure and still outstanding;
+  // leaving it out would show a complete package for an incomplete file.
+  const expected = [...service.requirements, ...service.authentication];
+  const requirementIds = [...new Set([...expected, ...stored.keys()])];
+
+  const items = requirementIds
+    .map((requirementId): PackageItem => {
+      const definition = REQUIREMENTS[requirementId];
+      const requirement = stored.get(requirementId);
       return {
-        requirementId: requirement.requirementId,
+        requirementId,
         type: definition?.type ?? "unknown",
         required: definition?.required ?? false,
-        status: requirement.status,
+        status: requirement?.status ?? RequirementStatus.MISSING,
         source: {
           entity: definition?.providedBy?.entity ?? null,
           service: definition?.providedBy?.service ?? null,
@@ -100,12 +106,22 @@ export function assemblePackage(input: PackageInput): ProcedurePackage {
           requiredWhen: definition?.requiredWhen ?? null,
           notes: definition?.notes ?? null,
         },
-        document: requirement.document,
-        values: requirement.value,
-        note: requirement.note,
+        document: requirement?.document ?? null,
+        values: requirement?.value ?? null,
+        note: requirement?.note ?? null,
       };
     })
     .sort((a, b) => order.indexOf(a.requirementId) - order.indexOf(b.requirementId));
+
+  /*
+   * Outstanding items are read the same way the procedure status is, from the same rule,
+   * so the package cannot report nothing missing while submission is still refused. A
+   * waived or not-applicable item counts as settled; one merely provided has not been
+   * checked yet and still blocks.
+   */
+  const missing = expected.filter(
+    (requirementId) => !isSatisfied(stored.get(requirementId)?.status ?? RequirementStatus.MISSING, true),
+  );
 
   return {
     project: input.project,
@@ -122,7 +138,7 @@ export function assemblePackage(input: PackageInput): ProcedurePackage {
     status: input.status,
     assembledAt: (input.assembledAt ?? new Date()).toISOString(),
     items,
-    missing: items.filter((item) => item.required && unsatisfied.has(item.status)).map((item) => item.requirementId),
+    missing,
     submissions: input.submissions.map((entry) => ({
       reference: entry.reference,
       status: entry.status,

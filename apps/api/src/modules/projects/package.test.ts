@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { SERVICES, deriveProcedureStatus } from "@hack4justice/shared";
 import type { SubmissionSnapshot } from "@hack4justice/db";
 
 import { assemblePackage, changedSince, type PackageInput, type PackageRequirement } from "./package";
@@ -26,6 +27,7 @@ const input = (overrides: Partial<PackageInput> = {}): PackageInput => ({
     requirement({ requirementId: "VALIDATED_STATUTES", document: document("upload-1", "statuts.pdf") }),
     requirement({ requirementId: "MANAGER_BENEFICIARY_DATA", value: { manager: "confirmed" } }),
     requirement({ requirementId: "FISCAL_IDENTIFIER", value: { matricule: "MATRICULE-PLACEHOLDER" } }),
+    requirement({ requirementId: "DIGIGO_CERTIFICATE" }),
   ],
   submissions: [],
   assembledAt: new Date("2026-09-13T12:00:00.000Z"),
@@ -69,7 +71,10 @@ describe("assembling a package", () => {
     }));
 
     // Provided but not yet checked still blocks: it is not evidence a reviewer can accept.
-    expect(assembled.missing).toEqual(["VALIDATED_STATUTES", "MANAGER_BENEFICIARY_DATA"]);
+    // The certificate has no row at all, and is outstanding for that reason.
+    expect(assembled.missing).toEqual([
+      "VALIDATED_STATUTES", "MANAGER_BENEFICIARY_DATA", "DIGIGO_CERTIFICATE",
+    ]);
   });
 
   test("a waived optional item does not block, and a complete file has nothing missing", () => {
@@ -80,17 +85,53 @@ describe("assembling a package", () => {
 
   test("flags a requirement the published source does not state", () => {
     const assembled = assemblePackage(input({
-      requirements: [requirement({ requirementId: "NOT_IN_THE_CATALOGUE" })],
+      requirements: [...input().requirements, requirement({ requirementId: "NOT_IN_THE_CATALOGUE" })],
     }));
+    const unknown = assembled.items.find((item) => item.requirementId === "NOT_IN_THE_CATALOGUE")!;
     // Unknown to the catalogue: shown as unsupported rather than presented as settled law.
-    expect(assembled.items[0]!.source.status).toBe("NOT_SPECIFIED_IN_SOURCE");
-    expect(assembled.items[0]!.required).toBe(false);
+    expect(unknown.source.status).toBe("NOT_SPECIFIED_IN_SOURCE");
+    expect(unknown.required).toBe(false);
+    // It is not part of the service, so it does not decide whether anything is outstanding.
+    expect(assembled.missing).toEqual([]);
   });
 
-  test("refuses to assemble a package for a service that does not exist", () => {
-    expect(() => assemblePackage(input({
-      project: { id: "project-1", name: "x", destination: "RNE", serviceId: "NOPE" },
-    }))).toThrow(/unknown service/);
+  test("shows a requirement of the service that has no row yet", () => {
+    const assembled = assemblePackage(input({ requirements: [] }));
+    const service = SERVICES.RNE_REGISTRATION!;
+    const expected = [...service.requirements, ...service.authentication];
+
+    // Nothing stored is not an empty procedure: every requirement the service names is
+    // still part of it, and still outstanding.
+    expect(assembled.items.map((item) => item.requirementId).sort()).toEqual([...expected].sort());
+    expect(assembled.missing).toEqual(expected);
+  });
+
+  test("reports nothing outstanding exactly when the procedure is ready to submit", () => {
+    const statuses = ["MISSING", "PROVIDED", "VALID", "INVALID", "WAIVED", "NOT_APPLICABLE"] as const;
+
+    // Every service, not one: an optional requirement is satisfied the same way as a
+    // mandatory one, and only some services have any. The package and the derived status
+    // must never disagree, whichever service the project is on.
+    for (const [serviceId, service] of Object.entries(SERVICES)) {
+      const ids = [...service.requirements, ...service.authentication];
+      const cases: PackageRequirement[][] = [[]];
+      for (const id of ids) {
+        for (const status of statuses) {
+          cases.push(ids.map((other) => requirement({ requirementId: other, status: other === id ? status : "VALID" })));
+        }
+      }
+
+      for (const requirements of cases) {
+        const assembled = assemblePackage(input({
+          project: { id: "project-1", name: "x", destination: service.destination, serviceId },
+          requirements,
+          status: "IN_PROGRESS",
+        }));
+        const derived = deriveProcedureStatus(serviceId, requirements, null);
+        expect({ serviceId, ready: assembled.missing.length === 0 })
+          .toEqual({ serviceId, ready: derived === "READY_FOR_SUBMISSION" });
+      }
+    }
   });
 });
 
