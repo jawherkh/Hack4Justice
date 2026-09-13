@@ -33,9 +33,8 @@ export const defaultRunLimits: RunLimits = {
 const hostUid = typeof process.getuid === "function" ? process.getuid() : undefined;
 const hostGid = typeof process.getgid === "function" ? process.getgid() : undefined;
 /** Use the API UID when it is non-root so it can access the private bind mount. */
-export const defaultContainerUser = hostUid !== undefined && hostUid > 0
-  ? `${hostUid}:${hostGid ?? hostUid}`
-  : "65534:65534";
+export const defaultContainerUser =
+  hostUid !== undefined && hostUid > 0 ? `${hostUid}:${hostGid ?? hostUid}` : "65534:65534";
 
 export interface RunResult {
   exitCode: number | null;
@@ -125,24 +124,38 @@ export function buildRunArguments(
   return [
     "run",
     "--rm",
-    "--name", containerName,
-    "--network", "none",
-    "--user", defaultContainerUser,
-    "--cap-drop", "ALL",
-    "--security-opt", "no-new-privileges",
+    "--name",
+    containerName,
+    "--network",
+    "none",
+    "--user",
+    defaultContainerUser,
+    "--cap-drop",
+    "ALL",
+    "--security-opt",
+    "no-new-privileges",
     "--read-only",
-    "--tmpfs", "/tmp:rw,noexec,nosuid,size=16m",
-    "--pids-limit", String(limits.pids),
+    "--tmpfs",
+    "/tmp:rw,noexec,nosuid,size=16m",
+    "--pids-limit",
+    String(limits.pids),
     // The workspace is a host directory, so the file size limit is what stops a run from
     // filling the host disk. The open file limit bounds descriptor use.
-    "--ulimit", `fsize=${fileBytes}:${fileBytes}`,
-    "--ulimit", `nofile=${limits.openFiles}:${limits.openFiles}`,
-    "--memory", `${limits.memoryMb}m`,
+    "--ulimit",
+    `fsize=${fileBytes}:${fileBytes}`,
+    "--ulimit",
+    `nofile=${limits.openFiles}:${limits.openFiles}`,
+    "--memory",
+    `${limits.memoryMb}m`,
     // Matching swap to memory stops the limit being sidestepped by swapping.
-    "--memory-swap", `${limits.memoryMb}m`,
-    "--cpus", String(limits.cpus),
-    "--workdir", workdir,
-    "--volume", `${workspace.root}:${workdir}:rw`,
+    "--memory-swap",
+    `${limits.memoryMb}m`,
+    "--cpus",
+    String(limits.cpus),
+    "--workdir",
+    workdir,
+    "--volume",
+    `${workspace.root}:${workdir}:rw`,
     image,
     ...command,
   ];
@@ -180,11 +193,12 @@ export class DockerRunner {
       collect(child.stdout, "stdout");
       collect(child.stderr, "stderr");
 
-      const run = (args: string[]) => new Promise<number | null>((settle) => {
-        const child = spawn(this.dockerBinary, args, { stdio: "ignore" });
-        child.on("error", () => settle(null));
-        child.on("close", (code) => settle(code));
-      });
+      const run = (args: string[]) =>
+        new Promise<number | null>((settle) => {
+          const child = spawn(this.dockerBinary, args, { stdio: "ignore" });
+          child.on("error", () => settle(null));
+          child.on("close", (code) => settle(code));
+        });
 
       /**
        * Removes the container and confirms it is gone.
@@ -197,11 +211,15 @@ export class DockerRunner {
         child.kill("SIGKILL");
         const deadline = Date.now() + 15_000;
         while (Date.now() < deadline) {
-          if (await run(["rm", "--force", name]) === 0) return;
+          if ((await run(["rm", "--force", name])) === 0) return;
           const remaining = await new Promise<string>((settle) => {
-            const check = spawn(this.dockerBinary, ["ps", "--all", "--quiet", "--filter", `name=^${name}$`], { stdio: ["ignore", "pipe", "ignore"] });
+            const check = spawn(this.dockerBinary, ["ps", "--all", "--quiet", "--filter", `name=^${name}$`], {
+              stdio: ["ignore", "pipe", "ignore"],
+            });
             let text = "";
-            check.stdout.on("data", (chunk: Buffer) => { text += chunk.toString(); });
+            check.stdout.on("data", (chunk: Buffer) => {
+              text += chunk.toString();
+            });
             check.on("error", () => settle(""));
             check.on("close", () => settle(text.trim()));
           });
@@ -214,12 +232,15 @@ export class DockerRunner {
 
       // A run can write many files, so the workspace total is watched while it executes.
       const watcher = setInterval(() => {
-        void workspace.usage().then((used) => {
-          if (used > workspace.limits.totalBytes && !finished) {
-            limitExceeded = true;
-            stopping = stop();
-          }
-        }).catch(() => {});
+        void workspace
+          .usage()
+          .then((used) => {
+            if (used > workspace.limits.totalBytes && !finished) {
+              limitExceeded = true;
+              stopping = stop();
+            }
+          })
+          .catch(() => {});
       }, usagePollMs);
 
       const timer = setTimeout(() => {
@@ -236,8 +257,15 @@ export class DockerRunner {
         // A stopped run reports back only once its container is gone, so a caller is never
         // told the work ended while it is still running on the host.
         void Promise.resolve(stopping).then(() => {
-          settle({ exitCode, stdout: output.stdout, stderr: output.stderr, truncated: output.truncated,
-            timedOut, limitExceeded, durationMs: Date.now() - startedAt });
+          settle({
+            exitCode,
+            stdout: output.stdout,
+            stderr: output.stderr,
+            truncated: output.truncated,
+            timedOut,
+            limitExceeded,
+            durationMs: Date.now() - startedAt,
+          });
         });
       };
 
@@ -267,9 +295,13 @@ export class DockerRunner {
       });
       if (removed === 0) return;
       const remaining = await new Promise<string>((settle) => {
-        const check = spawn(this.dockerBinary, ["ps", "--all", "--quiet", "--filter", `name=^${name}$`], { stdio: ["ignore", "pipe", "ignore"] });
+        const check = spawn(this.dockerBinary, ["ps", "--all", "--quiet", "--filter", `name=^${name}$`], {
+          stdio: ["ignore", "pipe", "ignore"],
+        });
         let text = "";
-        check.stdout.on("data", (chunk: Buffer) => { text += chunk.toString(); });
+        check.stdout.on("data", (chunk: Buffer) => {
+          text += chunk.toString();
+        });
         check.on("error", () => settle(""));
         check.on("close", () => settle(text.trim()));
       });

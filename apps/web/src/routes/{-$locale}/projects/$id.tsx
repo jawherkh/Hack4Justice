@@ -12,6 +12,7 @@ import { Separator } from '@hack4justice/ui/components/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@hack4justice/ui/components/sidebar'
 import { Skeleton } from '@hack4justice/ui/components/skeleton'
 import { LanguageSwitcher } from '#/components/language-switcher'
+import { NotificationsPopover } from '#/components/notifications/notifications-popover'
 import { ProjectSidebar } from '#/components/projects/project-sidebar'
 import { ThemeToggle } from '#/components/theme-toggle'
 import { toLocaleParam, useI18n } from '#/i18n'
@@ -78,6 +79,7 @@ function ProjectWorkspace() {
             </BreadcrumbList>
           </Breadcrumb>
           <div className="ms-auto flex items-center gap-1">
+            <NotificationsPopover />
             <ThemeToggle />
             <LanguageSwitcher />
           </div>

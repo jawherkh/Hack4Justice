@@ -1,6 +1,10 @@
 import { ApplicationFailure, CancelledFailure, Context } from "@temporalio/activity";
 
-import type { AgentActivities, AgentTurnWorkflowInput, AgentTurnWorkflowResult } from "../lifecycle/contracts";
+import type {
+  AgentActivities,
+  AgentTurnWorkflowInput,
+  AgentTurnWorkflowResult,
+} from "../lifecycle/contracts";
 import { JobCancelled, type JobContext, type JobStore } from "./contracts";
 import { RetryableJobError, runJob } from "./runner";
 
@@ -12,7 +16,8 @@ import { RetryableJobError, runJob } from "./runner";
  * is not allowed to make will fail the same way however often it is tried, and retrying
  * those only spends money and time.
  */
-const temporaryFailure = /timeout|timed out|ECONNRESET|ECONNREFUSED|ETIMEDOUT|socket hang up|fetch failed|rate.?limit|429|50[0234]|overloaded|unavailable/i;
+const temporaryFailure =
+  /timeout|timed out|ECONNRESET|ECONNREFUSED|ETIMEDOUT|socket hang up|fetch failed|rate.?limit|429|50[0234]|overloaded|unavailable/i;
 
 function isTemporary(error: unknown) {
   const status = (error as { status?: number } | undefined)?.status;
@@ -87,10 +92,9 @@ export function withDurableTurns(
             if (isTemporary(error)) {
               // The session already exists, so the next attempt continues it rather than
               // starting a fresh conversation.
-              throw new RetryableJobError(
-                error instanceof Error ? error.message : "agent_unavailable",
-                { sessionId: input.sessionId },
-              );
+              throw new RetryableJobError(error instanceof Error ? error.message : "agent_unavailable", {
+                sessionId: input.sessionId,
+              });
             }
             throw error;
           }

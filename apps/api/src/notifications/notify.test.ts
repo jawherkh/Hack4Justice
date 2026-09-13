@@ -54,7 +54,10 @@ class MemoryStore implements NotificationStore {
     return { ...record };
   }
 
-  async markResult(id: string, result: { status: NotificationRecord["status"]; providerMessageId?: string; failureReason?: string }) {
+  async markResult(
+    id: string,
+    result: { status: NotificationRecord["status"]; providerMessageId?: string; failureReason?: string },
+  ) {
     const record = this.records.find((candidate) => candidate.id === id);
     if (!record) throw new Error("unknown notification");
     record.status = result.status;
@@ -65,7 +68,12 @@ class MemoryStore implements NotificationStore {
   }
 }
 
-const owner: Recipient = { id: "owner", language: "fr", phone: "+21620000000", acceptsExternalMessages: true };
+const owner: Recipient = {
+  id: "owner",
+  language: "fr",
+  phone: "+21620000000",
+  acceptsExternalMessages: true,
+};
 const optedOut: Recipient = { ...owner, id: "quiet", acceptsExternalMessages: false };
 const arabicOwner: Recipient = { ...owner, id: "arabic", language: "ar-TN" };
 
@@ -94,7 +102,11 @@ const acceptingTransport = (sid = "SM123"): Transport => ({
 describe("outbound notification delivery", () => {
   test("records the message before delivery and stores the provider id on success", async () => {
     const store = new MemoryStore();
-    const notifier = new Notifier({ store, recipients: directory, transports: [acceptingTransport("SMabc")] });
+    const notifier = new Notifier({
+      store,
+      recipients: directory,
+      transports: [acceptingTransport("SMabc")],
+    });
 
     const record = await notifier.notify(message());
 
@@ -233,7 +245,11 @@ describe("outbound notification delivery", () => {
     // A store outage between writing the record and reporting the outcome leaves the
     // message queued with no attempt spent. It never reached the provider.
     await store.insertQueued(request);
-    const notifier = new Notifier({ store, recipients: directory, transports: [acceptingTransport("SMrecovered")] });
+    const notifier = new Notifier({
+      store,
+      recipients: directory,
+      transports: [acceptingTransport("SMrecovered")],
+    });
 
     const record = await notifier.notify(request);
 
@@ -325,7 +341,11 @@ describe("outbound notification delivery", () => {
         throw new Error("database_unavailable");
       },
     };
-    const notifier = new Notifier({ store: broken, recipients: directory, transports: [acceptingTransport()] });
+    const notifier = new Notifier({
+      store: broken,
+      recipients: directory,
+      transports: [acceptingTransport()],
+    });
 
     const record = await notifier.notify(message());
 
@@ -383,7 +403,11 @@ describe("outbound notification delivery", () => {
   });
 
   test("templates name the dossier and next action in the recipient's language", () => {
-    const input = { dossierReference: "DGI-2026-114", subject: "accepte", nextAction: "telecharger l'attestation" };
+    const input = {
+      dossierReference: "DGI-2026-114",
+      subject: "accepte",
+      nextAction: "telecharger l'attestation",
+    };
 
     const french = renderTemplate("fr", "decision", input);
     expect(french.body).toContain("DGI-2026-114");
@@ -413,7 +437,9 @@ describe("provider transport", () => {
     const transport = createTwilioTransport(
       { accountSid: "AC1", authToken: "token", whatsappFrom: "+15550000000", smsFrom: "+15550000001" },
       (async () =>
-        new Response(JSON.stringify({ code: 21608, message: "unverified" }), { status: 400 })) as unknown as typeof fetch,
+        new Response(JSON.stringify({ code: 21608, message: "unverified" }), {
+          status: 400,
+        })) as unknown as typeof fetch,
     );
 
     const outcome = await transport.send({ recipient: owner, channel: "whatsapp", title: "t", body: "b" });
@@ -425,7 +451,9 @@ describe("provider transport", () => {
     const transport = createTwilioTransport(
       { accountSid: "AC1", authToken: "token", whatsappFrom: "+15550000000", smsFrom: "+15550000001" },
       (async () =>
-        new Response(JSON.stringify({ code: 30001, message: "queue overflow" }), { status: 500 })) as unknown as typeof fetch,
+        new Response(JSON.stringify({ code: 30001, message: "queue overflow" }), {
+          status: 500,
+        })) as unknown as typeof fetch,
     );
 
     const outcome = await transport.send({ recipient: owner, channel: "sms", title: "t", body: "b" });

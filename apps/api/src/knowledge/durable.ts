@@ -59,6 +59,9 @@ export function withDurableSearches(
  * agencies cannot be answered from the other agency's graph.
  */
 function searchJobId(sessionId: string, input: KnowledgeSearchInput): string {
-  const question = createHash("sha256").update(`${input.agency}\n${input.query.trim()}`).digest("hex").slice(0, 16);
+  const question = createHash("sha256")
+    .update(`${input.agency}\n${input.query.trim()}`)
+    .digest("hex")
+    .slice(0, 16);
   return `retrieval:${sessionId}:${question}`;
 }

@@ -4,3 +4,4 @@ export * from "./pagination";
 export * from "./locale";
 export * from "./upload";
 export * from "./project";
+export * from "./notification";

@@ -1,4 +1,10 @@
-import type { AgencyAcceptance, DossierLifecycle, PrerequisiteStatus, Readiness, LifecycleCommandInput } from "../dossiers/store";
+import type {
+  AgencyAcceptance,
+  DossierLifecycle,
+  PrerequisiteStatus,
+  Readiness,
+  LifecycleCommandInput,
+} from "../dossiers/store";
 import type { Principal } from "../access/policy";
 
 export interface PrerequisiteObservation {
@@ -26,7 +32,10 @@ export interface LifecycleState {
   context: LifecycleContext;
 }
 
-export interface CommandReference { dossierId: string; commandId: string }
+export interface CommandReference {
+  dossierId: string;
+  commandId: string;
+}
 export interface PreparedCommand {
   reference: CommandReference;
   command: LifecycleCommandInput;

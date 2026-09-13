@@ -52,6 +52,9 @@ export function MobileNav({ session }: { session: SessionData }) {
               <Link to="/{-$locale}/uploads" params={params} className={linkClass} onClick={close}>
                 {t('nav.uploads')}
               </Link>
+              <Link to="/{-$locale}/notifications" params={params} className={linkClass} onClick={close}>
+                {t('nav.notifications')}
+              </Link>
               <Link to="/{-$locale}/account" params={params} className={linkClass} onClick={close}>
                 {t('nav.account')}
               </Link>

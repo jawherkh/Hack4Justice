@@ -28,10 +28,15 @@ const identifier = z.string().trim().min(1).max(200);
 const scalar = z.union([z.string(), z.number().finite(), z.boolean(), z.null()]);
 // Strict Structured Outputs cannot represent an arbitrary-key record because every object
 // must set additionalProperties=false. Use a typed key/value list instead.
-const values = z.array(z.strictObject({
-  key: z.string().trim().min(1).max(200),
-  value: scalar,
-})).min(1).max(100);
+const values = z
+  .array(
+    z.strictObject({
+      key: z.string().trim().min(1).max(200),
+      value: scalar,
+    }),
+  )
+  .min(1)
+  .max(100);
 
 export interface PrincipalAgentToolContext {
   readonly repository: AgentRepository;
@@ -46,7 +51,11 @@ export interface PrincipalAgentToolContext {
   readonly emit?: (type: AgentEventType, data?: Readonly<Record<string, unknown>>) => Promise<void>;
 }
 
-async function emit(context: PrincipalAgentToolContext, type: AgentEventType, data?: Readonly<Record<string, unknown>>) {
+async function emit(
+  context: PrincipalAgentToolContext,
+  type: AgentEventType,
+  data?: Readonly<Record<string, unknown>>,
+) {
   await context.emit?.(type, data);
 }
 
@@ -66,20 +75,34 @@ async function detailFor(context: PrincipalAgentToolContext, write = false): Pro
 function nodeFor(detail: DossierDetail, nodeId: string): NodeRecord {
   const node = detail.nodes.find((candidate) => candidate.id === nodeId);
   if (!node) throw new AccessError(404, "not_found");
-  if (node.dossierId !== detail.dossier.id || node.companyId !== detail.dossier.companyId || node.agency !== detail.dossier.agency) {
+  if (
+    node.dossierId !== detail.dossier.id ||
+    node.companyId !== detail.dossier.companyId ||
+    node.agency !== detail.dossier.agency
+  ) {
     throw new AccessError(404, "not_found");
   }
   return node;
 }
 
-function procedureFor(detail: DossierDetail, procedure: ProcedureVersionRecord | undefined): ProcedureVersionRecord {
-  if (!procedure || procedure.id !== detail.dossier.procedureVersionId || (procedure.status !== "approved" && procedure.status !== "synthetic")) {
+function procedureFor(
+  detail: DossierDetail,
+  procedure: ProcedureVersionRecord | undefined,
+): ProcedureVersionRecord {
+  if (
+    !procedure ||
+    procedure.id !== detail.dossier.procedureVersionId ||
+    (procedure.status !== "approved" && procedure.status !== "synthetic")
+  ) {
     throw new AccessError(422, "procedure_version_not_pinned");
   }
   return procedure;
 }
 
-async function approvedProcedure(context: PrincipalAgentToolContext, detail: DossierDetail): Promise<ProcedureVersionRecord> {
+async function approvedProcedure(
+  context: PrincipalAgentToolContext,
+  detail: DossierDetail,
+): Promise<ProcedureVersionRecord> {
   return procedureFor(detail, await context.repository.procedure(detail.dossier.procedureVersionId));
 }
 
@@ -101,17 +124,19 @@ function nodeView(node: NodeRecord) {
 }
 
 function sourceView(detail: DossierDetail, sourceIds: readonly string[]) {
-  return detail.sources.filter((source) => sourceIds.includes(source.id)).map((source) => ({
-    id: source.id,
-    kind: source.kind,
-    uri: source.uri,
-    passage: source.passage,
-    page: source.page,
-    section: source.section,
-    retrievedAt: source.retrievedAt,
-    // Legal text is source data, not an instruction to the model.
-    untrustedData: true,
-  }));
+  return detail.sources
+    .filter((source) => sourceIds.includes(source.id))
+    .map((source) => ({
+      id: source.id,
+      kind: source.kind,
+      uri: source.uri,
+      passage: source.passage,
+      page: source.page,
+      section: source.section,
+      retrievedAt: source.retrievedAt,
+      // Legal text is source data, not an instruction to the model.
+      untrustedData: true,
+    }));
 }
 
 function findingView(detail: DossierDetail, finding: FindingRecord) {
@@ -147,14 +172,18 @@ function documentView(document: DocumentRecord) {
 
 export const getDossierContextTool = tool({
   name: "get_dossier_context",
-  description: "Read the authorized dossier, pinned procedure, dependencies, findings, evidence metadata and source-linked legal context.",
+  description:
+    "Read the authorized dossier, pinned procedure, dependencies, findings, evidence metadata and source-linked legal context.",
   parameters: z.object({}),
   strict: true,
   async execute(_input, runContext) {
     const context = agentContext(runContext);
     const detail = await detailFor(context);
     const procedure = await approvedProcedure(context, detail);
-    const dependencies = await context.repository.dependencies(detail.dossier.companyId, detail.dossier.agency);
+    const dependencies = await context.repository.dependencies(
+      detail.dossier.companyId,
+      detail.dossier.agency,
+    );
     const currentNodeId = context.selectedNodeId;
     return {
       dossier: {
@@ -195,32 +224,53 @@ export const getDossierContextTool = tool({
         sourceDataAvailable: true,
       })),
       findings: detail.findings.map((finding) => findingView(detail, finding)),
-      sources: sourceView(detail, detail.sources.map((source) => source.id)),
-      allowedActions: detail.nodes.flatMap((node) => node.allowedActions).filter((action, index, actions) => actions.indexOf(action) === index),
+      sources: sourceView(
+        detail,
+        detail.sources.map((source) => source.id),
+      ),
+      allowedActions: detail.nodes
+        .flatMap((node) => node.allowedActions)
+        .filter((action, index, actions) => actions.indexOf(action) === index),
     };
   },
 });
 
 export const getNodeContextTool = tool({
   name: "get_node_context",
-  description: "Open one authorized dossier node with its dependencies, requirements, findings and source-linked evidence metadata.",
+  description:
+    "Open one authorized dossier node with its dependencies, requirements, findings and source-linked evidence metadata.",
   parameters: z.object({ nodeId: identifier }),
   strict: true,
   async execute({ nodeId }, runContext) {
     const context = agentContext(runContext);
     const detail = await detailFor(context);
     const node = nodeFor(detail, nodeId);
-    const dependencies = await context.repository.dependencies(detail.dossier.companyId, detail.dossier.agency);
+    const dependencies = await context.repository.dependencies(
+      detail.dossier.companyId,
+      detail.dossier.agency,
+    );
     return {
       node: nodeView(node),
       dossierDependencies: dependencies,
-      dependencies: detail.nodes.filter((candidate) => node.dependencies.includes(candidate.id)).map(nodeView),
+      dependencies: detail.nodes
+        .filter((candidate) => node.dependencies.includes(candidate.id))
+        .map(nodeView),
       requirements: detail.requirements.filter((requirement) => node.requirementIds.includes(requirement.id)),
-      evidence: detail.evidence.filter((document) => document.nodeId === node.id).map((document) => ({
-        id: document.id, filename: document.filename, version: document.version, requirementIds: document.requirementIds,
-        mimeType: document.mimeType, sizeBytes: document.sizeBytes, sha256: document.sha256, reviewStatus: document.reviewStatus,
-      })),
-      findings: detail.findings.filter((finding) => node.findingIds.includes(finding.id)).map((finding) => findingView(detail, finding)),
+      evidence: detail.evidence
+        .filter((document) => document.nodeId === node.id)
+        .map((document) => ({
+          id: document.id,
+          filename: document.filename,
+          version: document.version,
+          requirementIds: document.requirementIds,
+          mimeType: document.mimeType,
+          sizeBytes: document.sizeBytes,
+          sha256: document.sha256,
+          reviewStatus: document.reviewStatus,
+        })),
+      findings: detail.findings
+        .filter((finding) => node.findingIds.includes(finding.id))
+        .map((finding) => findingView(detail, finding)),
       sources: sourceView(detail, node.sourceIds),
     };
   },
@@ -228,7 +278,8 @@ export const getNodeContextTool = tool({
 
 export const selectNodeTool = tool({
   name: "select_node",
-  description: "Select an authorized dossier node for the current conversation; selection does not change the dossier.",
+  description:
+    "Select an authorized dossier node for the current conversation; selection does not change the dossier.",
   parameters: z.object({ nodeId: identifier }),
   strict: true,
   async execute({ nodeId }, runContext) {
@@ -236,7 +287,11 @@ export const selectNodeTool = tool({
     const detail = await detailFor(context);
     const node = nodeFor(detail, nodeId);
     context.selectedNodeId = node.id;
-    const session = await context.repository.agentSession(context.sessionId, context.dossierId, context.principal.id);
+    const session = await context.repository.agentSession(
+      context.sessionId,
+      context.dossierId,
+      context.principal.id,
+    );
     if (session) await context.repository.saveAgentSession({ ...session, selectedNodeId: node.id });
     await emit(context, "node_selected", { nodeId: node.id, title: node.title });
     return { selectedNodeId: node.id, node: nodeView(node) };
@@ -245,7 +300,8 @@ export const selectNodeTool = tool({
 
 export const proposeValuesTool = tool({
   name: "propose_values",
-  description: "Prepare explicit candidate values for a node without asserting facts or mutating the dossier. Ask the user to confirm uncertain values.",
+  description:
+    "Prepare explicit candidate values for a node without asserting facts or mutating the dossier. Ask the user to confirm uncertain values.",
   parameters: z.object({ nodeId: identifier, values }),
   strict: true,
   async execute({ nodeId, values: proposedValues }, runContext) {
@@ -260,28 +316,36 @@ export const proposeValuesTool = tool({
       status: "proposed",
       requiresUserConfirmation: true,
       evidenceRequiredForAssertion: true,
-      message: "Candidate values were not written. The responsible user must confirm them before a facts update.",
+      message:
+        "Candidate values were not written. The responsible user must confirm them before a facts update.",
     };
   },
 });
 
-const attachEvidenceParameters = z.object({
-  nodeId: identifier,
-  filename: z.string().trim().min(1).max(255),
-  mimeType: z.string().trim().min(1).max(100),
-  content: z.string().max(10 * 1024 * 1024).optional(),
-  artifactPath: z.string().trim().min(1).max(500).optional(),
-  requirementIds: z.array(identifier).min(1).max(50).optional(),
-  replacesDocumentId: identifier.optional(),
-  expectedVersion: z.number().int().positive(),
-  idempotencyKey: identifier,
-}).superRefine((input, issue) => {
-  if (Boolean(input.content) === Boolean(input.artifactPath)) issue.addIssue({ code: "custom", message: "Provide exactly one of content or artifactPath" });
-});
+const attachEvidenceParameters = z
+  .object({
+    nodeId: identifier,
+    filename: z.string().trim().min(1).max(255),
+    mimeType: z.string().trim().min(1).max(100),
+    content: z
+      .string()
+      .max(10 * 1024 * 1024)
+      .optional(),
+    artifactPath: z.string().trim().min(1).max(500).optional(),
+    requirementIds: z.array(identifier).min(1).max(50).optional(),
+    replacesDocumentId: identifier.optional(),
+    expectedVersion: z.number().int().positive(),
+    idempotencyKey: identifier,
+  })
+  .superRefine((input, issue) => {
+    if (Boolean(input.content) === Boolean(input.artifactPath))
+      issue.addIssue({ code: "custom", message: "Provide exactly one of content or artifactPath" });
+  });
 
 export const attachEvidenceTool = tool({
   name: "attach_evidence",
-  description: "Attach new evidence to a document-evidence node using explicit text or a sandbox artifact. Server-side scope, version and idempotency checks always apply.",
+  description:
+    "Attach new evidence to a document-evidence node using explicit text or a sandbox artifact. Server-side scope, version and idempotency checks always apply.",
   parameters: attachEvidenceParameters,
   strict: true,
   async execute(input, runContext) {
@@ -300,20 +364,38 @@ export const attachEvidenceTool = tool({
       bytes = exported.bytes;
       content = new TextDecoder().decode(exported.bytes);
     }
-    const upload = context.repository.uploadFile && bytes
-      ? await context.repository.uploadFile({
-        dossierId: detail.dossier.id, nodeId: node.id, filename: input.filename, mimeType: input.mimeType,
-        requirementIds: input.requirementIds, replacesDocumentId: input.replacesDocumentId,
-        expectedVersion: input.expectedVersion, uploadedBy: context.principal.id, bytes, idempotencyKey: input.idempotencyKey,
-      })
-      : await context.repository.uploadDocument({
-        dossierId: detail.dossier.id, nodeId: node.id, filename: input.filename, mimeType: input.mimeType,
-        content: content ?? "", requirementIds: input.requirementIds, replacesDocumentId: input.replacesDocumentId,
-        expectedVersion: input.expectedVersion, uploadedBy: context.principal.id, idempotencyKey: input.idempotencyKey,
-      });
+    const upload =
+      context.repository.uploadFile && bytes
+        ? await context.repository.uploadFile({
+            dossierId: detail.dossier.id,
+            nodeId: node.id,
+            filename: input.filename,
+            mimeType: input.mimeType,
+            requirementIds: input.requirementIds,
+            replacesDocumentId: input.replacesDocumentId,
+            expectedVersion: input.expectedVersion,
+            uploadedBy: context.principal.id,
+            bytes,
+            idempotencyKey: input.idempotencyKey,
+          })
+        : await context.repository.uploadDocument({
+            dossierId: detail.dossier.id,
+            nodeId: node.id,
+            filename: input.filename,
+            mimeType: input.mimeType,
+            content: content ?? "",
+            requirementIds: input.requirementIds,
+            replacesDocumentId: input.replacesDocumentId,
+            expectedVersion: input.expectedVersion,
+            uploadedBy: context.principal.id,
+            idempotencyKey: input.idempotencyKey,
+          });
     await emit(context, "tool_completed", {
-      tool: "attach_evidence", nodeId: node.id, documentId: upload.document.id,
-      dossierVersion: upload.detail.dossier.version, invalidatedFindingIds: upload.invalidatedFindingIds,
+      tool: "attach_evidence",
+      nodeId: node.id,
+      documentId: upload.document.id,
+      dossierVersion: upload.detail.dossier.version,
+      invalidatedFindingIds: upload.invalidatedFindingIds,
     });
     return {
       document: documentView(upload.document),
@@ -326,7 +408,8 @@ export const attachEvidenceTool = tool({
 
 export const createHelperTaskTool = tool({
   name: "create_helper_task",
-  description: "Create an idempotent helper task for a human or specialist. This does not grant rights or submit a dossier.",
+  description:
+    "Create an idempotent helper task for a human or specialist. This does not grant rights or submit a dossier.",
   parameters: z.object({
     nodeId: identifier.optional(),
     title: z.string().trim().min(1).max(200),
@@ -338,8 +421,14 @@ export const createHelperTaskTool = tool({
     const context = agentContext(runContext);
     const detail = await detailFor(context);
     if (input.nodeId) nodeFor(detail, input.nodeId);
-    requireAccess(canEditEvidence(context.principal, detail.dossier) || canReview(context.principal, detail.dossier));
-    const task = await context.repository.createHelperTask({ ...input, dossierId: detail.dossier.id, requestedBy: context.principal.id });
+    requireAccess(
+      canEditEvidence(context.principal, detail.dossier) || canReview(context.principal, detail.dossier),
+    );
+    const task = await context.repository.createHelperTask({
+      ...input,
+      dossierId: detail.dossier.id,
+      requestedBy: context.principal.id,
+    });
     await emit(context, "task_created", { taskId: task.id, nodeId: task.nodeId ?? null });
     return task;
   },
@@ -347,7 +436,8 @@ export const createHelperTaskTool = tool({
 
 export const runChecksTool = tool({
   name: "run_checks",
-  description: "Read current readiness, findings and dependency blockers for the dossier or one node without changing legal rules or evidence status.",
+  description:
+    "Read current readiness, findings and dependency blockers for the dossier or one node without changing legal rules or evidence status.",
   parameters: z.object({ nodeId: identifier.optional() }),
   strict: true,
   async execute({ nodeId }, runContext) {
@@ -366,7 +456,9 @@ export const runChecksTool = tool({
         state: node.state,
         readiness: node.readiness,
         blockers: node.blockers,
-        findings: findings.filter((finding) => finding.nodeId === node.id).map((finding) => findingView(detail, finding)),
+        findings: findings
+          .filter((finding) => finding.nodeId === node.id)
+          .map((finding) => findingView(detail, finding)),
       })),
       findings: findings.map((finding) => findingView(detail, finding)),
       sourceLinked: true,
@@ -374,7 +466,14 @@ export const runChecksTool = tool({
   },
 });
 
-const transitionType = z.enum(["evidence_changed", "review_requested", "submission_requested", "resubmission_requested", "cancellation_requested", "decision_recorded"]);
+const transitionType = z.enum([
+  "evidence_changed",
+  "review_requested",
+  "submission_requested",
+  "resubmission_requested",
+  "cancellation_requested",
+  "decision_recorded",
+]);
 const decision = z.object({
   action: z.enum(["accept", "refuse", "request_modification"]),
   reason: z.string().trim().min(1).max(2000),
@@ -384,19 +483,24 @@ const decision = z.object({
 
 export const requestTransitionTool = tool({
   name: "request_permitted_transition",
-  description: "Request one server-validated dossier transition. Submission, resubmission and cancellation require confirmation from the responsible authenticated user.",
-  parameters: z.object({
-    type: transitionType,
-    nodeId: identifier.optional(),
-    expectedVersion: z.number().int().positive(),
-    idempotencyKey: identifier,
-    correlationId: identifier.optional(),
-    confirmed: z.boolean().optional(),
-    decision: decision.optional(),
-  }).superRefine((input, issue) => {
-    if ((input.type === "decision_recorded") !== Boolean(input.decision)) issue.addIssue({ code: "custom", message: "Decision payload does not match transition type" });
-    if (input.type === "decision_recorded" && !input.nodeId) issue.addIssue({ code: "custom", message: "A review node is required" });
-  }),
+  description:
+    "Request one server-validated dossier transition. Submission, resubmission and cancellation require confirmation from the responsible authenticated user.",
+  parameters: z
+    .object({
+      type: transitionType,
+      nodeId: identifier.optional(),
+      expectedVersion: z.number().int().positive(),
+      idempotencyKey: identifier,
+      correlationId: identifier.optional(),
+      confirmed: z.boolean().optional(),
+      decision: decision.optional(),
+    })
+    .superRefine((input, issue) => {
+      if ((input.type === "decision_recorded") !== Boolean(input.decision))
+        issue.addIssue({ code: "custom", message: "Decision payload does not match transition type" });
+      if (input.type === "decision_recorded" && !input.nodeId)
+        issue.addIssue({ code: "custom", message: "A review node is required" });
+    }),
   strict: true,
   async execute(input, runContext) {
     const context = agentContext(runContext);
@@ -404,17 +508,31 @@ export const requestTransitionTool = tool({
     const node = input.nodeId ? nodeFor(detail, input.nodeId) : undefined;
     if (input.type === "decision_recorded") {
       requireAccess(canReview(context.principal, detail.dossier));
-      if (!node || !["decision", "human_review"].includes(node.type) || !node.allowedActions.includes("record_decision")) {
+      if (
+        !node ||
+        !["decision", "human_review"].includes(node.type) ||
+        !node.allowedActions.includes("record_decision")
+      ) {
         throw new AccessError(422, "invalid_review_node");
       }
-      if (input.decision?.targetNodeIds.some((id) => !detail.nodes.some((candidate) => candidate.id === id)) ||
-        input.decision?.evidenceIds.some((id) => !detail.evidence.some((document) => document.id === id))) {
+      if (
+        input.decision?.targetNodeIds.some((id) => !detail.nodes.some((candidate) => candidate.id === id)) ||
+        input.decision?.evidenceIds.some((id) => !detail.evidence.some((document) => document.id === id))
+      ) {
         throw new AccessError(422, "invalid_evidence_scope");
       }
     } else {
       requireAccess(canEditEvidence(context.principal, detail.dossier));
-      const requiredAction = input.type === "evidence_changed" ? "upload_evidence" : input.type === "review_requested" ? "request_review" :
-        input.type === "submission_requested" ? "submit" : input.type === "resubmission_requested" ? "resubmit" : "cancel";
+      const requiredAction =
+        input.type === "evidence_changed"
+          ? "upload_evidence"
+          : input.type === "review_requested"
+            ? "request_review"
+            : input.type === "submission_requested"
+              ? "submit"
+              : input.type === "resubmission_requested"
+                ? "resubmit"
+                : "cancel";
       if (requiredAction !== "cancel") {
         if (!node) throw new AccessError(422, "node_required");
         if (!node.allowedActions.includes(requiredAction)) throw new AccessError(403, "action_not_permitted");
@@ -422,7 +540,8 @@ export const requestTransitionTool = tool({
     }
 
     if (["submission_requested", "resubmission_requested", "cancellation_requested"].includes(input.type)) {
-      if (!input.confirmed || context.userConfirmedAction !== input.type) throw new AccessError(422, "explicit_confirmation_required");
+      if (!input.confirmed || context.userConfirmedAction !== input.type)
+        throw new AccessError(422, "explicit_confirmation_required");
     }
     const acknowledgement = await context.repository.dispatchCommand({
       dossierId: detail.dossier.id,
@@ -435,7 +554,11 @@ export const requestTransitionTool = tool({
       confirmed: input.confirmed,
       decision: input.decision,
     });
-    await emit(context, "tool_completed", { tool: "request_permitted_transition", commandId: acknowledgement.commandId, type: input.type });
+    await emit(context, "tool_completed", {
+      tool: "request_permitted_transition",
+      commandId: acknowledgement.commandId,
+      type: input.type,
+    });
     return { acknowledgement, requiresTemporalProcessing: true };
   },
 });
@@ -450,7 +573,8 @@ const prepareDocumentParameters = z.object({
 
 export const prepareDocumentTool = tool({
   name: "prepare_document",
-  description: "Fill the server-approved synthetic template for a document-preparation node and write an explicitly unverified draft into the sandbox.",
+  description:
+    "Fill the server-approved synthetic template for a document-preparation node and write an explicitly unverified draft into the sandbox.",
   parameters: prepareDocumentParameters,
   strict: true,
   async execute(input, runContext) {
@@ -458,26 +582,41 @@ export const prepareDocumentTool = tool({
     const detail = await detailFor(context);
     const procedure = await approvedProcedure(context, detail);
     const node = nodeFor(detail, input.nodeId);
-    if (node.type !== "document_preparation" || node.procedureVersionId !== procedure.id) throw new AccessError(422, "invalid_preparation_node");
+    if (node.type !== "document_preparation" || node.procedureVersionId !== procedure.id)
+      throw new AccessError(422, "invalid_preparation_node");
     requireAccess(canEditEvidence(context.principal, detail.dossier));
     if (!node.allowedActions.includes("prepare_document")) throw new AccessError(403, "action_not_permitted");
     const expectedTemplateId = `template-${procedure.id}-${node.id}`;
     if (input.templateId !== expectedTemplateId) throw new AccessError(422, "template_not_approved");
     if (!context.sandbox) throw new AccessError(503, "sandbox_not_configured");
-    const draft = JSON.stringify({
-      templateId: expectedTemplateId,
-      procedureVersionId: procedure.id,
-      dossierId: detail.dossier.id,
-      nodeId: node.id,
-      status: "draft_unverified",
-      values: input.values,
-      sourceDocumentIds: [],
-      warning: "Generated draft. It is not a declaration, signature, official filing or acceptance.",
-      generatedAt: new Date().toISOString(),
-    }, null, 2);
+    const draft = JSON.stringify(
+      {
+        templateId: expectedTemplateId,
+        procedureVersionId: procedure.id,
+        dossierId: detail.dossier.id,
+        nodeId: node.id,
+        status: "draft_unverified",
+        values: input.values,
+        sourceDocumentIds: [],
+        warning: "Generated draft. It is not a declaration, signature, official filing or acceptance.",
+        generatedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    );
     await context.sandbox.writeWorkspaceFile(input.outputPath, draft);
-    await emit(context, "tool_completed", { tool: "prepare_document", nodeId: node.id, outputPath: input.outputPath, status: "draft_unverified" });
-    return { outputPath: input.outputPath, filename: input.filename, templateId: expectedTemplateId, status: "draft_unverified" };
+    await emit(context, "tool_completed", {
+      tool: "prepare_document",
+      nodeId: node.id,
+      outputPath: input.outputPath,
+      status: "draft_unverified",
+    });
+    return {
+      outputPath: input.outputPath,
+      filename: input.filename,
+      templateId: expectedTemplateId,
+      status: "draft_unverified",
+    };
   },
 });
 
@@ -493,7 +632,8 @@ const publishArtifactParameters = z.object({
 
 export const publishArtifactTool = tool({
   name: "publish_generated_artifact",
-  description: "Export a sandbox file as an immutable, versioned draft with source and run provenance. Publishing never submits or signs it.",
+  description:
+    "Export a sandbox file as an immutable, versioned draft with source and run provenance. Publishing never submits or signs it.",
   parameters: publishArtifactParameters,
   strict: true,
   async execute(input, runContext) {
@@ -501,9 +641,14 @@ export const publishArtifactTool = tool({
     const detail = await detailFor(context);
     const procedure = await approvedProcedure(context, detail);
     const node = nodeFor(detail, input.nodeId);
-    if (node.procedureVersionId !== procedure.id || !["document_preparation", "validation"].includes(node.type)) throw new AccessError(422, "invalid_artifact_node");
+    if (
+      node.procedureVersionId !== procedure.id ||
+      !["document_preparation", "validation"].includes(node.type)
+    )
+      throw new AccessError(422, "invalid_artifact_node");
     requireAccess(canEditEvidence(context.principal, detail.dossier));
-    if (input.sourceDocumentIds.some((id) => !detail.evidence.some((document) => document.id === id))) throw new AccessError(422, "invalid_evidence_scope");
+    if (input.sourceDocumentIds.some((id) => !detail.evidence.some((document) => document.id === id)))
+      throw new AccessError(422, "invalid_evidence_scope");
     if (!context.sandbox) throw new AccessError(503, "sandbox_not_configured");
     const exported = await context.sandbox.exportWorkspaceArtifact(input.path);
     const artifact = await context.repository.publishArtifact({
@@ -524,7 +669,11 @@ export const publishArtifactTool = tool({
       createdBy: context.principal.id,
       idempotencyKey: input.idempotencyKey,
     });
-    await emit(context, "artifact_created", { artifactId: artifact.id, version: artifact.version, path: input.path });
+    await emit(context, "artifact_created", {
+      artifactId: artifact.id,
+      version: artifact.version,
+      path: input.path,
+    });
     return { artifact, previewAvailable: true, downloadAvailable: true };
   },
 });
@@ -548,7 +697,13 @@ export const searchLegalKnowledgeTool = tool({
     // rules by asking for them.
     const detail = await detailFor(context);
     if (!context.knowledge) {
-      return { agency: detail.dossier.agency, query, passages: [], needsReview: true, reason: "knowledge_source_unavailable" };
+      return {
+        agency: detail.dossier.agency,
+        query,
+        passages: [],
+        needsReview: true,
+        reason: "knowledge_source_unavailable",
+      };
     }
     try {
       return await context.knowledge.search({ agency: detail.dossier.agency, query });
@@ -581,7 +736,19 @@ export const principalAgentTools = [
 ] as const;
 
 export function isAgentToolEventType(type: string): type is AgentEventType {
-  return ["run_started", "agent_updated", "text_delta", "tool_started", "tool_completed", "tool_failed", "node_selected", "task_created", "artifact_created", "run_completed", "run_failed"].includes(type);
+  return [
+    "run_started",
+    "agent_updated",
+    "text_delta",
+    "tool_started",
+    "tool_completed",
+    "tool_failed",
+    "node_selected",
+    "task_created",
+    "artifact_created",
+    "run_completed",
+    "run_failed",
+  ].includes(type);
 }
 
 export type PublishedArtifact = ArtifactRecord;

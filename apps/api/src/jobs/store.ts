@@ -40,14 +40,17 @@ function toReceipt(row: Row): JobReceipt {
 export class PostgresJobStore implements JobStore {
   private readonly sql;
 
-  constructor(url: string, readonly schema = "h4j_api") {
+  constructor(
+    url: string,
+    readonly schema = "h4j_api",
+  ) {
     if (!/^[a-z][a-z0-9_]{0,62}$/.test(schema)) throw new Error("Invalid database schema");
     this.sql = postgres(url, { max: 5, prepare: false, connect_timeout: 10, onnotice: () => {} });
   }
 
   private async query<T>(statement: string, parameters: unknown[] = []): Promise<T[]> {
     const scoped = statement.replaceAll("h4j_api", `"${this.schema}"`);
-    return await this.sql.unsafe(scoped, parameters as never[]) as unknown as T[];
+    return (await this.sql.unsafe(scoped, parameters as never[])) as unknown as T[];
   }
 
   /** Creates the table this store needs. Safe to call repeatedly. */
@@ -116,12 +119,18 @@ CREATE INDEX IF NOT EXISTS document_jobs_running ON h4j_api.document_jobs(update
   }
 
   async touch(jobId: string) {
-    await this.query("UPDATE h4j_api.document_jobs SET updated_at = now() WHERE id = $1 AND status = 'running'", [jobId]);
+    await this.query(
+      "UPDATE h4j_api.document_jobs SET updated_at = now() WHERE id = $1 AND status = 'running'",
+      [jobId],
+    );
   }
 
   /** Backdates a running job so the abandoned-job check can be exercised. */
   async markStaleForTest(jobId: string) {
-    await this.query("UPDATE h4j_api.document_jobs SET updated_at = now() - interval '2 minutes' WHERE id = $1", [jobId]);
+    await this.query(
+      "UPDATE h4j_api.document_jobs SET updated_at = now() - interval '2 minutes' WHERE id = $1",
+      [jobId],
+    );
   }
 
   async abandoned(olderThan: string) {

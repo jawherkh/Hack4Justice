@@ -21,7 +21,12 @@ const app = new Elysia({ adapter: node() })
     cors({
       origin: env.WEB_ORIGIN,
       credentials: true,
-      allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", ...(env.DEMO_ACCESS_ENABLED ? ["x-demo-user"] : [])],
+      allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "Idempotency-Key",
+        ...(env.DEMO_ACCESS_ENABLED ? ["x-demo-user"] : []),
+      ],
       exposeHeaders: ["x-agent-session-id"],
     }),
   )

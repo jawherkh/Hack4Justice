@@ -4,7 +4,13 @@ import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { appendOutputChunk, buildRunArguments, defaultContainerUser, DockerRunner, defaultRunLimits } from "./runner";
+import {
+  appendOutputChunk,
+  buildRunArguments,
+  defaultContainerUser,
+  DockerRunner,
+  defaultRunLimits,
+} from "./runner";
 import { SandboxLimitError, SandboxPathError, Workspace } from "./workspace";
 
 let base: string;
@@ -50,8 +56,9 @@ describe("workspace containment", () => {
       return; // creating links can require a privilege the test runner lacks
     }
 
-    await expect(Workspace.create(base, "dossier-root-link", "run-root-link"))
-      .rejects.toBeInstanceOf(SandboxPathError);
+    await expect(Workspace.create(base, "dossier-root-link", "run-root-link")).rejects.toBeInstanceOf(
+      SandboxPathError,
+    );
     await rm(outside, { recursive: true, force: true });
   });
 
@@ -146,7 +153,9 @@ describe("workspace containment", () => {
     await first.writeFile("private.txt", "alpha only");
 
     expect(first.root).not.toBe(second.root);
-    await expect(second.resolvePath("../../dossieralpha/runa/private.txt")).rejects.toBeInstanceOf(SandboxPathError);
+    await expect(second.resolvePath("../../dossieralpha/runa/private.txt")).rejects.toBeInstanceOf(
+      SandboxPathError,
+    );
   });
 
   test("keeps a file written and read through the workspace", async () => {
@@ -181,7 +190,12 @@ describe("workspace containment", () => {
     const { bytes, provenance } = await space.exportArtifact("out/final.txt");
 
     expect(new TextDecoder().decode(bytes)).toBe("artifact");
-    expect(provenance).toMatchObject({ path: "out/final.txt", bytes: 8, dossierId: "dossier7", runId: "run1" });
+    expect(provenance).toMatchObject({
+      path: "out/final.txt",
+      bytes: 8,
+      dossierId: "dossier7",
+      runId: "run1",
+    });
     expect(provenance.sha256).toBe(createHash("sha256").update("artifact").digest("hex"));
   });
 
@@ -281,7 +295,11 @@ live("container isolation against a real daemon", () => {
 
   test("outbound network access is blocked", async () => {
     const space = await Workspace.create(base, "live4", `run${randomUUID().slice(0, 8)}`);
-    const result = await runner.run(space, ["sh", "-c", "wget -T 3 -q -O - http://example.com || echo BLOCKED"]);
+    const result = await runner.run(space, [
+      "sh",
+      "-c",
+      "wget -T 3 -q -O - http://example.com || echo BLOCKED",
+    ]);
     expect(result.stdout).toContain("BLOCKED");
   }, 120_000);
 
@@ -296,7 +314,11 @@ live("container isolation against a real daemon", () => {
     await other.writeFile("secret.txt", "other dossier");
     const space = await Workspace.create(base, "live6", `run${randomUUID().slice(0, 8)}`);
 
-    const result = await runner.run(space, ["sh", "-c", "ls /work; cat /work/../secret.txt 2>&1 || echo NOT_FOUND"]);
+    const result = await runner.run(space, [
+      "sh",
+      "-c",
+      "ls /work; cat /work/../secret.txt 2>&1 || echo NOT_FOUND",
+    ]);
 
     expect(result.stdout).not.toContain("other dossier");
     expect(result.stdout).toContain("NOT_FOUND");
@@ -314,14 +336,24 @@ live("container isolation against a real daemon", () => {
 
   test("the container cannot write a file larger than its limit", async () => {
     const space = await Workspace.create(base, "live9", `run${randomUUID().slice(0, 8)}`);
-    const capped = new DockerRunner(image, { ...defaultRunLimits, fileBytes: 1024 * 1024, timeoutMs: 30_000 });
+    const capped = new DockerRunner(image, {
+      ...defaultRunLimits,
+      fileBytes: 1024 * 1024,
+      timeoutMs: 30_000,
+    });
 
     // Without a file size limit this would keep writing into the host directory.
-    const result = await capped.run(space, ["sh", "-c", "dd if=/dev/zero of=/work/big bs=1M count=64 2>&1; echo EXIT=$?"]);
+    const result = await capped.run(space, [
+      "sh",
+      "-c",
+      "dd if=/dev/zero of=/work/big bs=1M count=64 2>&1; echo EXIT=$?",
+    ]);
 
     expect(result.stdout).toContain("EXIT=");
     expect(result.stdout).not.toContain("64+0 records out");
-    const written = await stat(join(space.root, "big")).then((info) => info.size).catch(() => 0);
+    const written = await stat(join(space.root, "big"))
+      .then((info) => info.size)
+      .catch(() => 0);
     expect(written).toBeLessThanOrEqual(1024 * 1024);
   }, 180_000);
 
@@ -344,11 +376,17 @@ live("container isolation against a real daemon", () => {
       fileBytes: 10 * 1024 * 1024,
       totalBytes: 4 * 1024 * 1024,
     });
-    const capped = new DockerRunner(image, { ...defaultRunLimits, fileBytes: 2 * 1024 * 1024, timeoutMs: 60_000 });
+    const capped = new DockerRunner(image, {
+      ...defaultRunLimits,
+      fileBytes: 2 * 1024 * 1024,
+      timeoutMs: 60_000,
+    });
 
     // Each file stays under the per-file limit, so only the total can stop this.
     const result = await capped.run(space, [
-      "sh", "-c", "i=0; while [ $i -lt 60 ]; do dd if=/dev/zero of=/work/f$i bs=1M count=2 2>/dev/null; i=$((i+1)); done; echo FINISHED",
+      "sh",
+      "-c",
+      "i=0; while [ $i -lt 60 ]; do dd if=/dev/zero of=/work/f$i bs=1M count=2 2>/dev/null; i=$((i+1)); done; echo FINISHED",
     ]);
 
     // The guarantee is that the run is stopped and reported, not a precise quota: polling

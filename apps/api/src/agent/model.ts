@@ -22,7 +22,7 @@ type JsonRecord = Record<string, unknown>;
 
 function record(value: unknown): JsonRecord | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? value as JsonRecord
+    ? (value as JsonRecord)
     : undefined;
 }
 
@@ -130,9 +130,9 @@ export function createGeminiAgentModel(options: GeminiAgentModelOptions): Model 
       "x-goog-api-client": "hack4justice-agents/0.1.0",
     },
   });
-  return new GeminiThoughtSignatureModel(new OpenAIChatCompletionsModel(
-    client,
-    options.model ?? DEFAULT_GEMINI_AGENT_MODEL,
-    { strictFeatureValidation: true },
-  ));
+  return new GeminiThoughtSignatureModel(
+    new OpenAIChatCompletionsModel(client, options.model ?? DEFAULT_GEMINI_AGENT_MODEL, {
+      strictFeatureValidation: true,
+    }),
+  );
 }

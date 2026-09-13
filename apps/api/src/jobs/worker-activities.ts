@@ -1,7 +1,13 @@
 import { ApplicationFailure, CancelledFailure, Context } from "@temporalio/activity";
 
 import { createTikaClient } from "../ocr/tika";
-import { extractDocumentText, runSandboxCommand, type DocumentSource, type ExtractTextInput, type SandboxCommandInput } from "./activities";
+import {
+  extractDocumentText,
+  runSandboxCommand,
+  type DocumentSource,
+  type ExtractTextInput,
+  type SandboxCommandInput,
+} from "./activities";
 import type { JobContext, JobReceipt } from "./contracts";
 import { PostgresJobStore } from "./store";
 
@@ -110,20 +116,28 @@ export function createDocumentActivities(databaseUrl: string, settings: Document
     close: () => store.close(),
     activities: {
       async extractDocumentText(input: ExtractTextInput) {
-        const { receipt } = await extractDocumentText(store, extractor, settings.documents, input, activityContext());
-        return settle(receipt);
-      },
-      async runSandboxCommand(input: SandboxCommandInput) {
-        return settle(await runSandboxCommand(
+        const { receipt } = await extractDocumentText(
           store,
-          {
-            baseDir: settings.workspaceBaseDir,
-            image: settings.image,
-          },
+          extractor,
           settings.documents,
           input,
           activityContext(),
-        ));
+        );
+        return settle(receipt);
+      },
+      async runSandboxCommand(input: SandboxCommandInput) {
+        return settle(
+          await runSandboxCommand(
+            store,
+            {
+              baseDir: settings.workspaceBaseDir,
+              image: settings.image,
+            },
+            settings.documents,
+            input,
+            activityContext(),
+          ),
+        );
       },
     },
   };

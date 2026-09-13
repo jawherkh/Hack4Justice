@@ -16,12 +16,22 @@ import type { DossierDetail, DocumentRecord } from "./store";
 
 const url = process.env.TEST_DATABASE_URL;
 const pdf = new TextEncoder().encode("%PDF-1.7\nsynthetic original\n%%EOF");
-const base = { dossierId: "dossier-alpha-dgi", nodeId: "node-alpha-dgi-document_evidence",
-  uploadedBy: "demo-member-alpha", filename: "original.pdf", mimeType: "application/pdf", expectedVersion: 1 };
+const base = {
+  dossierId: "dossier-alpha-dgi",
+  nodeId: "node-alpha-dgi-document_evidence",
+  uploadedBy: "demo-member-alpha",
+  filename: "original.pdf",
+  mimeType: "application/pdf",
+  expectedVersion: 1,
+};
 
 async function rejected(promise: Promise<unknown>) {
   let failure: unknown;
-  try { await promise; } catch (error) { failure = error; }
+  try {
+    await promise;
+  } catch (error) {
+    failure = error;
+  }
   expect(failure).toBeInstanceOf(Error);
   return failure as Error;
 }
@@ -47,44 +57,65 @@ describe.skipIf(!url)("persistent API storage", () => {
     await Promise.all(connections.map((c) => c.close()));
     if (!/^test_uploads_[a-f0-9]{32}$/.test(schema)) throw new Error("Unexpected test schema");
     const sql = postgres(url!, { max: 1, onnotice: () => {} });
-    try { await sql.unsafe(`DROP SCHEMA "${schema}" CASCADE`); } finally { await sql.end(); }
+    try {
+      await sql.unsafe(`DROP SCHEMA "${schema}" CASCADE`);
+    } finally {
+      await sql.end();
+    }
     const parent = await realpath(tmpdir());
     const target = await realpath(directory);
-    if (!target.startsWith(parent + sep + "hack4justice-upload-test-") || resolve(target) === parent) throw new Error("Unexpected test directory");
+    if (!target.startsWith(parent + sep + "hack4justice-upload-test-") || resolve(target) === parent)
+      throw new Error("Unexpected test directory");
     await rm(target, { recursive: true });
   });
   function server(connection = repository) {
-    return new Elysia({ prefix: "/api/v1" }).use(errorHandler)
+    return new Elysia({ prefix: "/api/v1" })
+      .use(errorHandler)
       .use(createAccessRoutes(connection, createDemoIdentity(true, "test")))
       .use(createAdminRoutes(connection, createDemoIdentity(true, "test")));
   }
   function request(path: string, user = "demo-member-alpha", method = "GET", body?: unknown) {
-    return new Request(`http://localhost/api/v1${path}`, { method,
+    return new Request(`http://localhost/api/v1${path}`, {
+      method,
       headers: { "x-demo-user": user, ...(body ? { "content-type": "application/json" } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
   }
-  function multipart(bytes = pdf, key = "upload-original", expectedVersion = 1, overrides: Record<string, string> = {}) {
+  function multipart(
+    bytes = pdf,
+    key = "upload-original",
+    expectedVersion = 1,
+    overrides: Record<string, string> = {},
+  ) {
     const form = new FormData();
     form.set("nodeId", base.nodeId);
     form.set("expectedVersion", String(expectedVersion));
     form.set("file", new File([bytes], "original.pdf", { type: "application/pdf" }));
     for (const [key, value] of Object.entries(overrides)) form.set(key, value);
     return new Request(`http://localhost/api/v1/dossiers/${base.dossierId}/documents`, {
-      method: "POST", headers: { "x-demo-user": "demo-member-alpha", "idempotency-key": key }, body: form,
+      method: "POST",
+      headers: { "x-demo-user": "demo-member-alpha", "idempotency-key": key },
+      body: form,
     });
   }
 
   test("creates and resumes the existing API shapes after closing every database connection", async () => {
-    const created = await server().handle(request("/companies/company-alpha/dossiers", "demo-member-alpha", "POST", { procedureVersionId: "procedure-dgi-v1" }));
+    const created = await server().handle(
+      request("/companies/company-alpha/dossiers", "demo-member-alpha", "POST", {
+        procedureVersionId: "procedure-dgi-v1",
+      }),
+    );
     expect(created.status).toBe(201);
-    const first = await created.json() as DossierDetail;
+    const first = (await created.json()) as DossierDetail;
     await repository.close();
     const restarted = connect();
     await restarted.initialize(true);
-    const resumed = await server(restarted).handle(request("/companies/company-alpha/dossiers", "demo-member-alpha", "POST", {
-      procedureVersionId: first.dossier.procedureVersionId, dossierId: first.dossier.id,
-    }));
+    const resumed = await server(restarted).handle(
+      request("/companies/company-alpha/dossiers", "demo-member-alpha", "POST", {
+        procedureVersionId: first.dossier.procedureVersionId,
+        dossierId: first.dossier.id,
+      }),
+    );
     expect(resumed.status).toBe(200);
     expect(await resumed.json()).toEqual(first);
     expect((await restarted.dossiers()).filter((d) => d.id === first.dossier.id)).toHaveLength(1);
@@ -94,7 +125,11 @@ describe.skipIf(!url)("persistent API storage", () => {
   test("persists real multipart bytes, retries once and keeps metadata compatible", async () => {
     const first = await server().handle(multipart());
     expect(first.status).toBe(201);
-    const payload = await first.json() as {document: DocumentRecord; dossier: {version: number}; invalidatedFindingIds: string[]};
+    const payload = (await first.json()) as {
+      document: DocumentRecord;
+      dossier: { version: number };
+      invalidatedFindingIds: string[];
+    };
     expect(payload.document.sha256).toBe(checksum(pdf));
     expect(payload.document.sizeBytes).toBe(pdf.length);
     expect(payload.document.originalText).toBe("");
@@ -116,22 +151,49 @@ describe.skipIf(!url)("persistent API storage", () => {
   test("preserves every original and rejects duplicate replacement branches", async () => {
     const first = await repository.uploadFile({ ...base, bytes: pdf });
     const replacementBytes = new TextEncoder().encode("%PDF-corrected");
-    const second = await repository.uploadFile({ ...base, bytes: replacementBytes, expectedVersion: 2, replacesDocumentId: first.document.id });
+    const second = await repository.uploadFile({
+      ...base,
+      bytes: replacementBytes,
+      expectedVersion: 2,
+      replacesDocumentId: first.document.id,
+    });
     expect(second.document.version).toBe(2);
     expect(second.document.replacesId).toBe(first.document.id);
     expect(await connect().readContent(first.document.id)).toEqual(Buffer.from(pdf));
     expect(await repository.readContent(second.document.id)).toEqual(Buffer.from(replacementBytes));
-    expect(await rejected(repository.uploadFile({ ...base, bytes: pdf, expectedVersion: 3, replacesDocumentId: first.document.id }))).toMatchObject({ status: 409 });
+    expect(
+      await rejected(
+        repository.uploadFile({
+          ...base,
+          bytes: pdf,
+          expectedVersion: 3,
+          replacesDocumentId: first.document.id,
+        }),
+      ),
+    ).toMatchObject({ status: 409 });
     const sql = postgres(url!, { max: 1 });
     try {
-      expect(await rejected(sql.unsafe(`UPDATE "${schema}".originals SET metadata='{}'::jsonb WHERE id=$1`, [first.document.id]))).toMatchObject({ code: "P0001" });
-      expect(await rejected(sql.unsafe(`DELETE FROM "${schema}".originals WHERE id=$1`, [first.document.id]))).toMatchObject({ code: "P0001" });
-    } finally { await sql.end(); }
+      expect(
+        await rejected(
+          sql.unsafe(`UPDATE "${schema}".originals SET metadata='{}'::jsonb WHERE id=$1`, [
+            first.document.id,
+          ]),
+        ),
+      ).toMatchObject({ code: "P0001" });
+      expect(
+        await rejected(sql.unsafe(`DELETE FROM "${schema}".originals WHERE id=$1`, [first.document.id])),
+      ).toMatchObject({ code: "P0001" });
+    } finally {
+      await sql.end();
+    }
   });
 
   test("only one concurrent write from independent API instances can commit a revision", async () => {
     const input = { dossierId: base.dossierId, expectedVersion: 1, changes: { headcount: 12 } };
-    const results = await Promise.allSettled([repository.updateConfirmedFacts(input), connect().updateConfirmedFacts(input)]);
+    const results = await Promise.allSettled([
+      repository.updateConfirmedFacts(input),
+      connect().updateConfirmedFacts(input),
+    ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     const failure = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
     expect(failure.reason).toMatchObject({ status: 409, code: "version_conflict" });
@@ -142,13 +204,21 @@ describe.skipIf(!url)("persistent API storage", () => {
   });
 
   test("persists command acknowledgements and deduplicates after restarting", async () => {
-    const command = { dossierId: base.dossierId, type: "review_requested" as const, expectedVersion: 1,
-      idempotencyKey: "review", actorId: base.uploadedBy, nodeId: base.nodeId };
+    const command = {
+      dossierId: base.dossierId,
+      type: "review_requested" as const,
+      expectedVersion: 1,
+      idempotencyKey: "review",
+      actorId: base.uploadedBy,
+      nodeId: base.nodeId,
+    };
     const first = await repository.dispatchCommand(command);
     await repository.close();
     const restarted = connect();
     expect(await restarted.dispatchCommand(command)).toEqual(first);
-    expect(await rejected(restarted.dispatchCommand({ ...command, expectedVersion: 2 }))).toMatchObject({ code: "idempotency_conflict" });
+    expect(await rejected(restarted.dispatchCommand({ ...command, expectedVersion: 2 }))).toMatchObject({
+      code: "idempotency_conflict",
+    });
     expect((await restarted.dossier(base.dossierId))?.agencyAcceptance).toBe("not_submitted");
   });
 
@@ -161,18 +231,24 @@ describe.skipIf(!url)("persistent API storage", () => {
       actorId: "demo-member-alpha",
       confirmed: true,
     });
-    const preparedSubmission = await repository.prepare({ dossierId: base.dossierId, commandId: submission.commandId });
+    const preparedSubmission = await repository.prepare({
+      dossierId: base.dossierId,
+      commandId: submission.commandId,
+    });
     expect(preparedSubmission).not.toBeNull();
-    expect((await repository.commit(preparedSubmission!, transition(preparedSubmission!))).status).toBe("completed");
+    expect((await repository.commit(preparedSubmission!, transition(preparedSubmission!))).status).toBe(
+      "completed",
+    );
 
-    const claim = await server().handle(request(
-      `/admin/dgi/dossiers/${base.dossierId}/assignment`,
-      "demo-officer-dgi",
-      "POST",
-      { expectedVersion: 2 },
-    ));
+    const claim = await server().handle(
+      request(`/admin/dgi/dossiers/${base.dossierId}/assignment`, "demo-officer-dgi", "POST", {
+        expectedVersion: 2,
+      }),
+    );
     expect(claim.status).toBe(200);
-    expect(await claim.json()).toMatchObject({ dossier: { version: 3, assignedOfficerId: "demo-officer-dgi" } });
+    expect(await claim.json()).toMatchObject({
+      dossier: { version: 3, assignedOfficerId: "demo-officer-dgi" },
+    });
 
     const decisionBody = {
       expectedVersion: 3,
@@ -184,17 +260,19 @@ describe.skipIf(!url)("persistent API storage", () => {
       targetNodeIds: [base.nodeId],
       evidenceIds: ["document-alpha-dgi"],
     };
-    const decision = await server().handle(request(
-      `/admin/dgi/dossiers/${base.dossierId}/decisions`,
-      "demo-officer-dgi",
-      "POST",
-      decisionBody,
-    ));
+    const decision = await server().handle(
+      request(`/admin/dgi/dossiers/${base.dossierId}/decisions`, "demo-officer-dgi", "POST", decisionBody),
+    );
     expect(decision.status).toBe(202);
-    const decisionAck = await decision.json() as { commandId: string };
-    const preparedDecision = await repository.prepare({ dossierId: base.dossierId, commandId: decisionAck.commandId });
+    const decisionAck = (await decision.json()) as { commandId: string };
+    const preparedDecision = await repository.prepare({
+      dossierId: base.dossierId,
+      commandId: decisionAck.commandId,
+    });
     expect(preparedDecision).not.toBeNull();
-    expect((await repository.commit(preparedDecision!, transition(preparedDecision!))).status).toBe("completed");
+    expect((await repository.commit(preparedDecision!, transition(preparedDecision!))).status).toBe(
+      "completed",
+    );
 
     await repository.close();
     const restarted = connect();
@@ -206,39 +284,48 @@ describe.skipIf(!url)("persistent API storage", () => {
       lifecycle: "correction_requested",
       agencyAcceptance: "modification_requested",
     });
-    expect(detail?.decisions).toContainEqual(expect.objectContaining({
-      actorId: "demo-officer-dgi",
-      reason: "Replace the unreadable page",
-      evidenceIds: ["document-alpha-dgi"],
-      targetNodeIds: [base.nodeId],
-    }));
+    expect(detail?.decisions).toContainEqual(
+      expect.objectContaining({
+        actorId: "demo-officer-dgi",
+        reason: "Replace the unreadable page",
+        evidenceIds: ["document-alpha-dgi"],
+        targetNodeIds: [base.nodeId],
+      }),
+    );
     const events = await restarted.lifecycleEvents(base.dossierId, 0);
-    expect(events).toContainEqual(expect.objectContaining({
-      aggregateVersion: 3,
-      actorId: "demo-officer-dgi",
-    }));
-    expect(events).toContainEqual(expect.objectContaining({
-      aggregateVersion: 4,
-      actorId: "demo-officer-dgi",
-      decisionId: `decision-${decisionAck.commandId}`,
-      correlationId: "review-session-persistent",
-    }));
-    const retry = await server(restarted).handle(request(
-      `/admin/dgi/dossiers/${base.dossierId}/decisions`,
-      "demo-officer-dgi",
-      "POST",
-      decisionBody,
-    ));
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        aggregateVersion: 3,
+        actorId: "demo-officer-dgi",
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        aggregateVersion: 4,
+        actorId: "demo-officer-dgi",
+        decisionId: `decision-${decisionAck.commandId}`,
+        correlationId: "review-session-persistent",
+      }),
+    );
+    const retry = await server(restarted).handle(
+      request(`/admin/dgi/dossiers/${base.dossierId}/decisions`, "demo-officer-dgi", "POST", decisionBody),
+    );
     expect(retry.status).toBe(202);
     expect(await retry.json()).toMatchObject({ commandId: decisionAck.commandId });
   });
 
   test("keeps JSON text uploads working and persists their original UTF-8 bytes", async () => {
-    const response = await server().handle(request(`/dossiers/${base.dossierId}/documents`, "demo-member-alpha", "POST", {
-      nodeId: base.nodeId, filename: "evidence.txt", mimeType: "text/plain", content: "وثيقة عربية", expectedVersion: 1,
-    }));
+    const response = await server().handle(
+      request(`/dossiers/${base.dossierId}/documents`, "demo-member-alpha", "POST", {
+        nodeId: base.nodeId,
+        filename: "evidence.txt",
+        mimeType: "text/plain",
+        content: "وثيقة عربية",
+        expectedVersion: 1,
+      }),
+    );
     expect(response.status).toBe(201);
-    const result = await response.json() as {document: DocumentRecord};
+    const result = (await response.json()) as { document: DocumentRecord };
     expect(result.document.originalText).toBe("وثيقة عربية");
     expect(new TextDecoder().decode(await connect().readContent(result.document.id))).toBe("وثيقة عربية");
   });
@@ -246,10 +333,17 @@ describe.skipIf(!url)("persistent API storage", () => {
   test("enforces membership and agency permissions on persisted downloads and writes", async () => {
     const uploaded = await repository.uploadFile({ ...base, bytes: pdf });
     for (const user of ["demo-member-beta", "demo-officer-rne", "demo-rule-maintainer"]) {
-      expect((await server().handle(request(`/documents/${uploaded.document.id}/content`, user))).status).toBe(403);
+      expect(
+        (await server().handle(request(`/documents/${uploaded.document.id}/content`, user))).status,
+      ).toBe(403);
     }
-    expect((await server().handle(request(`/documents/${uploaded.document.id}/content`, "demo-officer-dgi"))).status).toBe(200);
-    expect((await server().handle(request(`/documents/${uploaded.document.id}/content`, "invented-user"))).status).toBe(401);
+    expect(
+      (await server().handle(request(`/documents/${uploaded.document.id}/content`, "demo-officer-dgi")))
+        .status,
+    ).toBe(200);
+    expect(
+      (await server().handle(request(`/documents/${uploaded.document.id}/content`, "invented-user"))).status,
+    ).toBe(401);
     const req = multipart(pdf, "forged", 2);
     req.headers.set("x-demo-user", "demo-officer-dgi");
     expect((await server().handle(req)).status).toBe(403);
@@ -259,9 +353,15 @@ describe.skipIf(!url)("persistent API storage", () => {
   test("rejects disguised, empty, oversized files and malformed multipart fields without mutation", async () => {
     expect((await server().handle(multipart(new TextEncoder().encode("not a PDF")))).status).toBe(415);
     expect((await server().handle(multipart(new Uint8Array()))).status).toBe(422);
-    expect((await server().handle(multipart(pdf, "bad-links", 1, { requirementIds: "not-json" }))).status).toBe(422);
-    expect((await server().handle(multipart(pdf, "bad-version", 1, { expectedVersion: "abc" }))).status).toBe(422);
-    expect(await rejected(repository.uploadFile({ ...base, bytes: new Uint8Array(20 * 1024 * 1024 + 1) }))).toMatchObject({ status: 413 });
+    expect(
+      (await server().handle(multipart(pdf, "bad-links", 1, { requirementIds: "not-json" }))).status,
+    ).toBe(422);
+    expect((await server().handle(multipart(pdf, "bad-version", 1, { expectedVersion: "abc" }))).status).toBe(
+      422,
+    );
+    expect(
+      await rejected(repository.uploadFile({ ...base, bytes: new Uint8Array(20 * 1024 * 1024 + 1) })),
+    ).toMatchObject({ status: 413 });
     expect((await repository.dossier(base.dossierId))?.version).toBe(1);
   });
 

@@ -17,8 +17,13 @@ class MemoryJobStore implements JobStore {
   async claim(request: JobRequest, startedAt: string) {
     if (this.receipts.some((receipt) => receipt.jobId === request.jobId)) throw new Error("duplicate job id");
     const receipt: JobReceipt = {
-      jobId: request.jobId, dossierId: request.dossierId, kind: request.kind,
-      status: "running", attempts: 1, startedAt, updatedAt: startedAt,
+      jobId: request.jobId,
+      dossierId: request.dossierId,
+      kind: request.kind,
+      status: "running",
+      attempts: 1,
+      startedAt,
+      updatedAt: startedAt,
     };
     this.receipts.push(receipt);
     return { ...receipt };
@@ -45,7 +50,11 @@ class MemoryJobStore implements JobStore {
 
 const turn = (overrides: Partial<AgentTurnWorkflowInput> = {}): AgentTurnWorkflowInput => ({
   dossierId: "dossier-1",
-  principal: { id: "member-1", roles: ["business_member"], companyIds: ["company-1"] } as AgentTurnWorkflowInput["principal"],
+  principal: {
+    id: "member-1",
+    roles: ["business_member"],
+    companyIds: ["company-1"],
+  } as AgentTurnWorkflowInput["principal"],
   message: "Quelles pieces manquent ?",
   sessionId: "session-1",
   ...overrides,
@@ -65,7 +74,13 @@ describe("durable agent turns", () => {
   test("answers a repeated turn from what the first attempt produced", async () => {
     const store = new MemoryJobStore();
     let calls = 0;
-    const durable = withDurableTurns(answering(() => { calls += 1; }), store, { turnKey: "turn-1" });
+    const durable = withDurableTurns(
+      answering(() => {
+        calls += 1;
+      }),
+      store,
+      { turnKey: "turn-1" },
+    );
 
     const first = await durable.runAgentTurn(turn());
     const again = await durable.runAgentTurn(turn());
@@ -79,7 +94,13 @@ describe("durable agent turns", () => {
   test("two workers handed the same turn call the model once", async () => {
     const store = new MemoryJobStore();
     let calls = 0;
-    const durable = withDurableTurns(answering(() => { calls += 1; }), store, { turnKey: "turn-race" });
+    const durable = withDurableTurns(
+      answering(() => {
+        calls += 1;
+      }),
+      store,
+      { turnKey: "turn-race" },
+    );
 
     const outcomes = await Promise.allSettled([durable.runAgentTurn(turn()), durable.runAgentTurn(turn())]);
 
@@ -140,7 +161,9 @@ describe("durable agent turns", () => {
   test("a failure is raised, not returned as a successful-looking result", async () => {
     const store = new MemoryJobStore();
     const failing: AgentActivities = {
-      async runAgentTurn() { throw new Error("model_refused"); },
+      async runAgentTurn() {
+        throw new Error("model_refused");
+      },
     };
     const durable = withDurableTurns(failing, store, { turnKey: `turn-${randomUUID()}` });
 
@@ -152,7 +175,13 @@ describe("durable agent turns", () => {
     const controller = new AbortController();
     controller.abort();
     let calls = 0;
-    const durable = withDurableTurns(answering(() => { calls += 1; }), store, { turnKey: "turn-cancelled", signal: controller.signal });
+    const durable = withDurableTurns(
+      answering(() => {
+        calls += 1;
+      }),
+      store,
+      { turnKey: "turn-cancelled", signal: controller.signal },
+    );
 
     // The model is never asked, and the boundary reports a cancellation rather than a
     // failure the service would retry.
@@ -163,7 +192,9 @@ describe("durable agent turns", () => {
   test("a refusal is reported as not worth retrying", async () => {
     const store = new MemoryJobStore();
     const refusing: AgentActivities = {
-      async runAgentTurn() { throw Object.assign(new Error("procedure_version_not_pinned"), { status: 422 }); },
+      async runAgentTurn() {
+        throw Object.assign(new Error("procedure_version_not_pinned"), { status: 422 });
+      },
     };
     const durable = withDurableTurns(refusing, store, { turnKey: "turn-nonretry" });
 
@@ -175,11 +206,23 @@ describe("durable agent turns", () => {
     let calls = 0;
     const key = "turn-restart";
 
-    const before = withDurableTurns(answering(() => { calls += 1; }), store, { turnKey: key });
+    const before = withDurableTurns(
+      answering(() => {
+        calls += 1;
+      }),
+      store,
+      { turnKey: key },
+    );
     const answer = await before.runAgentTurn(turn());
 
     // A different worker process, with no memory of the first, is handed the same turn.
-    const after = withDurableTurns(answering(() => { calls += 1; }), store, { turnKey: key });
+    const after = withDurableTurns(
+      answering(() => {
+        calls += 1;
+      }),
+      store,
+      { turnKey: key },
+    );
     const resumed = await after.runAgentTurn(turn());
 
     expect(calls).toBe(1);

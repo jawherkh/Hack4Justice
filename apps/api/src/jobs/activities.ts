@@ -39,7 +39,12 @@ export interface ExtractTextInput {
 
 /** Reads text out of an uploaded document. */
 export interface TextExtractor {
-  extract(input: { bytes: Uint8Array; filename: string; languages?: string; contentType?: string }): Promise<{ text: string; pageCount?: number | null }>;
+  extract(input: {
+    bytes: Uint8Array;
+    filename: string;
+    languages?: string;
+    contentType?: string;
+  }): Promise<{ text: string; pageCount?: number | null }>;
 }
 
 /**
@@ -76,8 +81,10 @@ export async function extractDocumentText(
       let result: { text: string; pageCount?: number | null };
       try {
         result = await extractor.extract({
-          bytes: stored.bytes, filename: stored.filename,
-          languages: input.languages, contentType: stored.contentType,
+          bytes: stored.bytes,
+          filename: stored.filename,
+          languages: input.languages,
+          contentType: stored.contentType,
         });
       } catch (error) {
         // The extraction service being unavailable is worth another attempt; a document it
@@ -150,7 +157,9 @@ export async function runSandboxCommand(
       const workspace = await Workspace.create(settings.baseDir, input.dossierId, input.runId);
       const runner = new DockerRunner(settings.image, settings.limits ?? defaultRunLimits);
 
-      const stop = () => { void runner.terminate(workspace); };
+      const stop = () => {
+        void runner.terminate(workspace);
+      };
       signal?.addEventListener("abort", stop, { once: true });
 
       try {
@@ -171,7 +180,9 @@ export async function runSandboxCommand(
         // not be started at all and reports no exit code. Recording either as a completed
         // run would be a success that never happened.
         if (result.exitCode === containerStartFailure || result.exitCode === null) {
-          throw new RetryableJobError(`sandbox_did_not_start: ${result.stderr.trim().slice(0, 200) || "runtime_unavailable"}`);
+          throw new RetryableJobError(
+            `sandbox_did_not_start: ${result.stderr.trim().slice(0, 200) || "runtime_unavailable"}`,
+          );
         }
 
         const artifacts = [];

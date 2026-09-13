@@ -4,10 +4,15 @@ import type { PreparedCommand, Transition } from "./contracts";
 export function transition({ command, state, now }: PreparedCommand): Transition {
   if (command.expectedVersion !== state.version) return { error: "version_conflict" };
   if (state.lifecycle === "closed" || state.lifecycle === "cancelled") return { error: "dossier_closed" };
-  const next = { ...state, version: state.version + 1, context: {
-    ...state.context, prerequisites: { ...state.context.prerequisites },
-    correctionNodeIds: [...state.context.correctionNodeIds],
-  } };
+  const next = {
+    ...state,
+    version: state.version + 1,
+    context: {
+      ...state.context,
+      prerequisites: { ...state.context.prerequisites },
+      correctionNodeIds: [...state.context.correctionNodeIds],
+    },
+  };
   switch (command.type) {
     case "evidence_changed":
       if (state.lifecycle === "draft") next.lifecycle = "active";
@@ -25,7 +30,10 @@ export function transition({ command, state, now }: PreparedCommand): Transition
       for (const observation of Object.values(state.context.prerequisites)) {
         if (!observation.actions.includes(command.type)) continue;
         if (observation.status !== "fulfilled" || Date.parse(observation.expiresAt) <= Date.parse(now)) {
-          return { error: observation.status === "unfulfilled" ? "prerequisite_blocked" : "prerequisite_needs_review" };
+          return {
+            error:
+              observation.status === "unfulfilled" ? "prerequisite_blocked" : "prerequisite_needs_review",
+          };
         }
       }
       next.lifecycle = "awaiting_review";
@@ -56,8 +64,15 @@ export function transition({ command, state, now }: PreparedCommand): Transition
       if (previous && previous.version >= observation.version) return { error: "stale_observation" };
       next.context.prerequisites[observation.obligationId] = observation;
       const observations = Object.values(next.context.prerequisites);
-      next.prerequisiteStatus = observations.some((o) => o.status !== "fulfilled" && o.status !== "unfulfilled" || Date.parse(o.expiresAt) <= Date.parse(now))
-        ? "unknown" : observations.some((o) => o.status === "unfulfilled") ? "unsatisfied" : "satisfied";
+      next.prerequisiteStatus = observations.some(
+        (o) =>
+          (o.status !== "fulfilled" && o.status !== "unfulfilled") ||
+          Date.parse(o.expiresAt) <= Date.parse(now),
+      )
+        ? "unknown"
+        : observations.some((o) => o.status === "unfulfilled")
+          ? "unsatisfied"
+          : "satisfied";
       break;
     }
     case "cancellation_requested":

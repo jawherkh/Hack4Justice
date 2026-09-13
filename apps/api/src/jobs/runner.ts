@@ -1,4 +1,11 @@
-import { JobCancelled, maxJobAttempts, type JobContext, type JobReceipt, type JobRequest, type JobStore } from "./contracts";
+import {
+  JobCancelled,
+  maxJobAttempts,
+  type JobContext,
+  type JobReceipt,
+  type JobRequest,
+  type JobStore,
+} from "./contracts";
 
 /** How often a running job record is refreshed while the job reports progress. */
 const touchIntervalMs = 10_000;
@@ -16,7 +23,10 @@ export class RetryableJobError extends Error {
    * What the attempt established before it failed, such as a conversation that was opened.
    * Kept on the receipt so the next attempt continues from there rather than starting over.
    */
-  constructor(message: string, readonly output?: Record<string, unknown>) {
+  constructor(
+    message: string,
+    readonly output?: Record<string, unknown>,
+  ) {
     super(message);
   }
 }
@@ -70,7 +80,9 @@ export async function runJob(
   if (context.signal?.aborted) {
     // Cancelled before it began: finished, not pending, so no later attempt runs it.
     return await store.complete(request.jobId, {
-      status: "failed", error: "job_cancelled", retryable: false,
+      status: "failed",
+      error: "job_cancelled",
+      retryable: false,
     });
   }
 

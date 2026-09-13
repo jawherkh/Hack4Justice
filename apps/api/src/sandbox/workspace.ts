@@ -41,7 +41,9 @@ function isInside(root: string, target: string) {
 }
 
 function isPortableAbsolutePath(value: string) {
-  return isAbsolute(value) || /^[a-z]:[\\/]/i.test(value) || value.startsWith("\\\\") || value.startsWith("//");
+  return (
+    isAbsolute(value) || /^[a-z]:[\\/]/i.test(value) || value.startsWith("\\\\") || value.startsWith("//")
+  );
 }
 
 async function ensurePrivateDirectory(path: string): Promise<void> {
@@ -259,7 +261,9 @@ export class Workspace {
     }
   }
 
-  async listDirectory(relativePath = "."): Promise<{ name: string; path: string; type: "file" | "dir" | "other" }[]> {
+  async listDirectory(
+    relativePath = ".",
+  ): Promise<{ name: string; path: string; type: "file" | "dir" | "other" }[]> {
     const target = await this.resolvePath(relativePath);
     const info = await lstat(target).catch(() => undefined);
     if (!info) throw new SandboxPathError("path not found");
@@ -269,7 +273,7 @@ export class Workspace {
     return entries.map((entry) => ({
       name: entry.name,
       path: prefix ? `${prefix}/${entry.name}` : entry.name,
-      type: entry.isFile() ? "file" as const : entry.isDirectory() ? "dir" as const : "other" as const,
+      type: entry.isFile() ? ("file" as const) : entry.isDirectory() ? ("dir" as const) : ("other" as const),
     }));
   }
 

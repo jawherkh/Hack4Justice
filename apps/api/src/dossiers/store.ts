@@ -10,20 +10,11 @@ import {
 } from "../access/policy";
 
 export type DossierLifecycle =
-  | "draft"
-  | "active"
-  | "awaiting_review"
-  | "correction_requested"
-  | "closed"
-  | "cancelled";
+  "draft" | "active" | "awaiting_review" | "correction_requested" | "closed" | "cancelled";
 
 export type Readiness = "unknown" | "incomplete" | "needs_review" | "ready";
 export type AgencyAcceptance =
-  | "not_submitted"
-  | "pending"
-  | "modification_requested"
-  | "accepted"
-  | "refused";
+  "not_submitted" | "pending" | "modification_requested" | "accepted" | "refused";
 export type PrerequisiteStatus = "unknown" | "satisfied" | "unsatisfied" | "not_applicable";
 
 export type NodeType =
@@ -379,7 +370,12 @@ export interface LifecycleCommandInput {
   readonly nodeId?: string;
   readonly correlationId?: string;
   readonly confirmed?: boolean;
-  readonly decision?: { action: "accept" | "refuse" | "request_modification"; reason: string; targetNodeIds: string[]; evidenceIds: string[] };
+  readonly decision?: {
+    action: "accept" | "refuse" | "request_modification";
+    reason: string;
+    targetNodeIds: string[];
+    evidenceIds: string[];
+  };
   readonly prerequisite?: PrerequisiteObservation;
 }
 
@@ -425,7 +421,11 @@ export interface AgentRepository {
   procedure(id: string): MaybePromise<ProcedureVersionRecord | undefined>;
   uploadDocument(input: UploadDocumentInput): MaybePromise<UploadDocumentResult>;
   dispatchCommand(input: LifecycleCommandInput): MaybePromise<LifecycleCommandAcknowledgement>;
-  agentSession(id: string, dossierId: string, principalId: string): MaybePromise<AgentSessionRecord | undefined>;
+  agentSession(
+    id: string,
+    dossierId: string,
+    principalId: string,
+  ): MaybePromise<AgentSessionRecord | undefined>;
   createAgentSession(input: CreateAgentSessionInput): MaybePromise<AgentSessionRecord>;
   saveAgentSession(session: AgentSessionRecord): MaybePromise<AgentSessionRecord>;
   appendAgentEvent(input: AgentEventInput): MaybePromise<AgentEventRecord>;
@@ -453,9 +453,12 @@ const ALL_NODE_TYPES: readonly NodeType[] = [
 const clone = <T>(value: T): T => structuredClone(value);
 const timestamp = (): string => new Date().toISOString();
 const checksum = (content: string): string => createHash("sha256").update(content).digest("hex");
-const commandFingerprint = (input: unknown): string => JSON.stringify(input, (_key, value) =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value);
+const commandFingerprint = (input: unknown): string =>
+  JSON.stringify(input, (_key, value) =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+      : value,
+  );
 
 function requireValue<T>(value: T | undefined, code = "not_found"): T {
   if (!value) throw new AccessError(404, code);
@@ -497,8 +500,14 @@ export class InMemoryDossierRepository implements AgentRepository {
   private readonly sourceRows = new Map<string, SourceRecord>();
   private readonly dependencyRows = new Map<string, DependencyRecord>();
   private readonly procedureRows = new Map<string, ProcedureVersionRecord>();
-  private readonly commandRows = new Map<string, { fingerprint: string; acknowledgement: LifecycleCommandAcknowledgement }>();
-  private readonly uploadReceiptRows = new Map<string, { fingerprint: string; response: UploadDocumentResult }>();
+  private readonly commandRows = new Map<
+    string,
+    { fingerprint: string; acknowledgement: LifecycleCommandAcknowledgement }
+  >();
+  private readonly uploadReceiptRows = new Map<
+    string,
+    { fingerprint: string; response: UploadDocumentResult }
+  >();
   private readonly agentSessionRows = new Map<string, AgentSessionRecord>();
   private readonly agentEventRows = new Map<string, AgentEventRecord>();
   private readonly helperTaskRows = new Map<string, HelperTaskRecord>();
@@ -510,15 +519,27 @@ export class InMemoryDossierRepository implements AgentRepository {
   public constructor(private readonly documentGrants: readonly DocumentGrant[] = []) {}
 
   public snapshot(): RepositorySnapshot {
-    return clone({ format: 1, sequence: this.sequence, dossiers: [...this.dossierRows.values()],
-      documents: [...this.documentRows.values()], nodes: [...this.nodeRows.values()],
-      findings: [...this.findingRows.values()], decisions: [...this.decisionRows.values()],
-      sources: [...this.sourceRows.values()], dependencies: [...this.dependencyRows.values()],
-      procedures: [...this.procedureRows.values()], commands: [...this.commandRows.entries()], grants: this.documentGrants,
+    return clone({
+      format: 1,
+      sequence: this.sequence,
+      dossiers: [...this.dossierRows.values()],
+      documents: [...this.documentRows.values()],
+      nodes: [...this.nodeRows.values()],
+      findings: [...this.findingRows.values()],
+      decisions: [...this.decisionRows.values()],
+      sources: [...this.sourceRows.values()],
+      dependencies: [...this.dependencyRows.values()],
+      procedures: [...this.procedureRows.values()],
+      commands: [...this.commandRows.entries()],
+      grants: this.documentGrants,
       uploadReceipts: [...this.uploadReceiptRows.entries()],
-      agentSessions: [...this.agentSessionRows.values()], agentEvents: [...this.agentEventRows.values()],
-      agentEventSequence: this.agentEventSequence, helperTasks: [...this.helperTaskRows.values()],
-      artifacts: [...this.artifactRows.values()], artifactContents: [...this.artifactContents.entries()] });
+      agentSessions: [...this.agentSessionRows.values()],
+      agentEvents: [...this.agentEventRows.values()],
+      agentEventSequence: this.agentEventSequence,
+      helperTasks: [...this.helperTaskRows.values()],
+      artifacts: [...this.artifactRows.values()],
+      artifactContents: [...this.artifactContents.entries()],
+    });
   }
 
   public static restore(snapshot: RepositorySnapshot): InMemoryDossierRepository {
@@ -538,7 +559,8 @@ export class InMemoryDossierRepository implements AgentRepository {
     for (const [key, row] of copy.uploadReceipts ?? []) repository.uploadReceiptRows.set(key, row);
     for (const row of copy.agentSessions ?? []) repository.agentSessionRows.set(row.id, row);
     for (const row of copy.agentEvents ?? []) repository.agentEventRows.set(row.id, row);
-    repository.agentEventSequence = copy.agentEventSequence ?? Math.max(0, ...(copy.agentEvents ?? []).map((event) => event.sequence));
+    repository.agentEventSequence =
+      copy.agentEventSequence ?? Math.max(0, ...(copy.agentEvents ?? []).map((event) => event.sequence));
     for (const row of copy.helperTasks ?? []) repository.helperTaskRows.set(row.id, row);
     for (const row of copy.artifacts ?? []) repository.artifactRows.set(row.id, row);
     for (const [id, content] of copy.artifactContents ?? []) repository.artifactContents.set(id, content);
@@ -569,7 +591,9 @@ export class InMemoryDossierRepository implements AgentRepository {
       dossier,
       nodes,
       requirements,
-      sources: [...sourceIds].map((sourceId) => this.sourceRows.get(sourceId)).filter((source): source is SourceRecord => Boolean(source)),
+      sources: [...sourceIds]
+        .map((sourceId) => this.sourceRows.get(sourceId))
+        .filter((source): source is SourceRecord => Boolean(source)),
       evidence: [...this.documentRows.values()].filter((document) => document.dossierId === id),
       findings: [...this.findingRows.values()].filter((finding) => finding.dossierId === id),
       decisions: [...this.decisionRows.values()].filter((decision) => decision.dossierId === id),
@@ -626,10 +650,15 @@ export class InMemoryDossierRepository implements AgentRepository {
       }
     }
 
-    const dossierId = input.dossierId ?? `dossier-${input.companyId}-${procedure.agency.toLowerCase()}-${++this.sequence}`;
+    const dossierId =
+      input.dossierId ?? `dossier-${input.companyId}-${procedure.agency.toLowerCase()}-${++this.sequence}`;
     const sourceId = procedure.sourceIds[0];
-    const requirementByCode = new Map(procedure.requirements.map((requirement) => [requirement.code, requirement]));
-    const nodeIdByKey = new Map(procedure.nodes.map((definition) => [definition.key, `node-${dossierId}-${definition.key}`]));
+    const requirementByCode = new Map(
+      procedure.requirements.map((requirement) => [requirement.code, requirement]),
+    );
+    const nodeIdByKey = new Map(
+      procedure.nodes.map((definition) => [definition.key, `node-${dossierId}-${definition.key}`]),
+    );
     const nodeIds: string[] = [];
 
     for (const definition of procedure.nodes) {
@@ -638,9 +667,14 @@ export class InMemoryDossierRepository implements AgentRepository {
       const requirements = definition.requirementCodes
         .map((code) => requirementByCode.get(code))
         .filter((requirement): requirement is RequirementRecord => Boolean(requirement));
-      const responsibleActor = definition.responsible === "officer"
-        ? { id: `officer-${procedure.agency.toLowerCase()}`, kind: "officer" as const, agency: procedure.agency }
-        : { id: input.companyId, kind: "business_member" as const };
+      const responsibleActor =
+        definition.responsible === "officer"
+          ? {
+              id: `officer-${procedure.agency.toLowerCase()}`,
+              kind: "officer" as const,
+              agency: procedure.agency,
+            }
+          : { id: input.companyId, kind: "business_member" as const };
       const node: NodeRecord = {
         companyId: input.companyId,
         dossierId,
@@ -653,7 +687,9 @@ export class InMemoryDossierRepository implements AgentRepository {
         title: definition.title,
         content: "",
         responsibleActor,
-        dependencies: definition.dependsOnKeys.map((key) => nodeIdByKey.get(key)).filter((id): id is string => Boolean(id)),
+        dependencies: definition.dependsOnKeys
+          .map((key) => nodeIdByKey.get(key))
+          .filter((id): id is string => Boolean(id)),
         requirementIds: requirements.map((requirement) => requirement.id),
         findingIds: [],
         sourceIds: [sourceId],
@@ -690,11 +726,18 @@ export class InMemoryDossierRepository implements AgentRepository {
 
   public uploadDocument(input: UploadDocumentInput) {
     const dossier = requireValue(this.dossierRows.get(input.dossierId));
-    const receiptKey = input.idempotencyKey ? `${input.dossierId}:${input.uploadedBy}:${input.idempotencyKey}` : undefined;
+    const receiptKey = input.idempotencyKey
+      ? `${input.dossierId}:${input.uploadedBy}:${input.idempotencyKey}`
+      : undefined;
     const fingerprint = commandFingerprint({
-      dossierId: input.dossierId, nodeId: input.nodeId, filename: input.filename, mimeType: input.mimeType,
-      contentSha256: input.binary?.sha256 ?? checksum(input.content), requirementIds: input.requirementIds ?? null,
-      replacesDocumentId: input.replacesDocumentId ?? null, expectedVersion: input.expectedVersion,
+      dossierId: input.dossierId,
+      nodeId: input.nodeId,
+      filename: input.filename,
+      mimeType: input.mimeType,
+      contentSha256: input.binary?.sha256 ?? checksum(input.content),
+      requirementIds: input.requirementIds ?? null,
+      replacesDocumentId: input.replacesDocumentId ?? null,
+      expectedVersion: input.expectedVersion,
       uploadedBy: input.uploadedBy,
     });
     if (receiptKey) {
@@ -704,15 +747,22 @@ export class InMemoryDossierRepository implements AgentRepository {
         return clone(previous.response);
       }
     }
-    if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled") throw new AccessError(409, "dossier_closed");
+    if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled")
+      throw new AccessError(409, "dossier_closed");
     assertVersion(dossier.version, input.expectedVersion);
     const node = requireValue(this.nodeRows.get(input.nodeId));
-    if (node.dossierId !== dossier.id || node.companyId !== dossier.companyId || node.agency !== dossier.agency) {
+    if (
+      node.dossierId !== dossier.id ||
+      node.companyId !== dossier.companyId ||
+      node.agency !== dossier.agency
+    ) {
       throw new AccessError(404, "not_found");
     }
     if (node.type !== "document_evidence") throw new AccessError(422, "node_does_not_accept_evidence");
 
-    const requirementIds = input.requirementIds?.length ? [...input.requirementIds] : [...node.requirementIds];
+    const requirementIds = input.requirementIds?.length
+      ? [...input.requirementIds]
+      : [...node.requirementIds];
     if (!requirementIds.length || requirementIds.some((id) => !node.requirementIds.includes(id))) {
       throw new AccessError(422, "invalid_requirement_scope");
     }
@@ -723,7 +773,9 @@ export class InMemoryDossierRepository implements AgentRepository {
       if (replaces.dossierId !== dossier.id || replaces.nodeId !== node.id) {
         throw new AccessError(404, "not_found");
       }
-      if ([...this.documentRows.values()].some((document) => document.replacesId === input.replacesDocumentId)) {
+      if (
+        [...this.documentRows.values()].some((document) => document.replacesId === input.replacesDocumentId)
+      ) {
         throw new AccessError(409, "document_already_replaced");
       }
     }
@@ -753,10 +805,12 @@ export class InMemoryDossierRepository implements AgentRepository {
 
     const invalidatedFindingIds: string[] = [];
     for (const finding of this.findingRows.values()) {
-      const affected = finding.dossierId === dossier.id && finding.validity === "current" && (
-        finding.nodeId === node.id || finding.requirementId && requirementIds.includes(finding.requirementId) ||
-        (replaces ? finding.evidenceIds.includes(replaces.id) : false)
-      );
+      const affected =
+        finding.dossierId === dossier.id &&
+        finding.validity === "current" &&
+        (finding.nodeId === node.id ||
+          (finding.requirementId && requirementIds.includes(finding.requirementId)) ||
+          (replaces ? finding.evidenceIds.includes(replaces.id) : false));
       if (affected) {
         invalidatedFindingIds.push(finding.id);
         this.findingRows.set(finding.id, { ...finding, validity: "stale" });
@@ -809,7 +863,8 @@ export class InMemoryDossierRepository implements AgentRepository {
 
   public updateConfirmedFacts(input: ConfirmedFactsInput) {
     const dossier = requireValue(this.dossierRows.get(input.dossierId));
-    if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled") throw new AccessError(409, "dossier_closed");
+    if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled")
+      throw new AccessError(409, "dossier_closed");
     assertVersion(dossier.version, input.expectedVersion);
     if (!Object.keys(input.changes).length) throw new AccessError(422, "empty_fact_update");
 
@@ -840,14 +895,20 @@ export class InMemoryDossierRepository implements AgentRepository {
   public assignDossier(input: ReviewAssignmentInput): DossierRecord {
     const dossier = requireValue(this.dossierRows.get(input.dossierId));
     assertVersion(dossier.version, input.expectedVersion);
-    if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled") throw new AccessError(409, "dossier_closed");
+    if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled")
+      throw new AccessError(409, "dossier_closed");
     if (dossier.agencyAcceptance !== "pending") throw new AccessError(409, "dossier_not_pending");
     if (dossier.assignedOfficerId && dossier.assignedOfficerId !== input.officerId) {
       throw new AccessError(409, "assignment_conflict");
     }
     if (dossier.assignedOfficerId === input.officerId) return clone(dossier);
-    const assigned = { ...dossier, assignedOfficerId: input.officerId, assignedAt: timestamp(),
-      version: dossier.version + 1, updatedAt: timestamp() };
+    const assigned = {
+      ...dossier,
+      assignedOfficerId: input.officerId,
+      assignedAt: timestamp(),
+      version: dossier.version + 1,
+      updatedAt: timestamp(),
+    };
     this.dossierRows.set(dossier.id, assigned);
     return clone(assigned);
   }
@@ -858,14 +919,16 @@ export class InMemoryDossierRepository implements AgentRepository {
     const fingerprint = commandFingerprint(input);
     const previous = this.commandRows.get(key);
     if (previous) {
-      if (commandFingerprint(JSON.parse(previous.fingerprint)) !== fingerprint) throw new AccessError(409, "idempotency_conflict");
+      if (commandFingerprint(JSON.parse(previous.fingerprint)) !== fingerprint)
+        throw new AccessError(409, "idempotency_conflict");
       return clone(previous.acknowledgement);
     }
     if (input.type === "decision_recorded" && dossier.assignedOfficerId !== input.actorId) {
       throw new AccessError(409, "dossier_not_assigned");
     }
     assertVersion(dossier.version, input.expectedVersion);
-    if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled") throw new AccessError(409, "dossier_closed");
+    if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled")
+      throw new AccessError(409, "dossier_closed");
     if (input.nodeId && !dossier.nodeIds.includes(input.nodeId)) throw new AccessError(404, "not_found");
 
     const acknowledgement: LifecycleCommandAcknowledgement = {
@@ -942,7 +1005,10 @@ export class InMemoryDossierRepository implements AgentRepository {
 
   public saveAgentSession(session: AgentSessionRecord): AgentSessionRecord {
     const previous = this.agentSessionRows.get(session.id);
-    if (previous && (previous.dossierId !== session.dossierId || previous.principalId !== session.principalId)) {
+    if (
+      previous &&
+      (previous.dossierId !== session.dossierId || previous.principalId !== session.principalId)
+    ) {
       throw new AccessError(409, "agent_session_conflict");
     }
     const saved = { ...session, updatedAt: timestamp(), history: [...session.history] };
@@ -974,10 +1040,18 @@ export class InMemoryDossierRepository implements AgentRepository {
   }
 
   public createHelperTask(input: CreateHelperTaskInput): HelperTaskRecord {
-    const existing = [...this.helperTaskRows.values()].find((task) =>
-      task.dossierId === input.dossierId && task.requestedBy === input.requestedBy && task.idempotencyKey === input.idempotencyKey);
+    const existing = [...this.helperTaskRows.values()].find(
+      (task) =>
+        task.dossierId === input.dossierId &&
+        task.requestedBy === input.requestedBy &&
+        task.idempotencyKey === input.idempotencyKey,
+    );
     if (existing) {
-      if (existing.title !== input.title || existing.description !== input.description || existing.nodeId !== input.nodeId) {
+      if (
+        existing.title !== input.title ||
+        existing.description !== input.description ||
+        existing.nodeId !== input.nodeId
+      ) {
         throw new AccessError(409, "idempotency_conflict");
       }
       return clone(existing);
@@ -1006,12 +1080,19 @@ export class InMemoryDossierRepository implements AgentRepository {
   }
 
   public publishArtifact(input: PublishArtifactInput): ArtifactRecord {
-    const existing = [...this.artifactRows.values()].find((artifact) =>
-      artifact.dossierId === input.dossierId && artifact.createdBy === input.createdBy &&
-      artifact.idempotencyKey === input.idempotencyKey);
+    const existing = [...this.artifactRows.values()].find(
+      (artifact) =>
+        artifact.dossierId === input.dossierId &&
+        artifact.createdBy === input.createdBy &&
+        artifact.idempotencyKey === input.idempotencyKey,
+    );
     if (existing) {
       const checksumValue = createHash("sha256").update(input.bytes).digest("hex");
-      if (existing.sha256 !== checksumValue || existing.nodeId !== input.nodeId || existing.draftKey !== input.draftKey) {
+      if (
+        existing.sha256 !== checksumValue ||
+        existing.nodeId !== input.nodeId ||
+        existing.draftKey !== input.draftKey
+      ) {
         throw new AccessError(409, "idempotency_conflict");
       }
       return clone(existing);
@@ -1019,7 +1100,12 @@ export class InMemoryDossierRepository implements AgentRepository {
 
     const dossier = requireValue(this.dossierRows.get(input.dossierId));
     const currentVersions = [...this.artifactRows.values()]
-      .filter((artifact) => artifact.dossierId === dossier.id && artifact.nodeId === input.nodeId && artifact.draftKey === input.draftKey)
+      .filter(
+        (artifact) =>
+          artifact.dossierId === dossier.id &&
+          artifact.nodeId === input.nodeId &&
+          artifact.draftKey === input.draftKey,
+      )
       .map((artifact) => artifact.version);
     const bytes = new Uint8Array(input.bytes);
     const sha256 = createHash("sha256").update(bytes).digest("hex");
@@ -1082,48 +1168,56 @@ const procedureNodes: readonly ProcedureNodeDefinition[] = ALL_NODE_TYPES.map((t
   dependsOnKeys: index === 0 ? [] : [ALL_NODE_TYPES[index - 1]],
   requirementCodes: type === "document_evidence" ? ["SYNTHETIC-01", "SYNTHETIC-02"] : [],
   responsible: type === "decision" || type === "human_review" ? "officer" : "business_member",
-  allowedActions: type === "information_input"
-    ? ["view", "edit_facts"]
-    : type === "document_evidence"
-      ? ["view", "upload_evidence", "correct_evidence", "request_review"]
-      : type === "document_preparation"
-        ? ["view", "prepare_document"]
-        : type === "validation"
-          ? ["view", "run_validation"]
-          : type === "decision" || type === "human_review"
-            ? ["view", "record_decision"]
-            : type === "submission"
-              ? ["view", "submit", "resubmit"]
-              : ["view", "execute_external"],
+  allowedActions:
+    type === "information_input"
+      ? ["view", "edit_facts"]
+      : type === "document_evidence"
+        ? ["view", "upload_evidence", "correct_evidence", "request_review"]
+        : type === "document_preparation"
+          ? ["view", "prepare_document"]
+          : type === "validation"
+            ? ["view", "run_validation"]
+            : type === "decision" || type === "human_review"
+              ? ["view", "record_decision"]
+              : type === "submission"
+                ? ["view", "submit", "resubmit"]
+                : ["view", "execute_external"],
 }));
 
-export function createDemoDossierRepository(grants: readonly DocumentGrant[] = []): InMemoryDossierRepository {
+export function createDemoDossierRepository(
+  grants: readonly DocumentGrant[] = [],
+): InMemoryDossierRepository {
   const repository = new InMemoryDossierRepository(grants);
   const agencies: readonly Agency[] = ["DGI", "RNE", "APII"];
 
   for (const agency of agencies) {
     const source = procedureSource(agency);
-    const requirements: readonly RequirementRecord[] = ["SYNTHETIC-01", "SYNTHETIC-02"].map((code, index) => ({
-      id: `requirement-${agency.toLowerCase()}-synthetic-0${index + 1}`,
-      procedureVersionId: `procedure-${agency.toLowerCase()}-v1`,
-      code,
-      description: "Synthetic supporting document",
-      evidenceType: "synthetic_document",
-      minimumCount: 1,
-      applicability: "applicable",
-      sourceIds: [source.id],
-    }));
-    repository.addProcedure({
-      id: `procedure-${agency.toLowerCase()}-v1`,
-      code: `synthetic_${agency.toLowerCase()}_journey`,
-      version: "demo-1",
-      agency,
-      title: `${agency} synthetic journey — not an official procedure`,
-      status: "synthetic",
-      sourceIds: [source.id],
-      requirements,
-      nodes: procedureNodes,
-    }, [source]);
+    const requirements: readonly RequirementRecord[] = ["SYNTHETIC-01", "SYNTHETIC-02"].map(
+      (code, index) => ({
+        id: `requirement-${agency.toLowerCase()}-synthetic-0${index + 1}`,
+        procedureVersionId: `procedure-${agency.toLowerCase()}-v1`,
+        code,
+        description: "Synthetic supporting document",
+        evidenceType: "synthetic_document",
+        minimumCount: 1,
+        applicability: "applicable",
+        sourceIds: [source.id],
+      }),
+    );
+    repository.addProcedure(
+      {
+        id: `procedure-${agency.toLowerCase()}-v1`,
+        code: `synthetic_${agency.toLowerCase()}_journey`,
+        version: "demo-1",
+        agency,
+        title: `${agency} synthetic journey — not an official procedure`,
+        status: "synthetic",
+        sourceIds: [source.id],
+        requirements,
+        nodes: procedureNodes,
+      },
+      [source],
+    );
   }
 
   for (const company of ["alpha", "beta"]) {
@@ -1138,10 +1232,12 @@ export function createDemoDossierRepository(grants: readonly DocumentGrant[] = [
         `requirement-${lowerAgency}-synthetic-01`,
         `requirement-${lowerAgency}-synthetic-02`,
       ];
-      const nodeIds = procedureNodes.map((definition) => definition.key === "information_input"
-        ? `node-${suffix}`
-        : `node-${suffix}-${definition.key}`);
-      const nodeIdByKey = new Map(procedureNodes.map((definition, index) => [definition.key, nodeIds[index]]));
+      const nodeIds = procedureNodes.map((definition) =>
+        definition.key === "information_input" ? `node-${suffix}` : `node-${suffix}-${definition.key}`,
+      );
+      const nodeIdByKey = new Map(
+        procedureNodes.map((definition, index) => [definition.key, nodeIds[index]]),
+      );
       const prerequisiteStatus: PrerequisiteStatus = agency === "DGI" ? "satisfied" : "unknown";
 
       for (const [index, definition] of procedureNodes.entries()) {
@@ -1157,10 +1253,13 @@ export function createDemoDossierRepository(grants: readonly DocumentGrant[] = [
           state: "not_started",
           title: definition.title,
           content: "",
-          responsibleActor: definition.responsible === "officer"
-            ? { id: `demo-officer-${lowerAgency}`, kind: "officer", agency }
-            : { id: `demo-member-${company}`, kind: "business_member" },
-          dependencies: definition.dependsOnKeys.map((key) => nodeIdByKey.get(key)).filter((id): id is string => Boolean(id)),
+          responsibleActor:
+            definition.responsible === "officer"
+              ? { id: `demo-officer-${lowerAgency}`, kind: "officer", agency }
+              : { id: `demo-member-${company}`, kind: "business_member" },
+          dependencies: definition.dependsOnKeys
+            .map((key) => nodeIdByKey.get(key))
+            .filter((id): id is string => Boolean(id)),
           requirementIds: definition.type === "document_evidence" ? requirementIds : [],
           findingIds: [],
           sourceIds: [source.id],
