@@ -13,6 +13,7 @@ import { Route as Char123LocaleChar125RouteRouteImport } from './routes/{-$local
 import { Route as Char123LocaleChar125IndexRouteImport } from './routes/{-$locale}/index'
 import { Route as Char123LocaleChar125AboutRouteImport } from './routes/{-$locale}/about'
 import { Route as Char123LocaleChar125AccountRouteImport } from './routes/{-$locale}/account'
+import { Route as Char123LocaleChar125AlertsRouteImport } from './routes/{-$locale}/alerts'
 import { Route as Char123LocaleChar125DesignSystemRouteImport } from './routes/{-$locale}/design-system'
 import { Route as Char123LocaleChar125ForgotPasswordRouteImport } from './routes/{-$locale}/forgot-password'
 import { Route as Char123LocaleChar125LoginRouteImport } from './routes/{-$locale}/login'
@@ -53,6 +54,12 @@ const Char123LocaleChar125AccountRoute =
   Char123LocaleChar125AccountRouteImport.update({
     id: '/account',
     path: '/account',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
+const Char123LocaleChar125AlertsRoute =
+  Char123LocaleChar125AlertsRouteImport.update({
+    id: '/alerts',
+    path: '/alerts',
     getParentRoute: () => Char123LocaleChar125RouteRoute,
   } as any)
 const Char123LocaleChar125DesignSystemRoute =
@@ -162,6 +169,7 @@ export interface FileRoutesByFullPath {
   '/{-$locale}': typeof Char123LocaleChar125RouteRouteWithChildren
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
   '/{-$locale}/account': typeof Char123LocaleChar125AccountRoute
+  '/{-$locale}/alerts': typeof Char123LocaleChar125AlertsRoute
   '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
   '/{-$locale}/forgot-password': typeof Char123LocaleChar125ForgotPasswordRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
@@ -184,6 +192,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
   '/{-$locale}/account': typeof Char123LocaleChar125AccountRoute
+  '/{-$locale}/alerts': typeof Char123LocaleChar125AlertsRoute
   '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
   '/{-$locale}/forgot-password': typeof Char123LocaleChar125ForgotPasswordRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
@@ -206,6 +215,7 @@ export interface FileRoutesById {
   '/{-$locale}': typeof Char123LocaleChar125RouteRouteWithChildren
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
   '/{-$locale}/account': typeof Char123LocaleChar125AccountRoute
+  '/{-$locale}/alerts': typeof Char123LocaleChar125AlertsRoute
   '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
   '/{-$locale}/forgot-password': typeof Char123LocaleChar125ForgotPasswordRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
@@ -231,6 +241,7 @@ export interface FileRouteTypes {
     | '/{-$locale}'
     | '/{-$locale}/about'
     | '/{-$locale}/account'
+    | '/{-$locale}/alerts'
     | '/{-$locale}/design-system'
     | '/{-$locale}/forgot-password'
     | '/{-$locale}/login'
@@ -253,6 +264,7 @@ export interface FileRouteTypes {
   to:
     | '/{-$locale}/about'
     | '/{-$locale}/account'
+    | '/{-$locale}/alerts'
     | '/{-$locale}/design-system'
     | '/{-$locale}/forgot-password'
     | '/{-$locale}/login'
@@ -274,6 +286,7 @@ export interface FileRouteTypes {
     | '/{-$locale}'
     | '/{-$locale}/about'
     | '/{-$locale}/account'
+    | '/{-$locale}/alerts'
     | '/{-$locale}/design-system'
     | '/{-$locale}/forgot-password'
     | '/{-$locale}/login'
@@ -326,6 +339,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/{-$locale}/account'
       preLoaderRoute: typeof Char123LocaleChar125AccountRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
+    '/{-$locale}/alerts': {
+      id: '/{-$locale}/alerts'
+      path: '/alerts'
+      fullPath: '/{-$locale}/alerts'
+      preLoaderRoute: typeof Char123LocaleChar125AlertsRouteImport
       parentRoute: typeof Char123LocaleChar125RouteRoute
     }
     '/{-$locale}/design-system': {
@@ -495,6 +515,7 @@ const Char123LocaleChar125ProjectsIdRouteWithChildren =
 interface Char123LocaleChar125RouteRouteChildren {
   Char123LocaleChar125AboutRoute: typeof Char123LocaleChar125AboutRoute
   Char123LocaleChar125AccountRoute: typeof Char123LocaleChar125AccountRoute
+  Char123LocaleChar125AlertsRoute: typeof Char123LocaleChar125AlertsRoute
   Char123LocaleChar125DesignSystemRoute: typeof Char123LocaleChar125DesignSystemRoute
   Char123LocaleChar125ForgotPasswordRoute: typeof Char123LocaleChar125ForgotPasswordRoute
   Char123LocaleChar125LoginRoute: typeof Char123LocaleChar125LoginRoute
@@ -513,6 +534,7 @@ const Char123LocaleChar125RouteRouteChildren: Char123LocaleChar125RouteRouteChil
   {
     Char123LocaleChar125AboutRoute: Char123LocaleChar125AboutRoute,
     Char123LocaleChar125AccountRoute: Char123LocaleChar125AccountRoute,
+    Char123LocaleChar125AlertsRoute: Char123LocaleChar125AlertsRoute,
     Char123LocaleChar125DesignSystemRoute:
       Char123LocaleChar125DesignSystemRoute,
     Char123LocaleChar125ForgotPasswordRoute:

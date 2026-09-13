@@ -41,3 +41,19 @@ export function formatRelative(value: string | Date, locale: Locale, now: number
   }
   return rtf.format(0, 'second')
 }
+
+/** Calendar date only, e.g. "30 April 2026". Accepts `YYYY-MM-DD` without shifting by timezone. */
+export function formatDay(value: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(INTL_LOCALES[locale], { dateStyle: 'long', timeZone: 'UTC' }).format(
+    new Date(`${value}T00:00:00Z`),
+  )
+}
+
+/** "April 2026", for a fiscal period identified by year and 1-based month. */
+export function formatMonth(year: number, month: number, locale: Locale): string {
+  return new Intl.DateTimeFormat(INTL_LOCALES[locale], {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(year, month - 1, 1)))
+}
