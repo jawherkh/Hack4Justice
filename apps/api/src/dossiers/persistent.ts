@@ -8,7 +8,7 @@ import { lifecycleCommandBody, prerequisiteBody } from "../lifecycle/validation"
 import { createDemoDossierRepository, InMemoryDossierRepository,
   type AgentEventInput, type AgentEventRecord, type AgentRepository, type AgentSessionRecord,
   type ArtifactRecord, type BinaryEvidenceInput, type CreateAgentSessionInput, type CreateDossierInput, type ConfirmedFactsInput,
-  type CreateHelperTaskInput, type HelperTaskRecord, type LifecycleCommandInput, type PublishArtifactInput,
+  type CreateHelperTaskInput, type HelperTaskRecord, type LifecycleCommandInput, type PublishArtifactInput, type ReviewAssignmentInput,
   type AccessRepository, type RepositorySnapshot, type UploadDocumentInput } from "./store";
 
 type UploadResult = ReturnType<AccessRepository["uploadDocument"]>;
@@ -27,6 +27,7 @@ export type AsyncAccessRepository = {
   createDossier(input: CreateDossierInput): ReturnType<AccessRepository["createDossier"]> | Promise<ReturnType<AccessRepository["createDossier"]>>;
   uploadDocument(input: TextUpload): UploadResult | Promise<UploadResult>;
   updateConfirmedFacts(input: ConfirmedFactsInput): ReturnType<AccessRepository["updateConfirmedFacts"]> | Promise<ReturnType<AccessRepository["updateConfirmedFacts"]>>;
+  assignDossier(input: ReviewAssignmentInput): ReturnType<AccessRepository["assignDossier"]> | Promise<ReturnType<AccessRepository["assignDossier"]>>;
   dispatchCommand(input: LifecycleCommandInput): ReturnType<AccessRepository["dispatchCommand"]> | Promise<ReturnType<AccessRepository["dispatchCommand"]>>;
 } & {
   uploadFile?(input: BinaryUpload): Promise<UploadResult>;
@@ -102,6 +103,9 @@ export class PersistentRepository implements AsyncAccessRepository, AgentReposit
         type: "evidence_changed", expectedVersion: result.detail.dossier.version, idempotencyKey: `facts:${result.detail.dossier.version}` });
       return result;
     });
+  }
+  assignDossier(input: ReviewAssignmentInput) {
+    return this.write((r) => r.assignDossier(input), { actorId: input.officerId });
   }
   dispatchCommand(input: LifecycleCommandInput) {
     return this.write((r, tx) => this.enqueue(r, tx, input));

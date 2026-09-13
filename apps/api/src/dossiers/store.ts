@@ -106,6 +106,8 @@ export interface ProcedureVersionRecord {
 
 export interface DossierRecord extends ResourceScope {
   readonly lifecycleContext?: LifecycleContext;
+  readonly assignedOfficerId?: string;
+  readonly assignedAt?: string;
   readonly id: string;
   readonly title: string;
   readonly simulated: true;
@@ -355,6 +357,12 @@ export interface ConfirmedFactsInput {
   readonly changes: Readonly<Record<string, unknown>>;
 }
 
+export interface ReviewAssignmentInput {
+  readonly dossierId: string;
+  readonly expectedVersion: number;
+  readonly officerId: string;
+}
+
 export interface LifecycleCommandInput {
   readonly dossierId: string;
   readonly type:
@@ -405,6 +413,7 @@ export interface AccessRepository {
     readonly detail: DossierDetail;
     readonly invalidatedFindingIds: readonly string[];
   };
+  assignDossier(input: ReviewAssignmentInput): DossierRecord;
   dispatchCommand(input: LifecycleCommandInput): LifecycleCommandAcknowledgement;
 }
 
@@ -828,6 +837,21 @@ export class InMemoryDossierRepository implements AgentRepository {
     };
   }
 
+  public assignDossier(input: ReviewAssignmentInput): DossierRecord {
+    const dossier = requireValue(this.dossierRows.get(input.dossierId));
+    assertVersion(dossier.version, input.expectedVersion);
+    if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled") throw new AccessError(409, "dossier_closed");
+    if (dossier.agencyAcceptance !== "pending") throw new AccessError(409, "dossier_not_pending");
+    if (dossier.assignedOfficerId && dossier.assignedOfficerId !== input.officerId) {
+      throw new AccessError(409, "assignment_conflict");
+    }
+    if (dossier.assignedOfficerId === input.officerId) return clone(dossier);
+    const assigned = { ...dossier, assignedOfficerId: input.officerId, assignedAt: timestamp(),
+      version: dossier.version + 1, updatedAt: timestamp() };
+    this.dossierRows.set(dossier.id, assigned);
+    return clone(assigned);
+  }
+
   public dispatchCommand(input: LifecycleCommandInput): LifecycleCommandAcknowledgement {
     const dossier = requireValue(this.dossierRows.get(input.dossierId));
     const key = `${input.dossierId}:${input.actorId}:${input.idempotencyKey}`;
@@ -836,6 +860,9 @@ export class InMemoryDossierRepository implements AgentRepository {
     if (previous) {
       if (commandFingerprint(JSON.parse(previous.fingerprint)) !== fingerprint) throw new AccessError(409, "idempotency_conflict");
       return clone(previous.acknowledgement);
+    }
+    if (input.type === "decision_recorded" && dossier.assignedOfficerId !== input.actorId) {
+      throw new AccessError(409, "dossier_not_assigned");
     }
     assertVersion(dossier.version, input.expectedVersion);
     if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled") throw new AccessError(409, "dossier_closed");
