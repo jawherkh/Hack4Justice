@@ -12,6 +12,7 @@ import type {
 } from "../lifecycle/contracts";
 import { lifecycleCommandBody, prerequisiteBody } from "../lifecycle/validation";
 import type { ObligationObservationInput, OfficerReassessmentInput } from "../obligations/contracts";
+import { gateError, submissionAction } from "../requirements/evaluator";
 import {
   createDemoDossierRepository,
   InMemoryDossierRepository,
@@ -27,6 +28,7 @@ import {
   type CreateHelperTaskInput,
   type HelperTaskRecord,
   type LifecycleCommandInput,
+  type NodeAction,
   type PublishArtifactInput,
   type ReviewAssignmentInput,
   type AccessRepository,
@@ -64,6 +66,11 @@ export type AsyncAccessRepository = {
   ):
     | ReturnType<AccessRepository["obligationEvents"]>
     | Promise<ReturnType<AccessRepository["obligationEvents"]>>;
+  actionGate(
+    dossierId: string,
+    action: NodeAction,
+    nodeId?: string,
+  ): ReturnType<AccessRepository["actionGate"]> | Promise<ReturnType<AccessRepository["actionGate"]>>;
   grants(): ReturnType<AccessRepository["grants"]> | Promise<ReturnType<AccessRepository["grants"]>>;
   procedures():
     ReturnType<AccessRepository["procedures"]> | Promise<ReturnType<AccessRepository["procedures"]>>;
@@ -202,6 +209,9 @@ export class PersistentRepository implements AsyncAccessRepository, AgentReposit
   dossierDetail(id: string) {
     return this.read((r) => r.dossierDetail(id));
   }
+  actionGate(dossierId: string, action: NodeAction, nodeId?: string) {
+    return this.read((r) => r.actionGate(dossierId, action, nodeId));
+  }
   dependencies(companyId: string, agency: "DGI" | "RNE" | "APII") {
     return this.read((r) => r.dependencies(companyId, agency));
   }
@@ -336,6 +346,7 @@ export class PersistentRepository implements AsyncAccessRepository, AgentReposit
         reference,
         command: row.payload,
         now: new Date().toISOString(),
+        ...this.commandGate(r, row.payload),
         state: {
           version: dossier.version,
           lifecycle: dossier.lifecycle,
@@ -346,6 +357,22 @@ export class PersistentRepository implements AsyncAccessRepository, AgentReposit
         },
       };
     });
+  }
+  private commandGate(
+    repository: InMemoryDossierRepository,
+    command: LifecycleCommandInput,
+  ): Pick<PreparedCommand, "gate" | "validationError"> {
+    const action = submissionAction(command.type);
+    if (!action) return {};
+    try {
+      return { gate: repository.actionGate(command.dossierId, action, command.nodeId) };
+    } catch (error) {
+      // Old queued commands can name unavailable or ambiguous targets; reject them instead of retrying forever.
+      if (error instanceof AccessError && error.code === "action_not_available") {
+        return { validationError: error.code };
+      }
+      throw error;
+    }
   }
   async commit(prepared: PreparedCommand, transition: Transition): Promise<CommandResult> {
     const { reference, command } = prepared;
@@ -360,21 +387,13 @@ export class PersistentRepository implements AsyncAccessRepository, AgentReposit
         if (!previous) throw new AccessError(404, "not_found");
         if (previous.result.status !== "queued") return previous.result;
         const detail = r.dossierDetail(reference.dossierId)!;
-        const expired =
-          (command.type === "submission_requested" || command.type === "resubmission_requested") &&
-          Object.values(prepared.state.context.prerequisites).some(
-            (o) =>
-              o.actions.includes(command.type as "submission_requested" | "resubmission_requested") &&
-              Date.parse(o.expiresAt) <= Date.now(),
-          );
+        const currentGate = this.commandGate(r, command);
         const error =
           detail.dossier.version !== prepared.state.version
             ? "version_conflict"
             : "error" in transition
               ? transition.error
-              : expired
-                ? "prerequisite_needs_review"
-                : undefined;
+              : (currentGate.validationError ?? (currentGate.gate ? gateError(currentGate.gate) : undefined));
         const result: CommandResult = {
           ...reference,
           status: error ? "rejected" : "completed",

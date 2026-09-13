@@ -1,5 +1,6 @@
 import type { PreparedCommand, Transition } from "./contracts";
 import { combinePrerequisiteStatuses, observationStatus } from "./prerequisites";
+import { gateError } from "../requirements/evaluator";
 
 function aggregatePrerequisiteStatus(
   observations: PreparedCommand["state"]["context"]["prerequisites"],
@@ -12,9 +13,10 @@ function aggregatePrerequisiteStatus(
 }
 
 // Pure transition logic is shared with replay tests. No I/O belongs here.
-export function transition({ command, state, now }: PreparedCommand): Transition {
+export function transition({ command, state, now, gate, validationError }: PreparedCommand): Transition {
   if (command.expectedVersion !== state.version) return { error: "version_conflict" };
   if (state.lifecycle === "closed" || state.lifecycle === "cancelled") return { error: "dossier_closed" };
+  if (validationError) return { error: validationError };
   const next = {
     ...state,
     version: state.version + 1,
@@ -38,7 +40,10 @@ export function transition({ command, state, now }: PreparedCommand): Transition
       const required = command.type === "submission_requested" ? "not_submitted" : "modification_requested";
       if (state.agencyAcceptance !== required) return { error: "invalid_transition" };
       if (!command.confirmed) return { error: "explicit_confirmation_required" };
-      for (const observation of Object.values(state.context.prerequisites)) {
+      const error = gate && gateError(gate);
+      if (error) return { error };
+      // Older workflow histories have no evaluated gate and retain their original observation checks.
+      for (const observation of gate ? [] : Object.values(state.context.prerequisites)) {
         if (!observation.actions.includes(command.type)) continue;
         const status = observationStatus(observation, Date.parse(now));
         if (status !== "satisfied") {
