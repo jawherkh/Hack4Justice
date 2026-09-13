@@ -41,12 +41,30 @@ describe("legal PDF folder ingestion", () => {
       },
     });
 
-    expect(result).toEqual({ files: 3, batches: 3 });
+    expect(result).toEqual({ files: 3, batches: 3, partialDocuments: 0, skippedChunks: 0 });
     expect(extractedTypes).toEqual(["application/pdf", "text/html", "application/pdf"]);
     expect(requests.map((request) => request.documents[0]?.title)).toEqual(["a", "tax", "z"]);
     expect(requests.every((request) => request.url.endsWith("/bulk"))).toBe(true);
     expect(requests.every((request) => request.agency === "RNE")).toBe(true);
     expect(requests[0]?.documents[0]?.section).toBe("nested/a.PDF");
+  });
+
+  test("reports chunks skipped by Graphiti without failing the folder run", async () => {
+    const root = await mkdtemp(join(tmpdir(), "h4j-ingest-test-"));
+    directories.push(root);
+    await writeFile(join(root, "tax.txt"), "tax source");
+
+    const result = await ingestPdfFolder({
+      folder: root,
+      agency: "DGI",
+      graphitiEndpoint: "http://graphiti.test/api/v1/knowledge/ingest/bulk",
+      extractor: { async extract() { return { text: "tax source", pageCount: 1, method: "native" as const }; } },
+      request: async () => new Response(JSON.stringify({
+        documents: [{ status: "partial", skipped_chunks: [{}, {}] }],
+      }), { status: 200 }),
+    });
+
+    expect(result).toEqual({ files: 1, batches: 1, partialDocuments: 1, skippedChunks: 2 });
   });
 
   test("rejects an agency outside the initial RNE and DGI scope", async () => {

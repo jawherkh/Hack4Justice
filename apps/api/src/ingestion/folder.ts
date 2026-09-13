@@ -27,6 +27,8 @@ export interface FolderIngestionOptions {
 export interface FolderIngestionResult {
   files: number;
   batches: number;
+  partialDocuments: number;
+  skippedChunks: number;
 }
 
 export class FolderIngestionError extends Error {
@@ -78,13 +80,25 @@ async function sendBatch(
   agency: KnowledgeAgency,
   documents: LegalDocumentPayload[],
   request: HttpRequest,
-): Promise<void> {
+): Promise<Pick<FolderIngestionResult, "partialDocuments" | "skippedChunks">> {
   const response = await request(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Agency-Code": agency },
     body: JSON.stringify({ documents }),
   });
   if (!response.ok) throw new FolderIngestionError(502, `Graphiti ingestion failed with ${response.status}`);
+
+  const result = await response.json().catch(() => ({})) as {
+    documents?: { status?: string; skipped_chunks?: unknown[] }[];
+  };
+  const documentResults = Array.isArray(result.documents) ? result.documents : [];
+  return {
+    partialDocuments: documentResults.filter((document) => document.status === "partial").length,
+    skippedChunks: documentResults.reduce(
+      (count, document) => count + (Array.isArray(document.skipped_chunks) ? document.skipped_chunks.length : 0),
+      0,
+    ),
+  };
 }
 
 /** Recursively ingests PDF files into the agency-scoped Graphiti bulk endpoint. */
@@ -124,9 +138,18 @@ export async function ingestPdfFolder(options: FolderIngestionOptions): Promise<
   }
 
   let batches = 0;
+  let partialDocuments = 0;
+  let skippedChunks = 0;
   for (let index = 0; index < documents.length; index += batchSize) {
-    await sendBatch(options.graphitiEndpoint, agency as KnowledgeAgency, documents.slice(index, index + batchSize), request);
+    const result = await sendBatch(
+      options.graphitiEndpoint,
+      agency as KnowledgeAgency,
+      documents.slice(index, index + batchSize),
+      request,
+    );
     batches += 1;
+    partialDocuments += result.partialDocuments;
+    skippedChunks += result.skippedChunks;
   }
-  return { files: files.length, batches };
+  return { files: files.length, batches, partialDocuments, skippedChunks };
 }

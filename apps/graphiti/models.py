@@ -79,13 +79,25 @@ class IngestedEpisode(ServiceModel):
     token_count: int = 0
 
 
+class SkippedChunk(ServiceModel):
+    """A chunk that exhausted its Graphiti retries without blocking the document."""
+
+    chunk_index: int
+    chunk_count: int
+    start_index: int = 0
+    end_index: int = 0
+    token_count: int = 0
+    error: Annotated[str, Field(min_length=1, max_length=500)]
+
+
 class IngestResponse(ServiceModel):
     agency: AgencyCode
     group_id: str
     document_id: str
     source_kind: Literal["official", "synthetic"]
-    status: Literal["processed"] = "processed"
+    status: Literal["processed", "partial"] = "processed"
     episodes: list[IngestedEpisode]
+    skipped_chunks: list[SkippedChunk] = Field(default_factory=list)
 
 
 class BulkIngestResponse(ServiceModel):
