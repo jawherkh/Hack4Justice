@@ -1,5 +1,10 @@
-import postgres from "postgres";
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
+
+// This launcher lives outside a workspace package, so resolve postgres from the
+// API package's dependency graph instead of relying on a root node_modules link.
+const require = createRequire(new URL("../apps/api/package.json", import.meta.url));
+const postgres = require("postgres");
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -41,4 +46,3 @@ const api = spawn("node", ["apps/api/dist/index.js"], { stdio: "inherit", env: p
 process.on("SIGTERM", () => api.kill("SIGTERM"));
 process.on("SIGINT", () => api.kill("SIGINT"));
 api.on("exit", (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
-
