@@ -31,5 +31,7 @@
   "identity_provider_not_configured": "لم يتم إعداد مزوّد الهوية",
   "storage_not_initialized": "لم تتم تهيئة التخزين",
   "workflow_not_configured": "لم يتم إعداد سير العمل",
-  "extraction_in_progress": "هناك عملية استخراج جارية بالفعل لهذا الملف"
+  "extraction_in_progress": "هناك عملية استخراج جارية بالفعل لهذا الملف",
+  "invalid_export_format": "تنسيق التصدير غير مدعوم",
+  "agent_output_not_available": "رد المساعد غير جاهز للتصدير"
 }

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { AccessError, canReadDossier, requireAccess } from "../access/policy";
 import type { ResolvePrincipal } from "../access/identity";
 import type { AgentRepository } from "../dossiers/store";
+import { renderMarkdownPdf } from "./export";
 import type { PrincipalAgentService } from "./service";
 
 const requestBody = z.strictObject({
@@ -13,6 +14,8 @@ const requestBody = z.strictObject({
   selectedNodeId: z.string().trim().min(1).max(200).optional(),
   confirmedAction: z.enum(["submission_requested", "resubmission_requested", "cancellation_requested"]).optional(),
 });
+
+const exportFormat = z.enum(["markdown", "pdf"]);
 
 function found<T>(value: T | undefined): T {
   if (!value) throw new AccessError(404, "not_found");
@@ -76,7 +79,8 @@ export function createAgentRoutes(
             onEvent: async (event) => send(event),
           }).then((result) => {
             if (!closed) {
-              send({ id: `${session.id}:result`, type: "result", sessionId: result.sessionId, finalOutput: result.finalOutput ?? null,
+              send({ id: `${session.id}:result`, type: "result", sessionId: result.sessionId, runId: result.runId,
+                outputFormat: result.outputFormat, finalOutput: result.finalOutput ?? null,
                 lastResponseId: result.lastResponseId ?? null, interrupted: result.interrupted });
               closed = true;
               controller.close();
@@ -109,18 +113,45 @@ export function createAgentRoutes(
       if (!after.success) throw new AccessError(422, "invalid_event_cursor");
       return { sessionId: session.id, events: await repository.agentEvents(session.id, after.data) };
     })
+    .get("/dossiers/:dossierId/agent/sessions/:sessionId/runs/:runId/export", async ({ params, query, principal }) => {
+      const format = exportFormat.safeParse(query.format);
+      if (!format.success) throw new AccessError(422, "invalid_export_format");
+      const detail = found(await repository.dossierDetail(params.dossierId));
+      requireAccess(canReadDossier(principal, detail.dossier));
+      const session = await repository.agentSession(params.sessionId, detail.dossier.id, principal.id);
+      if (!session) throw new AccessError(404, "not_found");
+      const run = await repository.agentRun(session.id, params.runId);
+      if (!run || run.dossierId !== detail.dossier.id || run.actorId !== principal.id) {
+        throw new AccessError(404, "not_found");
+      }
+      if (run.status !== "completed" || run.interrupted || !run.finalOutput?.trim()) {
+        throw new AccessError(409, "agent_output_not_available");
+      }
+      const extension = format.data === "markdown" ? "md" : "pdf";
+      const bytes = format.data === "markdown"
+        ? new TextEncoder().encode(run.finalOutput)
+        : await renderMarkdownPdf(run.finalOutput);
+      return download(bytes, `agent-response-${run.id}.${extension}`,
+        format.data === "markdown" ? "text/markdown; charset=utf-8" : "application/pdf");
+    })
     .get("/agent/artifacts/:artifactId", async ({ params, principal }) => {
       const artifact = found(await repository.artifact(params.artifactId));
       const dossier = found(await repository.dossierDetail(artifact.dossierId));
       requireAccess(canReadDossier(principal, dossier.dossier));
       if (!repository.readArtifact) throw new AccessError(503, "artifact_storage_not_configured");
       const bytes = await repository.readArtifact(artifact.id);
-      return new Response(new Uint8Array(bytes), { headers: {
-        "content-type": artifact.mimeType,
-        "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(artifact.filename)}`,
-        "cache-control": "no-store",
-        "x-content-type-options": "nosniff",
+      return download(bytes, artifact.filename, artifact.mimeType, {
         "x-artifact-version": String(artifact.version),
-      } });
+      });
     });
+}
+
+function download(bytes: Uint8Array, filename: string, contentType: string, headers: Record<string, string> = {}) {
+  return new Response(new Uint8Array(bytes), { headers: {
+    "content-type": contentType,
+    "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    ...headers,
+  } });
 }

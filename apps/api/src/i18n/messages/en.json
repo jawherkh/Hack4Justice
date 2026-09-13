@@ -31,5 +31,7 @@
   "identity_provider_not_configured": "Identity provider is not configured",
   "storage_not_initialized": "Storage is not initialized",
   "workflow_not_configured": "Workflow is not configured",
-  "extraction_in_progress": "An extraction is already running for this upload"
+  "extraction_in_progress": "An extraction is already running for this upload",
+  "invalid_export_format": "Export format is not supported",
+  "agent_output_not_available": "The agent response is not ready to export"
 }

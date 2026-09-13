@@ -247,6 +247,17 @@ export interface AgentEventRecord {
   readonly occurredAt: string;
 }
 
+export interface AgentRunRecord {
+  readonly id: string;
+  readonly sessionId: string;
+  readonly dossierId: string;
+  readonly actorId: string;
+  readonly status: "running" | "completed" | "failed";
+  readonly finalOutput?: string;
+  readonly interrupted?: boolean;
+  readonly updatedAt: string;
+}
+
 export interface HelperTaskRecord extends ResourceScope {
   readonly id: string;
   readonly nodeId?: string;
@@ -421,6 +432,7 @@ export interface AgentRepository {
   saveAgentSession(session: AgentSessionRecord): MaybePromise<AgentSessionRecord>;
   appendAgentEvent(input: AgentEventInput): MaybePromise<AgentEventRecord>;
   agentEvents(sessionId: string, after: number): MaybePromise<readonly AgentEventRecord[]>;
+  agentRun(sessionId: string, runId: string): MaybePromise<AgentRunRecord | undefined>;
   createHelperTask(input: CreateHelperTaskInput): MaybePromise<HelperTaskRecord>;
   helperTask(id: string): MaybePromise<HelperTaskRecord | undefined>;
   publishArtifact(input: PublishArtifactInput): MaybePromise<ArtifactRecord>;
@@ -944,6 +956,43 @@ export class InMemoryDossierRepository implements AgentRepository {
       .sort((a, b) => a.sequence - b.sequence)
       .slice(0, 100)
       .map(clone);
+  }
+
+  public agentRun(sessionId: string, runId: string): AgentRunRecord | undefined {
+    const events = [...this.agentEventRows.values()]
+      .filter((event) => event.sessionId === sessionId && event.data.runId === runId)
+      .sort((a, b) => a.sequence - b.sequence);
+    const started = events.find((event) => event.type === "run_started");
+    if (!started) return undefined;
+    let terminal: AgentEventRecord | undefined;
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const event = events[index]!;
+      if (event.type === "run_completed" || event.type === "run_failed") {
+        terminal = event;
+        break;
+      }
+    }
+    if (!terminal) {
+      return {
+        id: runId,
+        sessionId,
+        dossierId: started.dossierId,
+        actorId: started.actorId,
+        status: "running",
+        updatedAt: started.occurredAt,
+      };
+    }
+    const finalOutput = typeof terminal.data.finalOutput === "string" ? terminal.data.finalOutput : undefined;
+    return {
+      id: runId,
+      sessionId,
+      dossierId: terminal.dossierId,
+      actorId: terminal.actorId,
+      status: terminal.type === "run_completed" ? "completed" : "failed",
+      ...(finalOutput !== undefined ? { finalOutput } : {}),
+      ...(typeof terminal.data.interrupted === "boolean" ? { interrupted: terminal.data.interrupted } : {}),
+      updatedAt: terminal.occurredAt,
+    };
   }
 
   public createHelperTask(input: CreateHelperTaskInput): HelperTaskRecord {

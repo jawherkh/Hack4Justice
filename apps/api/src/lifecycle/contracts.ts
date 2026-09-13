@@ -76,6 +76,8 @@ export interface AgentTurnWorkflowInput {
 
 export interface AgentTurnWorkflowResult {
   sessionId: string;
+  runId: string;
+  outputFormat: "markdown";
   finalOutput?: string;
   lastResponseId?: string;
   interrupted: boolean;

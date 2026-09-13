@@ -31,5 +31,7 @@
   "identity_provider_not_configured": "Le fournisseur d'identité n'est pas configuré",
   "storage_not_initialized": "Le stockage n'est pas initialisé",
   "workflow_not_configured": "Le flux de travail n'est pas configuré",
-  "extraction_in_progress": "Une extraction est déjà en cours pour ce document"
+  "extraction_in_progress": "Une extraction est déjà en cours pour ce document",
+  "invalid_export_format": "Le format d'export n'est pas pris en charge",
+  "agent_output_not_available": "La réponse de l'agent n'est pas prête à être exportée"
 }
