@@ -6,6 +6,8 @@ const baseUrl = (import.meta.env['VITE_API_URL'] as string | undefined) ?? 'http
 
 export const api: ReturnType<typeof treaty<App>> = treaty<App>(baseUrl, {
   fetch: { credentials: 'include' },
+  // Preserve dossier field text; timestamp displays already format JSON strings.
+  parseDate: false,
 })
 
 export class ApiError extends Error {
