@@ -2,9 +2,9 @@
 
 Two fabricated PDFs for manually exercising Dalil's upload → OCR extraction →
 agent pipeline end to end. Both have a native text layer (no OCR fallback
-needed) and a diagonal "SPECIMEN — DOCUMENT DE TEST" watermark plus a footer
-notice, so they can never be mistaken for a real government document. Field
-values are made up but shaped like the real patterns Dalil validates against
+needed) and a footer notice marking them as test fixtures, so they can never
+be mistaken for a real government document. Field values are made up but
+shaped like the real patterns Dalil validates against
 (`packages/shared/src/procedures/fields.ts`), so extracted fields pass
 validation the same way a real document's would.
 
