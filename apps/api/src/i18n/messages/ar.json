@@ -49,5 +49,6 @@
   "copilot_not_configured": "المساعد غير مهيأ على هذا الخادم",
   "conversation_not_found": "المحادثة غير موجودة",
   "copilot_busy": "المساعد ما زال يجيب في هذه المحادثة",
+  "file_not_found": "الملف غير موجود",
   "copilot_run_failed": "تعذر على المساعد إكمال إجابته"
 }

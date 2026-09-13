@@ -49,5 +49,6 @@
   "copilot_not_configured": "The copilot is not configured on this server",
   "conversation_not_found": "Conversation not found",
   "copilot_busy": "The copilot is still answering in this conversation",
+  "file_not_found": "File not found",
   "copilot_run_failed": "The copilot could not complete its answer"
 }

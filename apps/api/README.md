@@ -158,14 +158,16 @@ company, document and expiry time.
 sandbox (`SANDBOX_IMAGE`, `SANDBOX_BASE_DIR`) of the principal agent; without a Gemini key
 the list endpoint reports `enabled: false` and messages return 503 `copilot_not_configured`.
 
-| Method   | Path                                  | Notes                                                        |
-| -------- | ------------------------------------- | ------------------------------------------------------------ |
-| `GET`    | `/projects/:id/copilot`               | Conversations of the project, most recent first.             |
-| `POST`   | `/projects/:id/copilot`               | Start a conversation (`{ title? }`). 201.                    |
-| `GET`    | `/projects/:id/copilot/:cid`          | Conversation with its stored messages and tool calls.        |
-| `PATCH`  | `/projects/:id/copilot/:cid`          | Rename (`{ title }`).                                        |
-| `DELETE` | `/projects/:id/copilot/:cid`          | Delete the thread and its messages. 204.                     |
-| `POST`   | `/projects/:id/copilot/:cid/messages` | `{ message }`; streams SSE, then stores the assistant reply. |
+| Method   | Path                                             | Notes                                                                     |
+| -------- | ------------------------------------------------ | ------------------------------------------------------------------------- |
+| `GET`    | `/projects/:id/copilot`                          | Conversations of the project, most recent first.                          |
+| `POST`   | `/projects/:id/copilot`                          | Start a conversation (`{ title? }`). 201.                                 |
+| `GET`    | `/projects/:id/copilot/:cid`                     | Conversation with its stored messages and tool calls.                     |
+| `PATCH`  | `/projects/:id/copilot/:cid`                     | Rename (`{ title }`).                                                     |
+| `DELETE` | `/projects/:id/copilot/:cid`                     | Delete the thread and its messages. 204.                                  |
+| `POST`   | `/projects/:id/copilot/:cid/messages`            | `{ message }`; streams SSE, then stores the assistant reply.              |
+| `GET`    | `/projects/:id/copilot/:cid/files`               | Project documents plus files the copilot wrote in the thread's workspace. |
+| `GET`    | `/projects/:id/copilot/:cid/files/content?path=` | Raw bytes of one workspace file (HTML-like types served as text).         |
 
 The stream sends `user_message`, `text_delta`, `tool_started`, `tool_completed`, then
 `result` (the stored assistant message) or `error`. Closing the connection aborts the model
@@ -178,7 +180,12 @@ mounted at `/work`). Every turn stages `input/project.json` (service, checklist,
 the agent runs. Besides the SDK shell and file tools, the agent has `get_project_overview`,
 `get_requirement_details`, `list_project_documents`, `read_document_text` and
 `search_legal_sources` (Graphiti, scoped to the project's agency). It never writes to the
-project. Message history for the model is stored on `copilot_conversation.history`; display
+project. The model is told to reference uploaded documents as Markdown links to their staged
+path (`input/documents/<uploadId>.txt`) and its own drafts by workspace path
+(`output/...`); the web app turns those links into buttons that open the file in a side panel
+(PDF viewer for uploads, inline text for drafts).
+
+Message history for the model is stored on `copilot_conversation.history`; display
 messages live in `copilot_message` (migration `0009_copilot`).
 
 ## Local preview
