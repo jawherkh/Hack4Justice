@@ -236,7 +236,7 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
             <SidebarMenuAction
               aria-label={t('nav.logout')}
               title={t('nav.logout')}
-              className="top-1/2 -translate-y-1/2 rtl:right-auto rtl:left-1"
+              className="top-1/2! -translate-y-1/2 rtl:right-auto rtl:left-1"
               onMouseEnter={logoutIcon.onMouseEnter}
               onMouseLeave={logoutIcon.onMouseLeave}
               onClick={async () => {
