@@ -17,7 +17,7 @@ import { DESTINATION_META } from './destination'
 export function ProjectsWelcome({ onCreate }: { onCreate: () => void }) {
   const t = useTranslation()
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-dashed bg-background px-6 py-14 text-center motion-safe:animate-in motion-safe:fade-in-0">
+    <section className="relative overflow-hidden rounded-2xl border border-dashed bg-background px-6 py-14 text-center">
       <div className="relative mx-auto flex max-w-md flex-col items-center gap-5">
         <div className="flex items-end gap-3">
           {PROJECT_DESTINATIONS.map((value, index) => {
@@ -26,8 +26,8 @@ export function ProjectsWelcome({ onCreate }: { onCreate: () => void }) {
               <div
                 key={value}
                 className={cn(
-                  'flex w-28 flex-col items-center gap-2 rounded-xl bg-card p-3 shadow-sm ring-1 ring-foreground/10 transition-transform',
-                  index === 0 ? '-rotate-3 hover:rotate-0' : 'rotate-3 hover:rotate-0',
+                  'flex w-28 flex-col items-center gap-2 rounded-xl bg-card p-3 shadow-sm ring-1 ring-foreground/10',
+                  index === 0 ? '-rotate-3' : 'rotate-3',
                 )}
               >
                 <img

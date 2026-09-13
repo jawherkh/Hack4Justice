@@ -12,24 +12,21 @@ import { ProjectActions } from './project-actions'
 interface ProjectCardProps {
   project: ProjectSummary
   query?: string
-  /** Stagger index for the entrance animation. */
-  index?: number
 }
 
 /**
  * Whole card is clickable through a stretched link on the title, so the
  * actions menu stays a real button rather than a button nested in an anchor.
  */
-export function ProjectCard({ project, query = '', index = 0 }: ProjectCardProps) {
+export function ProjectCard({ project, query = '' }: ProjectCardProps) {
   const { t, locale } = useI18n()
   const meta = DESTINATION_META[project.destination]
 
   return (
     <article
       data-testid="project-card"
-      style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
       className={cn(
-        'group/card relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-xs transition-all duration-200 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:fill-mode-backwards motion-safe:slide-in-from-bottom-2',
+        'group/card relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-xs',
         'focus-within:ring-2 focus-within:ring-ring hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-md',
       )}
     >

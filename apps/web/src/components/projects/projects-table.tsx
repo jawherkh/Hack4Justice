@@ -42,15 +42,10 @@ export function ProjectsTable({ projects, query = '' }: { projects: ProjectSumma
           </TableRow>
         </TableHeader>
         <TableBody>
-          {projects.map((project, index) => {
+          {projects.map((project) => {
             const meta = DESTINATION_META[project.destination]
             return (
-              <TableRow
-                key={project.id}
-                data-testid="project-row"
-                style={{ animationDelay: `${Math.min(index, 10) * 25}ms` }}
-                className="group/row relative motion-safe:animate-in motion-safe:fade-in-0 motion-safe:fill-mode-backwards"
-              >
+              <TableRow key={project.id} data-testid="project-row" className="group/row relative">
                 <TableCell className="ps-5">
                   <div className="flex items-center gap-4 py-1">
                     <span className="flex h-9 w-14 shrink-0 items-center justify-center">

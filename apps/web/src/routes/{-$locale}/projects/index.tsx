@@ -140,8 +140,8 @@ function Projects() {
             <ProjectsTable projects={visible} query={query} />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {visible.map((project, index) => (
-                <ProjectCard key={project.id} project={project} query={query} index={index} />
+              {visible.map((project) => (
+                <ProjectCard key={project.id} project={project} query={query} />
               ))}
             </div>
           )}
