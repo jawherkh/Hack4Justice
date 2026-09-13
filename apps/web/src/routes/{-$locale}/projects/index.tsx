@@ -21,7 +21,7 @@ import {
   type ViewMode,
 } from '#/components/projects/view-mode'
 import { useI18n } from '#/i18n'
-import { requireAuth } from '#/lib/guards'
+import { requireOnboarded } from '#/lib/guards'
 import {
   countByDestination,
   filterProjects,
@@ -41,7 +41,7 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/{-$locale}/projects/')({
   validateSearch: searchSchema,
-  beforeLoad: requireAuth,
+  beforeLoad: requireOnboarded,
   component: Projects,
 })
 

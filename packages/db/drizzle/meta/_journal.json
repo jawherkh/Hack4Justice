@@ -57,6 +57,13 @@
       "when": 1789278101795,
       "tag": "0007_open_jean_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789280657438,
+      "tag": "0008_user_profile",
+      "breakpoints": true
     }
   ]
 }

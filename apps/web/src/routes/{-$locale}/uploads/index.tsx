@@ -2,10 +2,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { UploadDropzone } from '#/components/uploads/upload-dropzone'
 import { UploadsTable } from '#/components/uploads/uploads-table'
 import { useTranslation } from '#/i18n'
-import { requireAuth } from '#/lib/guards'
+import { requireOnboarded } from '#/lib/guards'
 
 export const Route = createFileRoute('/{-$locale}/uploads/')({
-  beforeLoad: requireAuth,
+  beforeLoad: requireOnboarded,
   component: Uploads,
 })
 

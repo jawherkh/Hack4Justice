@@ -17,6 +17,7 @@ import { Route as Char123LocaleChar125DesignSystemRouteImport } from './routes/{
 import { Route as Char123LocaleChar125ForgotPasswordRouteImport } from './routes/{-$locale}/forgot-password'
 import { Route as Char123LocaleChar125LoginRouteImport } from './routes/{-$locale}/login'
 import { Route as Char123LocaleChar125NotificationsRouteImport } from './routes/{-$locale}/notifications'
+import { Route as Char123LocaleChar125OnboardingRouteImport } from './routes/{-$locale}/onboarding'
 import { Route as Char123LocaleChar125RegisterRouteImport } from './routes/{-$locale}/register'
 import { Route as Char123LocaleChar125ResetPasswordRouteImport } from './routes/{-$locale}/reset-password'
 import { Route as Char123LocaleChar125ProjectsIndexRouteImport } from './routes/{-$locale}/projects/index'
@@ -73,6 +74,12 @@ const Char123LocaleChar125NotificationsRoute =
   Char123LocaleChar125NotificationsRouteImport.update({
     id: '/notifications',
     path: '/notifications',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
+const Char123LocaleChar125OnboardingRoute =
+  Char123LocaleChar125OnboardingRouteImport.update({
+    id: '/onboarding',
+    path: '/onboarding',
     getParentRoute: () => Char123LocaleChar125RouteRoute,
   } as any)
 const Char123LocaleChar125RegisterRoute =
@@ -138,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/{-$locale}/forgot-password': typeof Char123LocaleChar125ForgotPasswordRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
   '/{-$locale}/notifications': typeof Char123LocaleChar125NotificationsRoute
+  '/{-$locale}/onboarding': typeof Char123LocaleChar125OnboardingRoute
   '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
   '/{-$locale}/reset-password': typeof Char123LocaleChar125ResetPasswordRoute
   '/{-$locale}/': typeof Char123LocaleChar125IndexRoute
@@ -156,6 +164,7 @@ export interface FileRoutesByTo {
   '/{-$locale}/forgot-password': typeof Char123LocaleChar125ForgotPasswordRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
   '/{-$locale}/notifications': typeof Char123LocaleChar125NotificationsRoute
+  '/{-$locale}/onboarding': typeof Char123LocaleChar125OnboardingRoute
   '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
   '/{-$locale}/reset-password': typeof Char123LocaleChar125ResetPasswordRoute
   '/{-$locale}': typeof Char123LocaleChar125IndexRoute
@@ -175,6 +184,7 @@ export interface FileRoutesById {
   '/{-$locale}/forgot-password': typeof Char123LocaleChar125ForgotPasswordRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
   '/{-$locale}/notifications': typeof Char123LocaleChar125NotificationsRoute
+  '/{-$locale}/onboarding': typeof Char123LocaleChar125OnboardingRoute
   '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
   '/{-$locale}/reset-password': typeof Char123LocaleChar125ResetPasswordRoute
   '/{-$locale}/': typeof Char123LocaleChar125IndexRoute
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
     | '/{-$locale}/forgot-password'
     | '/{-$locale}/login'
     | '/{-$locale}/notifications'
+    | '/{-$locale}/onboarding'
     | '/{-$locale}/register'
     | '/{-$locale}/reset-password'
     | '/{-$locale}/'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
     | '/{-$locale}/forgot-password'
     | '/{-$locale}/login'
     | '/{-$locale}/notifications'
+    | '/{-$locale}/onboarding'
     | '/{-$locale}/register'
     | '/{-$locale}/reset-password'
     | '/{-$locale}'
@@ -232,6 +244,7 @@ export interface FileRouteTypes {
     | '/{-$locale}/forgot-password'
     | '/{-$locale}/login'
     | '/{-$locale}/notifications'
+    | '/{-$locale}/onboarding'
     | '/{-$locale}/register'
     | '/{-$locale}/reset-password'
     | '/{-$locale}/'
@@ -304,6 +317,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/{-$locale}/notifications'
       preLoaderRoute: typeof Char123LocaleChar125NotificationsRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
+    '/{-$locale}/onboarding': {
+      id: '/{-$locale}/onboarding'
+      path: '/onboarding'
+      fullPath: '/{-$locale}/onboarding'
+      preLoaderRoute: typeof Char123LocaleChar125OnboardingRouteImport
       parentRoute: typeof Char123LocaleChar125RouteRoute
     }
     '/{-$locale}/register': {
@@ -400,6 +420,7 @@ interface Char123LocaleChar125RouteRouteChildren {
   Char123LocaleChar125ForgotPasswordRoute: typeof Char123LocaleChar125ForgotPasswordRoute
   Char123LocaleChar125LoginRoute: typeof Char123LocaleChar125LoginRoute
   Char123LocaleChar125NotificationsRoute: typeof Char123LocaleChar125NotificationsRoute
+  Char123LocaleChar125OnboardingRoute: typeof Char123LocaleChar125OnboardingRoute
   Char123LocaleChar125RegisterRoute: typeof Char123LocaleChar125RegisterRoute
   Char123LocaleChar125ResetPasswordRoute: typeof Char123LocaleChar125ResetPasswordRoute
   Char123LocaleChar125IndexRoute: typeof Char123LocaleChar125IndexRoute
@@ -420,6 +441,7 @@ const Char123LocaleChar125RouteRouteChildren: Char123LocaleChar125RouteRouteChil
     Char123LocaleChar125LoginRoute: Char123LocaleChar125LoginRoute,
     Char123LocaleChar125NotificationsRoute:
       Char123LocaleChar125NotificationsRoute,
+    Char123LocaleChar125OnboardingRoute: Char123LocaleChar125OnboardingRoute,
     Char123LocaleChar125RegisterRoute: Char123LocaleChar125RegisterRoute,
     Char123LocaleChar125ResetPasswordRoute:
       Char123LocaleChar125ResetPasswordRoute,

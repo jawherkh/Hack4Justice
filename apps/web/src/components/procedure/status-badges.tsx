@@ -18,7 +18,7 @@ const PROCEDURE_VARIANT: Record<ProcedureStatus, Variant> = {
 }
 
 const REQUIREMENT_VARIANT: Record<RequirementStatus, Variant> = {
-  MISSING: 'outline',
+  MISSING: 'destructive',
   PROVIDED: 'secondary',
   VALID: 'default',
   INVALID: 'destructive',

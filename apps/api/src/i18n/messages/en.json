@@ -41,5 +41,9 @@
   "email_taken": "An account with this email already exists",
   "cannot_demote_self": "You cannot lower your own role",
   "cannot_delete_self": "You cannot delete your own account",
-  "banned": "This account is suspended"
+  "banned": "This account is suspended",
+  "terms_not_accepted": "You must accept the terms to continue",
+  "company_name_required": "Company name is required for a business account",
+  "invalid_tax_id": "Tax identifier format is invalid",
+  "invalid_phone": "Phone number format is invalid"
 }

@@ -1,9 +1,10 @@
 import { redirect } from '@tanstack/react-router'
+import type { ProfileData } from '#/lib/profile'
 import type { SessionData } from '#/lib/session'
 import { toLocaleParam, type Locale } from '#/i18n'
 
 interface GuardInput {
-  context: { locale: Locale; session: SessionData }
+  context: { locale: Locale; session: SessionData; profile: ProfileData }
   location: { href: string }
 }
 
@@ -22,6 +23,36 @@ export function requireAuth({ context, location }: GuardInput): { session: NonNu
     })
   }
   return { session: context.session }
+}
+
+/**
+ * For the workspace: a signed-in user who has not finished onboarding is sent
+ * there first, and comes back to the page they wanted afterwards.
+ */
+export function requireOnboarded(input: GuardInput): {
+  session: NonNullable<SessionData>
+  profile: NonNullable<ProfileData>
+} {
+  const { session } = requireAuth(input)
+  if (!input.context.profile) {
+    throw redirect({
+      to: '/{-$locale}/onboarding',
+      params: { locale: toLocaleParam(input.context.locale) },
+      search: { redirect: input.location.href },
+    })
+  }
+  return { session, profile: input.context.profile }
+}
+
+/** For the onboarding page itself: already-onboarded users go to their projects (or `?redirect=`). */
+export function requireNotOnboarded(input: GuardInput & { search: { redirect?: string } }): {
+  session: NonNullable<SessionData>
+} {
+  const { session } = requireAuth(input)
+  if (input.context.profile) {
+    throw redirect({ href: safeRedirect(input.search.redirect, projectsHref(input.context.locale)) })
+  }
+  return { session }
 }
 
 /** For login and register. Signed-in users go to their projects (or to `?redirect=`). */
