@@ -56,7 +56,7 @@ export interface ObligationRecord extends ObligationObservationInput {
 
 export interface ObligationChangeEvent {
   readonly id: string;
-  readonly type: "obligation_status_changed";
+  readonly type: "obligation_status_changed" | "obligation_dependencies_changed";
   readonly obligationId: string;
   readonly companyId: string;
   readonly version: number;

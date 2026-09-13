@@ -1,8 +1,16 @@
 import { Elysia } from "elysia";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { invokeFunctionTool, RunContext } from "@openai/agents";
 
 import { createDemoIdentity } from "../access/identity";
-import { createDemoDossierRepository, InMemoryDossierRepository } from "../dossiers/store";
+import { createAccessRoutes } from "../access/routes";
+import { getDossierContextTool, runChecksTool } from "../agent/tools";
+import { createAdminRoutes } from "../modules/admin/index";
+import {
+  createDemoDossierRepository,
+  InMemoryDossierRepository,
+  type DossierRecord,
+} from "../dossiers/store";
 import { errorHandler } from "../errors";
 import { transition } from "../lifecycle/state";
 import {
@@ -18,6 +26,8 @@ const ruleVersionId = "procedure-rne-approved-v2";
 const dossierId = "dossier-alpha-rne-approved";
 const nodeId = "node-alpha-rne-approved-submission";
 
+afterEach(() => vi.useRealTimers());
+
 function repositoryWithApprovedRule(
   status: "approved" | "candidate" = "approved",
 ): InMemoryDossierRepository {
@@ -32,7 +42,7 @@ function repositoryWithApprovedRule(
       version: "2",
       status,
       requirements: [],
-      nodes: [],
+      nodes: templateRule.nodes,
     },
     [],
   );
@@ -98,6 +108,8 @@ function ingest(
 function app(repository: InMemoryDossierRepository) {
   return new Elysia({ prefix: "/api/v1" })
     .use(errorHandler)
+    .use(createAccessRoutes(repository, createDemoIdentity(true, "test")))
+    .use(createAdminRoutes(repository, createDemoIdentity(true, "test")))
     .use(createObligationRoutes(repository, createDemoIdentity(true, "test")));
 }
 
@@ -362,6 +374,359 @@ describe("authoritative obligation observations", () => {
     await expect(
       ingest(repositoryWithApprovedRule(), invalidAdapter, "obligation-from-upload"),
     ).rejects.toMatchObject({ code: "invalid_obligation_observation" });
+  });
+});
+
+function submit(dossier: DossierRecord, at: string) {
+  return transition({
+    reference: { dossierId: dossier.id, commandId: "test-submission" },
+    command: {
+      dossierId: dossier.id,
+      type: "submission_requested",
+      expectedVersion: dossier.version,
+      idempotencyKey: "test-submission",
+      actorId: "demo-member-alpha",
+      confirmed: true,
+    },
+    state: {
+      version: dossier.version,
+      lifecycle: dossier.lifecycle,
+      agencyAcceptance: dossier.agencyAcceptance,
+      readiness: dossier.readiness,
+      prerequisiteStatus: dossier.prerequisiteStatus,
+      context: dossier.lifecycleContext ?? { prerequisites: {}, correctionNodeIds: [] },
+    },
+    now: at,
+  });
+}
+
+describe("obligations shared with dossier consumers", () => {
+  test("inherits external-action blockers without applying them to submission", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(now));
+    const repository = repositoryWithApprovedRule();
+    const original = repository.createDossier({
+      companyId: "company-alpha",
+      procedureVersionId: ruleVersionId,
+    });
+    const external = original.nodes.find((node) => node.procedureNodeKey === "external_action")!;
+    const id = "external-action-obligation";
+    await ingestObligationObservation(repository, adapter("unfulfilled", 1, id), {
+      obligationId: id,
+      companyId: "company-alpha",
+      consumerAgencies: ["RNE"],
+      ruleVersionId,
+      relationships: [
+        { dossierId: original.dossier.id, nodeId: external.id, agency: "RNE", action: "execute_external" },
+      ],
+      recordedAt: now,
+    });
+    const created = repository.createDossier({
+      companyId: "company-alpha",
+      procedureVersionId: ruleVersionId,
+    });
+    expect(created.nodes.find((node) => node.procedureNodeKey === "external_action")?.blockers).toEqual([
+      expect.objectContaining({ obligationId: id, action: "execute_external", status: "unsatisfied" }),
+    ]);
+    expect(created.nodes.find((node) => node.procedureNodeKey === "submission")?.blockers).toEqual([]);
+    expect(
+      repository.snapshot().dossiers.find((dossier) => dossier.id === created.dossier.id)?.prerequisiteStatus,
+    ).toBe("unsatisfied");
+    expect(submit(created.dossier, now)).toMatchObject({ state: { agencyAcceptance: "pending" } });
+  });
+
+  test.each(["pending", "rejected"] as const)(
+    "keeps %s verification out of fulfilled dossier views",
+    async (verificationState) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(now));
+      const repository = repositoryWithApprovedRule();
+      const id = "unverified-obligation";
+      const source = adapter("fulfilled", 1, id);
+      await ingest(
+        repository,
+        {
+          ...source,
+          async observe(query) {
+            return { ...(await source.observe(query)), verificationState };
+          },
+        },
+        id,
+      );
+      expect(repository.dossier(dossierId)?.prerequisiteStatus).toBe("unknown");
+      expect(repository.node(nodeId)?.prerequisiteStatus).toBe("unknown");
+      expect(repository.dependency(id)?.status).toBe("unknown");
+      expect(submit(repository.dossier(dossierId)!, now)).toEqual({ error: "prerequisite_needs_review" });
+    },
+  );
+
+  test("keeps officer, agent, node and dependency views fresh without rewriting stored history", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(now));
+    const seed = repositoryWithApprovedRule();
+    const id = "time-sensitive-obligation";
+    const source = adapter("fulfilled", 1, id);
+    await ingest(
+      seed,
+      {
+        ...source,
+        async observe(query) {
+          return { ...(await source.observe(query)), effectiveAt: "2026-09-14T00:00:00.000Z" };
+        },
+      },
+      id,
+    );
+    const snapshot = seed.snapshot();
+    const repository = InMemoryDossierRepository.restore(snapshot);
+    const server = app(repository);
+    const context = {
+      repository,
+      dossierId,
+      sessionId: "test-session",
+      principal: { id: "demo-member-alpha", roles: ["business_member"], companyIds: ["company-alpha"] },
+    };
+
+    for (const [at, status] of [
+      [now, "unknown"],
+      ["2026-09-15T00:00:00.000Z", "satisfied"],
+      ["2027-01-01T00:00:00.000Z", "unknown"],
+    ] as const) {
+      vi.setSystemTime(new Date(at));
+      expect(repository.dossier(dossierId)?.prerequisiteStatus).toBe(status);
+      expect(repository.dossiers().find((dossier) => dossier.id === dossierId)?.prerequisiteStatus).toBe(
+        status,
+      );
+      expect(repository.dossierDetail(dossierId)?.dossier.prerequisiteStatus).toBe(status);
+      expect(repository.node(nodeId)?.prerequisiteStatus).toBe(status);
+      expect(repository.dependency(id)?.status).toBe(status);
+      for (const tool of [getDossierContextTool, runChecksTool]) {
+        const result = await invokeFunctionTool({ tool, runContext: new RunContext(context), input: "{}" });
+        expect(result).toMatchObject({
+          nodes: expect.arrayContaining([
+            expect.objectContaining({
+              id: nodeId,
+              blockers: [expect.objectContaining({ obligationId: id, status })],
+            }),
+          ]),
+        });
+      }
+      const officer = await (
+        await server.handle(request(`/admin/rne/dossiers/${dossierId}`, "demo-officer-rne"))
+      ).json();
+      expect(officer).toMatchObject({
+        dossier: { prerequisiteStatus: status },
+        nodes: [expect.objectContaining({ id: nodeId, prerequisiteStatus: status })],
+      });
+      const queue = await (await server.handle(request("/admin/rne/queue", "demo-officer-rne"))).json();
+      expect(queue).toMatchObject({
+        data: expect.arrayContaining([
+          expect.objectContaining({ id: dossierId, prerequisiteStatus: status }),
+        ]),
+      });
+      const nodeResponse = await (
+        await server.handle(request(`/dossiers/${dossierId}/nodes/${nodeId}`, "demo-member-alpha"))
+      ).json();
+      expect(nodeResponse).toMatchObject({ prerequisiteStatus: status });
+      const gate = submit(repository.dossier(dossierId)!, at);
+      expect(gate).toMatchObject(
+        status === "satisfied"
+          ? { state: { agencyAcceptance: "pending" } }
+          : { error: "prerequisite_needs_review" },
+      );
+      expect(repository.snapshot()).toEqual(snapshot);
+    }
+  });
+
+  test("new matching dossiers inherit only the pinned action and remain attached across source refreshes", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(now));
+    const repository = repositoryWithApprovedRule();
+    const id = "inherited-obligation";
+    await ingest(repository, adapter("unfulfilled", 1, id), id);
+    const originalVersion = repository.dossier(dossierId)!.version;
+    const created = repository.createDossier({
+      companyId: "company-alpha",
+      procedureVersionId: ruleVersionId,
+      dossierId: "new-rne-dossier",
+    });
+    expect(repository.dossier(dossierId)!.version).toBe(originalVersion);
+    const target = created.nodes.find((node) => node.procedureNodeKey === "submission")!;
+    expect(created.dossier.lifecycleContext?.prerequisites[id]).toMatchObject({
+      status: "unfulfilled",
+      actions: ["submission_requested"],
+    });
+    expect(target.blockers).toEqual([
+      expect.objectContaining({ obligationId: id, action: "submit", status: "unsatisfied" }),
+    ]);
+    expect(created.nodes.filter((node) => node.id !== target.id).every((node) => !node.blockers.length)).toBe(
+      true,
+    );
+    expect(submit(created.dossier, now)).toEqual({ error: "prerequisite_blocked" });
+    expect(repository.obligation(id)).toMatchObject({
+      sourceVersion: 1,
+      version: 2,
+      relationships: expect.arrayContaining([
+        { dossierId: created.dossier.id, nodeId: target.id, agency: "RNE", action: "submit" },
+      ]),
+    });
+    expect(repository.obligationEvents(id, 1)).toMatchObject([
+      { type: "obligation_dependencies_changed", version: 2, sourceVersion: 1 },
+    ]);
+    repository.createDossier({
+      companyId: "company-alpha",
+      procedureVersionId: ruleVersionId,
+      dossierId: created.dossier.id,
+    });
+    expect(repository.obligationEvents(id, 0)).toHaveLength(2);
+
+    const beforeInvalidAction = repository.snapshot();
+    await expect(
+      ingestObligationObservation(repository, adapter("fulfilled", 2, id), {
+        obligationId: id,
+        companyId: "company-alpha",
+        consumerAgencies: ["RNE"],
+        ruleVersionId,
+        relationships: [
+          { dossierId: created.dossier.id, nodeId: target.id, agency: "RNE", action: "resubmit" },
+        ],
+        recordedAt: now,
+      }),
+    ).rejects.toMatchObject({ code: "obligation_relationship_conflict" });
+    expect(repository.snapshot()).toEqual(beforeInvalidAction);
+
+    const result = await ingestObligationObservation(repository, adapter("fulfilled", 2, id), {
+      obligationId: id,
+      companyId: "company-alpha",
+      consumerAgencies: ["RNE"],
+      ruleVersionId,
+      relationships: [{ dossierId: created.dossier.id, nodeId: target.id, agency: "RNE", action: "submit" }],
+      recordedAt: now,
+    });
+    expect(result.record.relationships).toHaveLength(2);
+    const restored = InMemoryDossierRepository.restore(repository.snapshot());
+    for (const affectedId of [dossierId, created.dossier.id]) {
+      expect(submit(restored.dossier(affectedId)!, now)).toMatchObject({
+        state: { agencyAcceptance: "pending" },
+      });
+    }
+    const affected = await (
+      await app(restored).handle(request(`/obligations/${id}/affected`, "demo-officer-rne"))
+    ).json();
+    expect(affected).toMatchObject({
+      affectedDossiers: expect.arrayContaining([
+        expect.objectContaining({ dossierId: created.dossier.id, actions: ["submit"] }),
+      ]),
+    });
+  });
+
+  test("matches dossiers that exist before observation and excludes other companies, agencies and rule versions", async () => {
+    const repository = repositoryWithApprovedRule();
+    const matching = repository.createDossier({
+      companyId: "company-alpha",
+      procedureVersionId: ruleVersionId,
+    });
+    const otherCompany = repository.createDossier({
+      companyId: "company-beta",
+      procedureVersionId: ruleVersionId,
+    });
+    const otherAgency = repository.createDossier({
+      companyId: "company-alpha",
+      procedureVersionId: "procedure-dgi-v1",
+    });
+    repository.addProcedure({ ...repository.procedure(ruleVersionId)!, id: "different-rule" }, []);
+    const otherRule = repository.createDossier({
+      companyId: "company-alpha",
+      procedureVersionId: "different-rule",
+    });
+    await ingest(repository, adapter("unfulfilled", 1, "matching-obligation"), "matching-obligation");
+    expect(
+      repository
+        .obligation("matching-obligation")
+        ?.relationships.map((relationship) => relationship.dossierId)
+        .sort(),
+    ).toEqual([dossierId, matching.dossier.id].sort());
+    for (const unrelated of [otherCompany, otherAgency, otherRule]) {
+      expect(
+        repository.dossier(unrelated.dossier.id)?.lifecycleContext?.prerequisites["matching-obligation"],
+      ).toBeUndefined();
+    }
+    const futureOtherCompany = repository.createDossier({
+      companyId: "company-beta",
+      procedureVersionId: ruleVersionId,
+    });
+    expect(futureOtherCompany.dossier.lifecycleContext).toBeUndefined();
+    expect(repository.obligationEvents("matching-obligation", 0)).toHaveLength(1);
+  });
+
+  test("restores the procedure node mapping in snapshots created before node keys were stored", () => {
+    const seed = createDemoDossierRepository();
+    const snapshot = seed.snapshot();
+    const repository = InMemoryDossierRepository.restore({
+      ...snapshot,
+      nodes: snapshot.nodes.map(({ procedureNodeKey: _key, ...node }) => node),
+    });
+    const created = repository.createDossier({
+      companyId: "company-alpha",
+      procedureVersionId: "procedure-rne-v1",
+    });
+    expect(
+      created.dossier.lifecycleContext?.prerequisites["obligation-alpha-dgi-registration"],
+    ).toMatchObject({
+      verificationState: "synthetic",
+      actions: ["submission_requested"],
+    });
+    expect(repository.obligation("obligation-alpha-dgi-registration")?.relationships).toHaveLength(2);
+  });
+
+  test("officers correct demo observations without promoting them to official status", async () => {
+    const repository = createDemoDossierRepository();
+    const server = app(repository);
+    const id = "obligation-alpha-dgi-registration";
+    const path = `/admin/dgi/obligations/${id}/reassessments`;
+    const body = {
+      expectedVersion: 1,
+      status: "disputed",
+      kind: "correction",
+      reason: "Correct a demo registry entry",
+      evidenceReference: "synthetic://corrected-entry",
+      effectiveAt: "2026-09-01T00:00:00.000Z",
+      expiresAt: "2099-01-01T00:00:00.000Z",
+    };
+    for (const user of ["demo-member-alpha", "demo-officer-rne", "demo-officer-apii"]) {
+      expect((await server.handle(request(path, user, "POST", body))).status).toBe(403);
+    }
+    const response = await server.handle(request(path, "demo-officer-dgi", "POST", body));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      record: {
+        version: 2,
+        sourceVersion: 1,
+        status: "disputed",
+        simulated: true,
+        verificationState: "synthetic",
+        ruleVersionStatus: "synthetic",
+        authority: { kind: "officer_reassessment", officerId: "demo-officer-dgi" },
+        evidence: { kind: "synthetic_fixture" },
+        correction: { reason: body.reason, previousEventId: `obligation:${id}:v1` },
+      },
+      event: { version: 2, verificationState: "synthetic", evidence: { kind: "synthetic_fixture" } },
+    });
+    expect((await server.handle(request(path, "demo-officer-dgi", "POST", body))).status).toBe(409);
+    expect(repository.obligationEvents(id, 0)).toHaveLength(2);
+    const corrected = repository.obligation(id)!;
+    const refresh = repository.recordObligationObservation({
+      ...corrected,
+      sourceVersion: 2,
+      status: "fulfilled",
+      correction: undefined,
+      authority: { kind: "synthetic", agency: "DGI", sourceId: "synthetic-registry" },
+    });
+    expect(refresh.record).toMatchObject({
+      version: 3,
+      sourceVersion: 2,
+      simulated: true,
+      verificationState: "synthetic",
+    });
   });
 });
 

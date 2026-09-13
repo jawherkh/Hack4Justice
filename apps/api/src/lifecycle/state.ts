@@ -1,28 +1,14 @@
 import type { PreparedCommand, Transition } from "./contracts";
-
-function observationStatus(
-  observation: PreparedCommand["state"]["context"]["prerequisites"][string],
-  now: string,
-): "unknown" | "satisfied" | "unsatisfied" {
-  const trusted =
-    !observation.verificationState ||
-    observation.verificationState === "verified" ||
-    observation.verificationState === "synthetic";
-  const effective = !observation.effectiveAt || Date.parse(observation.effectiveAt) <= Date.parse(now);
-  if (!trusted || !effective || Date.parse(observation.expiresAt) <= Date.parse(now)) return "unknown";
-  if (observation.status === "fulfilled") return "satisfied";
-  if (observation.status === "unfulfilled") return "unsatisfied";
-  return "unknown";
-}
+import { combinePrerequisiteStatuses, observationStatus } from "./prerequisites";
 
 function aggregatePrerequisiteStatus(
   observations: PreparedCommand["state"]["context"]["prerequisites"],
   now: string,
 ) {
-  const statuses = Object.values(observations).map((observation) => observationStatus(observation, now));
-  if (statuses.some((status) => status === "unknown")) return "unknown" as const;
-  if (statuses.some((status) => status === "unsatisfied")) return "unsatisfied" as const;
-  return statuses.length ? ("satisfied" as const) : ("not_applicable" as const);
+  const statuses = Object.values(observations).map((observation) =>
+    observationStatus(observation, Date.parse(now)),
+  );
+  return combinePrerequisiteStatuses(statuses, "not_applicable");
 }
 
 // Pure transition logic is shared with replay tests. No I/O belongs here.
@@ -54,7 +40,7 @@ export function transition({ command, state, now }: PreparedCommand): Transition
       if (!command.confirmed) return { error: "explicit_confirmation_required" };
       for (const observation of Object.values(state.context.prerequisites)) {
         if (!observation.actions.includes(command.type)) continue;
-        const status = observationStatus(observation, now);
+        const status = observationStatus(observation, Date.parse(now));
         if (status !== "satisfied") {
           return {
             error: status === "unsatisfied" ? "prerequisite_blocked" : "prerequisite_needs_review",
