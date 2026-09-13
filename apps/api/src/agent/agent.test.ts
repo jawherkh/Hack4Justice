@@ -4,9 +4,12 @@ import { join } from "node:path";
 
 import { describe, expect, test } from "vitest";
 import { RunContext, invokeFunctionTool } from "@openai/agents";
+import { Capabilities } from "@openai/agents/sandbox";
 
 import { createDemoRepository } from "../access/fixtures";
 import { attachEvidenceTool, prepareDocumentTool, publishArtifactTool, requestTransitionTool } from "./tools";
+import { PrincipalAgentService } from "./service";
+import { createGeminiAgentModel } from "./model";
 import { ProjectDockerSandboxClient } from "../sandbox/client";
 
 const member = { id: "demo-member-alpha", roles: ["business_member"] as const, companyIds: ["company-alpha"] };
@@ -18,6 +21,54 @@ async function invoke(tool: Parameters<typeof invokeFunctionTool>[0]["tool"], co
 }
 
 describe("principal agent tools", () => {
+  test("enables the SDK sandbox capabilities for the principal agent", () => {
+    const service = new PrincipalAgentService({ repository: createDemoRepository() });
+
+    expect(service.agent.capabilities.map((capability) => capability.type).sort()).toEqual([
+      "compaction",
+      "filesystem",
+      "shell",
+    ]);
+  });
+
+  test("keeps SDK filesystem and shell tools compatible with the Gemini transport", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "h4j-agent-capabilities-"));
+    const sandbox = await new ProjectDockerSandboxClient({
+      workspaceBaseDir: baseDir, dossierId: "dossier-alpha-dgi", runId: "capabilities",
+    }).create({ options: { dossierId: "dossier-alpha-dgi", runId: "capabilities" } });
+    try {
+      const model = createGeminiAgentModel({ apiKey: "test-key" });
+      const bind = (type: string) => Capabilities.default().find((capability) => capability.type === type)!
+        .bind(sandbox).bindModel("gemini-2.5-flash", model);
+
+      expect(bind("filesystem").tools().find((tool) => tool.name === "apply_patch")?.type).toBe("function");
+      expect(bind("shell").tools().find((tool) => tool.name === "exec_command")?.type).toBe("function");
+    } finally {
+      await sandbox.close();
+      await rm(baseDir, { recursive: true, force: true });
+    }
+  });
+
+  test("supports the SDK view_image operation inside the sandbox workspace", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "h4j-agent-view-image-"));
+    const sandbox = await new ProjectDockerSandboxClient({
+      workspaceBaseDir: baseDir, dossierId: "dossier-alpha-dgi", runId: "view-image",
+    }).create({ options: { dossierId: "dossier-alpha-dgi", runId: "view-image" } });
+    try {
+      await sandbox.writeWorkspaceFile("pixel.png", Uint8Array.from([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      ]));
+
+      await expect(sandbox.viewImage({ path: "pixel.png" })).resolves.toMatchObject({
+        type: "image",
+        image: { mediaType: "image/png" },
+      });
+    } finally {
+      await sandbox.close();
+      await rm(baseDir, { recursive: true, force: true });
+    }
+  });
+
   test("keeps evidence uploads idempotent and preserves replacement invalidation", async () => {
     const repository = createDemoRepository();
     const session = await repository.createAgentSession({ dossierId: "dossier-alpha-dgi", principalId: member.id });
