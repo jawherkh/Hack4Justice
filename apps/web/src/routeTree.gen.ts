@@ -12,8 +12,14 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as Char123LocaleChar125RouteRouteImport } from './routes/{-$locale}/route'
 import { Route as Char123LocaleChar125IndexRouteImport } from './routes/{-$locale}/index'
 import { Route as Char123LocaleChar125AboutRouteImport } from './routes/{-$locale}/about'
+import { Route as Char123LocaleChar125AccountRouteImport } from './routes/{-$locale}/account'
 import { Route as Char123LocaleChar125DesignSystemRouteImport } from './routes/{-$locale}/design-system'
+import { Route as Char123LocaleChar125ForgotPasswordRouteImport } from './routes/{-$locale}/forgot-password'
 import { Route as Char123LocaleChar125LoginRouteImport } from './routes/{-$locale}/login'
+import { Route as Char123LocaleChar125RegisterRouteImport } from './routes/{-$locale}/register'
+import { Route as Char123LocaleChar125ResetPasswordRouteImport } from './routes/{-$locale}/reset-password'
+import { Route as Char123LocaleChar125UploadsIndexRouteImport } from './routes/{-$locale}/uploads/index'
+import { Route as Char123LocaleChar125UploadsIdRouteImport } from './routes/{-$locale}/uploads/$id'
 
 const Char123LocaleChar125RouteRoute =
   Char123LocaleChar125RouteRouteImport.update({
@@ -33,10 +39,22 @@ const Char123LocaleChar125AboutRoute =
     path: '/about',
     getParentRoute: () => Char123LocaleChar125RouteRoute,
   } as any)
+const Char123LocaleChar125AccountRoute =
+  Char123LocaleChar125AccountRouteImport.update({
+    id: '/account',
+    path: '/account',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
 const Char123LocaleChar125DesignSystemRoute =
   Char123LocaleChar125DesignSystemRouteImport.update({
     id: '/design-system',
     path: '/design-system',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
+const Char123LocaleChar125ForgotPasswordRoute =
+  Char123LocaleChar125ForgotPasswordRouteImport.update({
+    id: '/forgot-password',
+    path: '/forgot-password',
     getParentRoute: () => Char123LocaleChar125RouteRoute,
   } as any)
 const Char123LocaleChar125LoginRoute =
@@ -45,49 +63,109 @@ const Char123LocaleChar125LoginRoute =
     path: '/login',
     getParentRoute: () => Char123LocaleChar125RouteRoute,
   } as any)
+const Char123LocaleChar125RegisterRoute =
+  Char123LocaleChar125RegisterRouteImport.update({
+    id: '/register',
+    path: '/register',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
+const Char123LocaleChar125ResetPasswordRoute =
+  Char123LocaleChar125ResetPasswordRouteImport.update({
+    id: '/reset-password',
+    path: '/reset-password',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
+const Char123LocaleChar125UploadsIndexRoute =
+  Char123LocaleChar125UploadsIndexRouteImport.update({
+    id: '/uploads/',
+    path: '/uploads/',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
+const Char123LocaleChar125UploadsIdRoute =
+  Char123LocaleChar125UploadsIdRouteImport.update({
+    id: '/uploads/$id',
+    path: '/uploads/$id',
+    getParentRoute: () => Char123LocaleChar125RouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/{-$locale}': typeof Char123LocaleChar125RouteRouteWithChildren
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
+  '/{-$locale}/account': typeof Char123LocaleChar125AccountRoute
   '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
+  '/{-$locale}/forgot-password': typeof Char123LocaleChar125ForgotPasswordRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
+  '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
+  '/{-$locale}/reset-password': typeof Char123LocaleChar125ResetPasswordRoute
   '/{-$locale}/': typeof Char123LocaleChar125IndexRoute
+  '/{-$locale}/uploads/$id': typeof Char123LocaleChar125UploadsIdRoute
+  '/{-$locale}/uploads/': typeof Char123LocaleChar125UploadsIndexRoute
 }
 export interface FileRoutesByTo {
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
+  '/{-$locale}/account': typeof Char123LocaleChar125AccountRoute
   '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
+  '/{-$locale}/forgot-password': typeof Char123LocaleChar125ForgotPasswordRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
+  '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
+  '/{-$locale}/reset-password': typeof Char123LocaleChar125ResetPasswordRoute
   '/{-$locale}': typeof Char123LocaleChar125IndexRoute
+  '/{-$locale}/uploads/$id': typeof Char123LocaleChar125UploadsIdRoute
+  '/{-$locale}/uploads': typeof Char123LocaleChar125UploadsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/{-$locale}': typeof Char123LocaleChar125RouteRouteWithChildren
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
+  '/{-$locale}/account': typeof Char123LocaleChar125AccountRoute
   '/{-$locale}/design-system': typeof Char123LocaleChar125DesignSystemRoute
+  '/{-$locale}/forgot-password': typeof Char123LocaleChar125ForgotPasswordRoute
   '/{-$locale}/login': typeof Char123LocaleChar125LoginRoute
+  '/{-$locale}/register': typeof Char123LocaleChar125RegisterRoute
+  '/{-$locale}/reset-password': typeof Char123LocaleChar125ResetPasswordRoute
   '/{-$locale}/': typeof Char123LocaleChar125IndexRoute
+  '/{-$locale}/uploads/$id': typeof Char123LocaleChar125UploadsIdRoute
+  '/{-$locale}/uploads/': typeof Char123LocaleChar125UploadsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/{-$locale}'
     | '/{-$locale}/about'
+    | '/{-$locale}/account'
     | '/{-$locale}/design-system'
+    | '/{-$locale}/forgot-password'
     | '/{-$locale}/login'
+    | '/{-$locale}/register'
+    | '/{-$locale}/reset-password'
     | '/{-$locale}/'
+    | '/{-$locale}/uploads/$id'
+    | '/{-$locale}/uploads/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/{-$locale}/about'
+    | '/{-$locale}/account'
     | '/{-$locale}/design-system'
+    | '/{-$locale}/forgot-password'
     | '/{-$locale}/login'
+    | '/{-$locale}/register'
+    | '/{-$locale}/reset-password'
     | '/{-$locale}'
+    | '/{-$locale}/uploads/$id'
+    | '/{-$locale}/uploads'
   id:
     | '__root__'
     | '/{-$locale}'
     | '/{-$locale}/about'
+    | '/{-$locale}/account'
     | '/{-$locale}/design-system'
+    | '/{-$locale}/forgot-password'
     | '/{-$locale}/login'
+    | '/{-$locale}/register'
+    | '/{-$locale}/reset-password'
     | '/{-$locale}/'
+    | '/{-$locale}/uploads/$id'
+    | '/{-$locale}/uploads/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -117,11 +195,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char123LocaleChar125AboutRouteImport
       parentRoute: typeof Char123LocaleChar125RouteRoute
     }
+    '/{-$locale}/account': {
+      id: '/{-$locale}/account'
+      path: '/account'
+      fullPath: '/{-$locale}/account'
+      preLoaderRoute: typeof Char123LocaleChar125AccountRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
     '/{-$locale}/design-system': {
       id: '/{-$locale}/design-system'
       path: '/design-system'
       fullPath: '/{-$locale}/design-system'
       preLoaderRoute: typeof Char123LocaleChar125DesignSystemRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
+    '/{-$locale}/forgot-password': {
+      id: '/{-$locale}/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/{-$locale}/forgot-password'
+      preLoaderRoute: typeof Char123LocaleChar125ForgotPasswordRouteImport
       parentRoute: typeof Char123LocaleChar125RouteRoute
     }
     '/{-$locale}/login': {
@@ -131,23 +223,66 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char123LocaleChar125LoginRouteImport
       parentRoute: typeof Char123LocaleChar125RouteRoute
     }
+    '/{-$locale}/register': {
+      id: '/{-$locale}/register'
+      path: '/register'
+      fullPath: '/{-$locale}/register'
+      preLoaderRoute: typeof Char123LocaleChar125RegisterRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
+    '/{-$locale}/reset-password': {
+      id: '/{-$locale}/reset-password'
+      path: '/reset-password'
+      fullPath: '/{-$locale}/reset-password'
+      preLoaderRoute: typeof Char123LocaleChar125ResetPasswordRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
+    '/{-$locale}/uploads/': {
+      id: '/{-$locale}/uploads/'
+      path: '/uploads'
+      fullPath: '/{-$locale}/uploads/'
+      preLoaderRoute: typeof Char123LocaleChar125UploadsIndexRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
+    '/{-$locale}/uploads/$id': {
+      id: '/{-$locale}/uploads/$id'
+      path: '/uploads/$id'
+      fullPath: '/{-$locale}/uploads/$id'
+      preLoaderRoute: typeof Char123LocaleChar125UploadsIdRouteImport
+      parentRoute: typeof Char123LocaleChar125RouteRoute
+    }
   }
 }
 
 interface Char123LocaleChar125RouteRouteChildren {
   Char123LocaleChar125AboutRoute: typeof Char123LocaleChar125AboutRoute
+  Char123LocaleChar125AccountRoute: typeof Char123LocaleChar125AccountRoute
   Char123LocaleChar125DesignSystemRoute: typeof Char123LocaleChar125DesignSystemRoute
+  Char123LocaleChar125ForgotPasswordRoute: typeof Char123LocaleChar125ForgotPasswordRoute
   Char123LocaleChar125LoginRoute: typeof Char123LocaleChar125LoginRoute
+  Char123LocaleChar125RegisterRoute: typeof Char123LocaleChar125RegisterRoute
+  Char123LocaleChar125ResetPasswordRoute: typeof Char123LocaleChar125ResetPasswordRoute
   Char123LocaleChar125IndexRoute: typeof Char123LocaleChar125IndexRoute
+  Char123LocaleChar125UploadsIdRoute: typeof Char123LocaleChar125UploadsIdRoute
+  Char123LocaleChar125UploadsIndexRoute: typeof Char123LocaleChar125UploadsIndexRoute
 }
 
 const Char123LocaleChar125RouteRouteChildren: Char123LocaleChar125RouteRouteChildren =
   {
     Char123LocaleChar125AboutRoute: Char123LocaleChar125AboutRoute,
+    Char123LocaleChar125AccountRoute: Char123LocaleChar125AccountRoute,
     Char123LocaleChar125DesignSystemRoute:
       Char123LocaleChar125DesignSystemRoute,
+    Char123LocaleChar125ForgotPasswordRoute:
+      Char123LocaleChar125ForgotPasswordRoute,
     Char123LocaleChar125LoginRoute: Char123LocaleChar125LoginRoute,
+    Char123LocaleChar125RegisterRoute: Char123LocaleChar125RegisterRoute,
+    Char123LocaleChar125ResetPasswordRoute:
+      Char123LocaleChar125ResetPasswordRoute,
     Char123LocaleChar125IndexRoute: Char123LocaleChar125IndexRoute,
+    Char123LocaleChar125UploadsIdRoute: Char123LocaleChar125UploadsIdRoute,
+    Char123LocaleChar125UploadsIndexRoute:
+      Char123LocaleChar125UploadsIndexRoute,
   }
 
 const Char123LocaleChar125RouteRouteWithChildren =

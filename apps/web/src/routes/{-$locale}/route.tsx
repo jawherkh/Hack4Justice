@@ -1,55 +1,83 @@
-import { Link, Outlet, createFileRoute, notFound } from '@tanstack/react-router'
+import { Outlet, createFileRoute, notFound, useRouter } from '@tanstack/react-router'
+import type { ErrorComponentProps } from '@tanstack/react-router'
+import { ErrorPage } from '#/components/error-page'
+import { Toaster } from '@hack4justice/ui/components/toast'
+import { Footer } from '#/components/footer'
 import { Navbar } from '#/components/navbar'
-import {
-  DEFAULT_LOCALE,
-  I18nProvider,
-  createTranslator,
-  isLocale,
-  resolveLocale,
-} from '#/i18n'
+import { getSession } from '#/lib/session'
+import { DEFAULT_LOCALE, I18nProvider, createTranslator, isLocale, resolveLocale, type Locale } from '#/i18n'
+
+const OG_LOCALE: Record<Locale, string> = { fr: 'fr_FR', en: 'en_GB', ar: 'ar_TN' }
 
 export const Route = createFileRoute('/{-$locale}')({
-  beforeLoad: ({ params }) => {
+  beforeLoad: async ({ params }) => {
     // No prefix means default locale. Any prefix must be a known locale,
     // otherwise `/whatever` would silently render as the default language.
     if (params.locale !== undefined && !isLocale(params.locale)) {
       throw notFound()
     }
-    return { locale: resolveLocale(params.locale) }
+    const session = await getSession()
+    return { locale: resolveLocale(params.locale), session }
   },
   head: ({ params }) => {
     // Derive from params, not context: `head` also runs when `beforeLoad`
     // threw notFound, and context is empty in that case.
-    const t = createTranslator(resolveLocale(params.locale))
-    return { meta: [{ title: t('meta.title') }] }
+    const locale = resolveLocale(params.locale)
+    const t = createTranslator(locale)
+    return {
+      meta: [
+        { title: t('meta.title') },
+        { name: 'description', content: t('meta.description') },
+        { property: 'og:type', content: 'website' },
+        { property: 'og:site_name', content: 'Hack4Justice' },
+        { property: 'og:title', content: t('meta.title') },
+        { property: 'og:description', content: t('meta.description') },
+        { property: 'og:locale', content: OG_LOCALE[locale] },
+        { name: 'twitter:card', content: 'summary' },
+      ],
+    }
   },
   component: LocaleLayout,
   notFoundComponent: LocaleNotFound,
+  errorComponent: LocaleError,
 })
 
 function LocaleLayout() {
   const { locale } = Route.useRouteContext()
   return (
     <I18nProvider locale={locale}>
-      <Navbar />
-      <Outlet />
+      <div className="flex min-h-svh flex-col">
+        <Navbar />
+        <div className="flex flex-1 flex-col">
+          <Outlet />
+        </div>
+        <Footer />
+      </div>
+      <Toaster />
     </I18nProvider>
   )
 }
 
+function localeFromParams(params: { locale?: string }) {
+  return isLocale(params.locale) ? params.locale : DEFAULT_LOCALE
+}
+
+/** Unknown route or unknown locale prefix (e.g. `/de`): no valid locale in context, so derive it. */
 function LocaleNotFound() {
-  // Rendered when the locale prefix itself is unknown (e.g. `/de`), so there
-  // is no valid locale in context. Fall back to the default language.
-  const params = Route.useParams()
-  const locale = isLocale(params.locale) ? params.locale : DEFAULT_LOCALE
-  const t = createTranslator(locale)
+  return <ErrorPage locale={localeFromParams(Route.useParams())} kind="not-found" />
+}
+
+function LocaleError({ reset }: ErrorComponentProps) {
+  const router = useRouter()
+  const locale = localeFromParams(Route.useParams())
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-8">
-      <h1 className="text-3xl font-bold tracking-tight">{t('notFound.title')}</h1>
-      <p className="text-muted-foreground">{t('notFound.description')}</p>
-      <Link to="/{-$locale}" params={{ locale: undefined }} className="underline">
-        Hack4Justice
-      </Link>
-    </main>
+    <ErrorPage
+      locale={locale}
+      kind="error"
+      onRetry={() => {
+        reset()
+        void router.invalidate()
+      }}
+    />
   )
 }

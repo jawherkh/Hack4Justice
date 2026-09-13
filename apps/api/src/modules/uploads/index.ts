@@ -6,7 +6,8 @@ import { Elysia, t } from "elysia";
 import { authGuard } from "../../auth";
 import { db } from "../../db";
 import { i18n } from "../../i18n/plugin";
-import { tika, TikaError, type ExtractResult } from "../../ocr/index";
+import { logger } from "../../logger";
+import { tika, TikaError } from "../../ocr/index";
 import { storage } from "../../storage";
 
 const PDF_CONTENT_TYPE = "application/pdf";
@@ -14,6 +15,7 @@ const PDF_MAGIC = "%PDF-";
 const MAX_PDF_SIZE = "25m";
 
 const idParam = t.Object({ id: t.String({ format: "uuid" }) });
+const languagesSchema = t.String({ pattern: "^[a-z_]{3,7}(\\+[a-z_]{3,7})*$" });
 
 export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] })
   .use(i18n)
@@ -34,18 +36,22 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
         contentType: PDF_CONTENT_TYPE,
         metadata: { filename: encodeURIComponent(body.file.name), userId: user.id },
       });
-      await db.insert(upload).values({
-        id,
-        userId: user.id,
-        storageKey,
-        filename: body.file.name,
-        contentType: PDF_CONTENT_TYPE,
-        size: bytes.byteLength,
-        status: UploadStatus.PROCESSING,
-      });
+      const [row] = await db
+        .insert(upload)
+        .values({
+          id,
+          userId: user.id,
+          storageKey,
+          filename: body.file.name,
+          contentType: PDF_CONTENT_TYPE,
+          size: bytes.byteLength,
+          status: UploadStatus.PROCESSING,
+        })
+        .returning();
+      if (!row) throw new AppError({ status: 500, code: "internal_error" });
 
-      const { text, pageCount } = await extractText(id, bytes, body.languages);
-      const row = await updateUpload(id, { status: UploadStatus.EXTRACTED, text, pageCount, extractedAt: new Date(), error: null });
+      // Extraction runs after the response; clients poll GET /uploads/:id.
+      void extractInBackground(id, bytes, body.languages);
 
       set.status = 201;
       return toView(row);
@@ -55,16 +61,42 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
       body: t.Object({
         file: t.File({ type: PDF_CONTENT_TYPE, maxSize: MAX_PDF_SIZE }),
         /** Tesseract language codes joined with "+", default "fra+eng". */
-        languages: t.Optional(t.String({ pattern: "^[a-z_]{3,7}(\\+[a-z_]{3,7})*$" })),
+        languages: t.Optional(languagesSchema),
       }),
-      detail: { summary: "Upload a PDF and extract its text (OCR for scanned pages)" },
+      detail: { summary: "Upload a PDF; text extraction (OCR for scanned pages) starts in the background" },
+    },
+  )
+
+  .post(
+    "/:id/extract",
+    async ({ params, body, user, set }) => {
+      const row = await findOwned(params.id, user.id);
+      if (row.status === UploadStatus.PROCESSING)
+        throw new AppError({ status: 409, code: "extraction_in_progress" });
+
+      const bytes = await storage.get(row.storageKey);
+      const updated = await updateUpload(row.id, { status: UploadStatus.PROCESSING, error: null });
+      void extractInBackground(row.id, bytes, body?.languages);
+
+      set.status = 202;
+      return toView(updated);
+    },
+    {
+      auth: true,
+      params: idParam,
+      body: t.Optional(t.Object({ languages: t.Optional(languagesSchema) })),
+      detail: { summary: "Re-run text extraction for an upload" },
     },
   )
 
   .get(
     "/",
     async ({ user }) => {
-      const rows = await db.select().from(upload).where(eq(upload.userId, user.id)).orderBy(desc(upload.createdAt));
+      const rows = await db
+        .select()
+        .from(upload)
+        .where(eq(upload.userId, user.id))
+        .orderBy(desc(upload.createdAt));
       return rows.map(toView);
     },
     { auth: true, detail: { summary: "List my uploads" } },
@@ -91,14 +123,29 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
     { auth: true, params: idParam, detail: { summary: "Delete an upload" } },
   );
 
-/** Runs Tika. On failure, marks the row `failed` (file stays stored for a retry) and fails with 502. */
-async function extractText(id: string, bytes: Uint8Array<ArrayBuffer>, languages?: string): Promise<ExtractResult> {
+/**
+ * Runs Tika and stores the outcome on the row. Never throws: it runs detached
+ * from the request, so failures are persisted as FAILED and logged instead.
+ */
+async function extractInBackground(id: string, bytes: Uint8Array, languages?: string): Promise<void> {
   try {
-    return await tika.extract(bytes, { contentType: PDF_CONTENT_TYPE, ocrLanguages: languages });
+    const { text, pageCount } = await tika.extract(bytes, {
+      contentType: PDF_CONTENT_TYPE,
+      ocrLanguages: languages,
+    });
+    await updateUpload(id, {
+      status: UploadStatus.EXTRACTED,
+      text,
+      pageCount,
+      extractedAt: new Date(),
+      error: null,
+    });
   } catch (cause) {
     const error = cause instanceof TikaError ? cause.message : "Text extraction failed";
-    await updateUpload(id, { status: UploadStatus.FAILED, error });
-    throw new AppError({ status: 502, code: "extraction_failed", details: { uploadId: id }, cause });
+    logger.error({ err: cause, uploadId: id }, "extraction failed");
+    await updateUpload(id, { status: UploadStatus.FAILED, error }).catch((err) =>
+      logger.error({ err, uploadId: id }, "could not persist extraction failure"),
+    );
   }
 }
 

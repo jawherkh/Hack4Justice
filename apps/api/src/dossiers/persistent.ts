@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 import { AccessError } from "../access/policy";
-import { checksum, FileStore, inspectFile, MAX_UPLOAD_BYTES } from "./files";
+import { checksum, type FileStore, inspectFile, MAX_UPLOAD_BYTES } from "./files";
 import { storageSchema } from "./schema";
 import type { CommandReference, CommandResult, LifecycleEvent, PreparedCommand, Transition } from "../lifecycle/contracts";
 import { lifecycleCommandBody, prerequisiteBody } from "../lifecycle/validation";

@@ -10,9 +10,9 @@ import { logger } from "./logger";
  * Global error handler. Every error becomes `{ error: { status, code, message, details? } }`
  * with `message` translated through the request's `t()`.
  */
-export const errorHandler = new Elysia({ name: "error-handler" }).use(i18n).onError(
-  { as: "global" },
-  ({ error, code, set, request, t: contextT }): ErrorBody => {
+export const errorHandler = new Elysia({ name: "error-handler" })
+  .use(i18n)
+  .onError({ as: "global" }, ({ error, code, set, request, t: contextT }): ErrorBody => {
     // `t` is missing when the error happened before derive ran (e.g. unknown route, parse error).
     const t = contextT ?? createTranslator(resolveLocale(request));
 
@@ -49,8 +49,7 @@ export const errorHandler = new Elysia({ name: "error-handler" }).use(i18n).onEr
         );
       }
     }
-  },
-);
+  });
 
 function body(status: number, code: string, message: string, details?: unknown): ErrorBody {
   return { error: { status, code, message, ...(details !== undefined ? { details } : {}) } };

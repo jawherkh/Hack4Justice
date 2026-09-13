@@ -30,5 +30,6 @@
   "document_storage_not_configured": "لم يتم إعداد تخزين المستندات",
   "identity_provider_not_configured": "لم يتم إعداد مزوّد الهوية",
   "storage_not_initialized": "لم تتم تهيئة التخزين",
-  "workflow_not_configured": "لم يتم إعداد سير العمل"
+  "workflow_not_configured": "لم يتم إعداد سير العمل",
+  "extraction_in_progress": "هناك عملية استخراج جارية بالفعل لهذا الملف"
 }

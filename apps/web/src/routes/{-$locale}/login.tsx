@@ -1,14 +1,24 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useTranslation } from '#/i18n'
+import { z } from 'zod'
+import { LoginForm } from '#/components/auth/login-form'
+import { requireGuest, safeRedirect, homeHref } from '#/lib/guards'
 
-export const Route = createFileRoute('/{-$locale}/login')({ component: Login })
+const searchSchema = z.object({ redirect: z.string().optional() })
+
+export const Route = createFileRoute('/{-$locale}/login')({
+  validateSearch: searchSchema,
+  beforeLoad: requireGuest,
+  component: Login,
+})
 
 function Login() {
-  const t = useTranslation()
-
+  const { redirect } = Route.useSearch()
+  const { locale } = Route.useRouteContext()
   return (
-    <main className="mx-auto w-full max-w-5xl p-8">
-      <h1 className="text-3xl font-bold tracking-tight">{t('login.title')}</h1>
+    <main className="flex flex-1 items-center justify-center p-6 md:p-10">
+      <div className="w-full max-w-sm">
+        <LoginForm redirectTo={safeRedirect(redirect, homeHref(locale))} />
+      </div>
     </main>
   )
 }

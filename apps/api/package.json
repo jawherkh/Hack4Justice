@@ -4,21 +4,23 @@
   "private": true,
   "type": "module",
   "engines": {
-    "bun": ">=1.4.2"
+    "node": ">=22"
   },
   "scripts": {
-    "dev": "bun --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun",
-    "start": "bun dist/index.js",
-    "worker": "node --import tsx src/lifecycle/worker.ts",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup",
+    "start": "node dist/index.js",
+    "worker": "tsx src/lifecycle/worker.ts",
     "check-types": "tsc --noEmit",
-    "lint": "echo \"lint not configured yet\" && exit 0",
-    "test": "bun test",
-    "test:storage": "bun scripts/test-storage.ts",
-    "db:init": "bun scripts/init-storage.ts"
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:storage": "tsx scripts/test-storage.ts",
+    "db:init": "tsx scripts/init-storage.ts",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",
+    "@elysiajs/node": "^1.4.5",
     "@elysiajs/openapi": "^1.4.16",
     "@hack4justice/auth": "workspace:*",
     "@hack4justice/db": "workspace:*",
@@ -38,9 +40,11 @@
   },
   "devDependencies": {
     "@hack4justice/typescript-config": "workspace:*",
-    "@types/bun": "latest",
+    "@types/node": "^22.10.2",
+    "tsup": "^8.5.1",
     "tsx": "^4.23.13",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^5.0.0"
   },
   "exports": {
     "./app": "./src/index.ts"
