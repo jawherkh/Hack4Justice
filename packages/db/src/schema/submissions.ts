@@ -6,6 +6,7 @@ import { project, submissionStatus } from "./projects";
 
 /** What the checklist looked like when the user submitted: kept for the record even if items change later. */
 export interface SubmissionSnapshot {
+  idempotencyKey?: string;
   serviceId: string;
   requirements: {
     requirementId: string;

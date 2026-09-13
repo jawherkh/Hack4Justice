@@ -39,6 +39,7 @@ import { db } from "../../db";
 import { i18n } from "../../i18n/plugin";
 import { notify } from "../../notifications/inbox";
 import { exportSubmission, type ExportLabels } from "./export";
+import { assemblePackage, changedSince, type PackageRequirement } from "./package";
 
 const idParam = t.Object({ id: t.String({ format: "uuid" }) });
 const destinationSchema = t.UnionEnum(PROJECT_DESTINATIONS);
@@ -140,23 +141,25 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
   .patch(
     "/:id",
     async ({ params, body, user }) => {
-      const row = await findOwned(params.id, user.id);
-      const patch: Partial<NewProject> = {};
-      if (body.name !== undefined) patch.name = body.name.trim();
-      if (body.description !== undefined) patch.description = emptyToNull(body.description);
-      const destination = parseDestination(body.destination);
-      if (destination !== undefined && destination !== row.destination) {
-        // Changing agency invalidates the chosen service and its checklist.
-        patch.destination = destination;
-        patch.serviceId = null;
-        patch.onboardedAt = null;
-        patch.submissionStatus = null;
-        await db.delete(projectRequirement).where(eq(projectRequirement.projectId, row.id));
-      }
-      if (Object.keys(patch).length === 0) return toDetail(row);
-      const [updated] = await db.update(project).set(patch).where(eq(project.id, row.id)).returning();
-      if (!updated) throw new AppError({ status: 404, code: "project_not_found" });
-      return toDetail(updated);
+      const result = await withLockedProject(params.id, user.id, async (row, db) => {
+        const patch: Partial<NewProject> = {};
+        if (body.name !== undefined) patch.name = body.name.trim();
+        if (body.description !== undefined) patch.description = emptyToNull(body.description);
+        const destination = parseDestination(body.destination);
+        if (destination !== undefined && destination !== row.destination) {
+          // Changing agency invalidates the chosen service and its checklist.
+          patch.destination = destination;
+          patch.serviceId = null;
+          patch.onboardedAt = null;
+          patch.submissionStatus = null;
+          await db.delete(projectRequirement).where(eq(projectRequirement.projectId, row.id));
+        }
+        if (Object.keys(patch).length === 0) return row;
+        const [updated] = await db.update(project).set(patch).where(eq(project.id, row.id)).returning();
+        if (!updated) throw new AppError({ status: 404, code: "project_not_found" });
+        return updated;
+      });
+      return toDetail(result);
     },
     {
       auth: true,
@@ -173,17 +176,16 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
   .post(
     "/:id/onboarding",
     async ({ params, body, user }) => {
-      const row = await findOwned(params.id, user.id);
-      if (!isServiceId(body.serviceId) || SERVICES[body.serviceId]!.destination !== row.destination) {
-        throw new AppError({
-          status: 422,
-          code: "validation_error",
-          details: [{ path: "/serviceId", message: `Expected a ${row.destination} service` }],
-        });
-      }
-      const waivable = new Set(waivableRequirementIds(body.serviceId));
-      const waived = new Set((body.waived ?? []).filter((id) => waivable.has(id)));
-      await db.transaction(async (tx) => {
+      const onboarded = await withLockedProject(params.id, user.id, async (row, tx) => {
+        if (!isServiceId(body.serviceId) || SERVICES[body.serviceId]!.destination !== row.destination) {
+          throw new AppError({
+            status: 422,
+            code: "validation_error",
+            details: [{ path: "/serviceId", message: `Expected a ${row.destination} service` }],
+          });
+        }
+        const waivable = new Set(waivableRequirementIds(body.serviceId));
+        const waived = new Set((body.waived ?? []).filter((id) => waivable.has(id)));
         await tx.delete(projectRequirement).where(eq(projectRequirement.projectId, row.id));
         await tx.insert(projectRequirement).values(
           serviceRequirementIds(body.serviceId).map((requirementId) => ({
@@ -192,18 +194,19 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
             status: waived.has(requirementId) ? RequirementStatus.NOT_APPLICABLE : RequirementStatus.MISSING,
           })),
         );
-        await tx
+        const [updated] = await tx
           .update(project)
           .set({ serviceId: body.serviceId, onboardedAt: new Date(), submissionStatus: null })
-          .where(eq(project.id, row.id));
+          .where(eq(project.id, row.id))
+          .returning();
+        return updated!;
       });
-      const onboarded = await findOwned(row.id, user.id);
       await notify({
         userId: user.id,
         type: NotificationType.PROCEDURE_STARTED,
-        idempotencyKey: `project:${row.id}:procedure-started:${onboarded.onboardedAt?.toISOString() ?? ""}`,
-        payload: { project: row.name, service: body.serviceId },
-        projectId: row.id,
+        idempotencyKey: `project:${onboarded.id}:procedure-started:${onboarded.onboardedAt?.toISOString() ?? ""}`,
+        payload: { project: onboarded.name, service: body.serviceId },
+        projectId: onboarded.id,
       });
       return toDetail(onboarded);
     },
@@ -222,76 +225,82 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
   .put(
     "/:id/requirements/:requirementId",
     async ({ params, body, user }) => {
-      const row = await findOwned(params.id, user.id);
-      const [current] = await db
-        .select()
-        .from(projectRequirement)
-        .where(
-          and(
-            eq(projectRequirement.projectId, row.id),
-            eq(projectRequirement.requirementId, params.requirementId),
-          ),
-        )
-        .limit(1);
-      if (!current) throw new AppError({ status: 404, code: "requirement_not_found" });
+      const { row, updated, becameReady } = await withLockedProject(params.id, user.id, async (row, db) => {
+        const [current] = await db
+          .select()
+          .from(projectRequirement)
+          .where(
+            and(
+              eq(projectRequirement.projectId, row.id),
+              eq(projectRequirement.requirementId, params.requirementId),
+            ),
+          )
+          .limit(1);
+        if (!current) throw new AppError({ status: 404, code: "requirement_not_found" });
 
-      const patch: Partial<ProjectRequirement> = {};
-      if (body.uploadId !== undefined) {
-        if (body.uploadId === null) patch.uploadId = null;
-        else {
-          const [file] = await db
-            .select({ id: upload.id })
-            .from(upload)
-            .where(and(eq(upload.id, body.uploadId), eq(upload.userId, user.id)))
-            .limit(1);
-          if (!file) throw new AppError({ status: 404, code: "upload_not_found" });
-          patch.uploadId = file.id;
-          // Attaching a file to a project also files it under that project.
-          await db.update(upload).set({ projectId: row.id }).where(eq(upload.id, file.id));
+        const patch: Partial<ProjectRequirement> = {};
+        if (body.uploadId !== undefined) {
+          if (body.uploadId === null) patch.uploadId = null;
+          else {
+            const [file] = await db
+              .select({ id: upload.id })
+              .from(upload)
+              .where(and(eq(upload.id, body.uploadId), eq(upload.userId, user.id)))
+              .limit(1);
+            if (!file) throw new AppError({ status: 404, code: "upload_not_found" });
+            patch.uploadId = file.id;
+            // Attaching a file to a project also files it under that project.
+            await db.update(upload).set({ projectId: row.id }).where(eq(upload.id, file.id));
+          }
         }
-      }
-      if (body.value !== undefined) {
-        const checked = validateFields(params.requirementId, body.value);
-        if (Object.keys(checked.errors).length > 0) {
-          throw new AppError({
-            status: 422,
-            code: "validation_error",
-            details: Object.entries(checked.errors).map(([key, reason]) => ({
-              path: `/value/${key}`,
-              message: reason,
-            })),
-          });
+        if (body.value !== undefined) {
+          const checked = validateFields(params.requirementId, body.value);
+          if (Object.keys(checked.errors).length > 0) {
+            throw new AppError({
+              status: 422,
+              code: "validation_error",
+              details: Object.entries(checked.errors).map(([key, reason]) => ({
+                path: `/value/${key}`,
+                message: reason,
+              })),
+            });
+          }
+          patch.value = checked.value;
         }
-        patch.value = checked.value;
-      }
-      if (body.note !== undefined) patch.note = emptyToNull(body.note);
-      const status = parseRequirementStatus(body.status);
-      if (status !== undefined) patch.status = status;
-      else if (
-        (patch.uploadId || (body.value && fieldsComplete(params.requirementId, patch.value))) &&
-        (current.status === RequirementStatus.MISSING ||
-          current.status === RequirementStatus.NOT_APPLICABLE ||
-          current.status === RequirementStatus.WAIVED)
-      ) {
-        // Supplying evidence for an item implies it applies after all.
-        patch.status = RequirementStatus.PROVIDED;
-      }
-      const before = deriveProcedureStatus(
-        row.serviceId,
-        await listRequirements(row.id),
-        row.submissionStatus,
-      );
-      const [updated] = await db
-        .update(projectRequirement)
-        .set(patch)
-        .where(eq(projectRequirement.id, current.id))
-        .returning();
-      const after = deriveProcedureStatus(
-        row.serviceId,
-        await listRequirements(row.id),
-        row.submissionStatus,
-      );
-      if (before !== "READY_FOR_SUBMISSION" && after === "READY_FOR_SUBMISSION") {
+        if (body.note !== undefined) patch.note = emptyToNull(body.note);
+        const status = parseRequirementStatus(body.status);
+        if (status !== undefined) patch.status = status;
+        else if (
+          (patch.uploadId || (body.value && fieldsComplete(params.requirementId, patch.value))) &&
+          (current.status === RequirementStatus.MISSING ||
+            current.status === RequirementStatus.NOT_APPLICABLE ||
+            current.status === RequirementStatus.WAIVED)
+        ) {
+          // Supplying evidence for an item implies it applies after all.
+          patch.status = RequirementStatus.PROVIDED;
+        }
+        const before = deriveProcedureStatus(
+          row.serviceId,
+          await listRequirements(row.id, db),
+          row.submissionStatus,
+        );
+        const [updated] = await db
+          .update(projectRequirement)
+          .set(patch)
+          .where(eq(projectRequirement.id, current.id))
+          .returning();
+        const after = deriveProcedureStatus(
+          row.serviceId,
+          await listRequirements(row.id, db),
+          row.submissionStatus,
+        );
+        return {
+          row,
+          updated,
+          becameReady: before !== "READY_FOR_SUBMISSION" && after === "READY_FOR_SUBMISSION",
+        };
+      });
+      if (becameReady) {
         await notify({
           userId: user.id,
           type: NotificationType.PROCEDURE_READY,
@@ -319,30 +328,32 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
   .patch(
     "/:id/submission",
     async ({ params, body, user }) => {
-      const row = await findOwned(params.id, user.id);
       const status = parseSubmissionStatus(body.status);
-      if (status !== null && row.submissionStatus === null) {
-        // Official submission is only recordable once preparation is complete.
-        const requirements = await listRequirements(row.id);
-        const derived = deriveProcedureStatus(row.serviceId, requirements, null);
-        if (derived !== "READY_FOR_SUBMISSION")
-          throw new AppError({ status: 409, code: "project_not_ready" });
-      }
-      const [updated] = await db
-        .update(project)
-        .set({ submissionStatus: status })
-        .where(eq(project.id, row.id))
-        .returning();
-      if (status) {
-        // Keep the latest submission record in step with the declared status.
-        const [latest] = await db
-          .select({ id: submission.id })
-          .from(submission)
-          .where(eq(submission.projectId, row.id))
-          .orderBy(desc(submission.submittedAt))
-          .limit(1);
-        if (latest) await db.update(submission).set({ status }).where(eq(submission.id, latest.id));
-      }
+      const { row, updated } = await withLockedProject(params.id, user.id, async (row, db) => {
+        if (status !== null && row.submissionStatus === null) {
+          // Official submission is only recordable once preparation is complete.
+          const requirements = await listRequirements(row.id, db);
+          const derived = deriveProcedureStatus(row.serviceId, requirements, null);
+          if (derived !== "READY_FOR_SUBMISSION")
+            throw new AppError({ status: 409, code: "project_not_ready" });
+        }
+        const [updated] = await db
+          .update(project)
+          .set({ submissionStatus: status })
+          .where(eq(project.id, row.id))
+          .returning();
+        if (status) {
+          // Keep the latest submission record in step with the declared status.
+          const [latest] = await db
+            .select({ id: submission.id })
+            .from(submission)
+            .where(eq(submission.projectId, row.id))
+            .orderBy(desc(submission.submittedAt))
+            .limit(1);
+          if (latest) await db.update(submission).set({ status }).where(eq(submission.id, latest.id));
+        }
+        return { row, updated };
+      });
       if (status) {
         await notify({
           userId: user.id,
@@ -368,41 +379,70 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
     "/:id/submissions",
     async ({ params, user }) => {
       const row = await findOwned(params.id, user.id);
-      return listSubmissions(row.id);
+      const rows = await listSubmissions(row.id);
+      // Newest first, so each entry is compared with the one that came before it in time.
+      return rows.map((entry, index) => {
+        const previous = rows[index + 1];
+        return { ...entry, changes: previous ? changedSince(previous.snapshot, entry.snapshot) : [] };
+      });
     },
-    { auth: true, params: idParam, detail: { summary: "Submission history of a project" } },
+    {
+      auth: true,
+      params: idParam,
+      detail: {
+        summary: "Submission history of a project, each entry with what changed since the previous one",
+      },
+    },
   )
 
   .post(
     "/:id/submissions",
     async ({ params, body, user, set }) => {
-      const row = await findOwned(params.id, user.id);
-      if (!row.serviceId) throw new AppError({ status: 409, code: "project_not_ready" });
-      if (row.submissionStatus !== null) throw new AppError({ status: 409, code: "submission_in_progress" });
-      const requirements = await listRequirements(row.id);
-      if (deriveProcedureStatus(row.serviceId, requirements, null) !== "READY_FOR_SUBMISSION") {
-        throw new AppError({ status: 409, code: "project_not_ready" });
-      }
-      const uploadIds = requirements.flatMap((r) => (r.uploadId ? [r.uploadId] : []));
-      const files =
-        uploadIds.length > 0
-          ? await db
-              .select({ id: upload.id, filename: upload.filename })
-              .from(upload)
-              .where(inArray(upload.id, uploadIds))
-          : [];
-      const fileById = new Map(files.map((f) => [f.id, f]));
-      const snapshot: SubmissionSnapshot = {
-        serviceId: row.serviceId,
-        requirements: requirements.map((r) => ({
-          requirementId: r.requirementId,
-          status: r.status,
-          upload: r.uploadId ? (fileById.get(r.uploadId) ?? null) : null,
-          value: r.value ?? null,
-          note: r.note,
-        })),
-      };
-      const created = await db.transaction(async (tx) => {
+      const { row, record, created } = await withLockedProject(params.id, user.id, async (row, tx) => {
+        if (!row.serviceId) throw new AppError({ status: 409, code: "project_not_ready" });
+        const records = await listSubmissions(row.id, tx);
+        const recorded = body.idempotencyKey
+          ? records.find((entry) => entry.snapshot.idempotencyKey === body.idempotencyKey)
+          : row.submissionStatus === "SUBMITTED"
+            ? records[0]
+            : undefined;
+        if (recorded) {
+          if (
+            recorded.receipt !== emptyToNull(body.receipt) ||
+            recorded.note !== emptyToNull(body.note) ||
+            recorded.serviceId !== row.serviceId
+          )
+            throw new AppError({ status: 409, code: "idempotency_conflict" });
+          return { row, record: recorded, created: false };
+        }
+        if (row.submissionStatus !== null) {
+          throw new AppError({ status: 409, code: "submission_in_progress" });
+        }
+        const requirements = await listRequirements(row.id, tx);
+        if (deriveProcedureStatus(row.serviceId, requirements, null) !== "READY_FOR_SUBMISSION") {
+          throw new AppError({ status: 409, code: "project_not_ready" });
+        }
+        const uploadIds = requirements.flatMap((r) => (r.uploadId ? [r.uploadId] : []));
+        const files =
+          uploadIds.length > 0
+            ? await tx
+                .select({ id: upload.id, filename: upload.filename })
+                .from(upload)
+                .where(inArray(upload.id, uploadIds))
+            : [];
+        const fileById = new Map(files.map((f) => [f.id, f]));
+        const snapshot: SubmissionSnapshot = {
+          serviceId: row.serviceId,
+          ...(body.idempotencyKey ? { idempotencyKey: body.idempotencyKey } : {}),
+          requirements: requirements.map((r) => ({
+            requirementId: r.requirementId,
+            status: r.status,
+            upload: r.uploadId ? (fileById.get(r.uploadId) ?? null) : null,
+            value: r.value ?? null,
+            note: r.note,
+          })),
+        };
+        await tx.update(project).set({ submissionStatus: "SUBMITTED" }).where(eq(project.id, row.id));
         const [inserted] = await tx
           .insert(submission)
           .values({
@@ -414,18 +454,18 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
             snapshot,
           })
           .returning();
-        await tx.update(project).set({ submissionStatus: "SUBMITTED" }).where(eq(project.id, row.id));
-        return inserted!;
+        return { row, record: inserted!, created: true };
       });
+      if (!created) return record;
       await notify({
         userId: user.id,
         type: NotificationType.SUBMISSION_UPDATED,
-        idempotencyKey: `submission:${created.id}:SUBMITTED`,
-        payload: { project: row.name, status: "SUBMITTED", reference: created.reference },
+        idempotencyKey: `submission:${record.id}:SUBMITTED`,
+        payload: { project: row.name, status: "SUBMITTED", reference: record.reference },
         projectId: row.id,
       });
       set.status = 201;
-      return created;
+      return record;
     },
     {
       auth: true,
@@ -433,6 +473,7 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
       body: t.Object({
         receipt: t.Optional(t.String({ maxLength: 200 })),
         note: t.Optional(t.String({ maxLength: 2000 })),
+        idempotencyKey: t.Optional(t.String({ minLength: 1, maxLength: 200 })),
       }),
       detail: {
         summary: "Record an official submission: snapshots the checklist and moves the project to SUBMITTED",
@@ -478,6 +519,39 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
     },
   )
 
+  .get("/:id/package", async ({ params, user }) => await buildPackage(await findOwned(params.id, user.id)), {
+    auth: true,
+    params: idParam,
+    detail: {
+      summary:
+        "Everything a reviewer needs in one object: files, confirmed values, what is missing, and the catalogue entry behind each requirement",
+    },
+  })
+
+  .get(
+    "/:id/package/export",
+    async ({ params, user }) => {
+      const row = await findOwned(params.id, user.id);
+      const assembled = await buildPackage(row);
+      // Returned as a Response so the body keeps its JSON type: a string return would be
+      // served as text/plain and saved as an unreadable download.
+      return new Response(JSON.stringify(assembled, null, 2), {
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "content-disposition": `attachment; filename="${exportFilename(row)}"`,
+        },
+      });
+    },
+    {
+      auth: true,
+      params: idParam,
+      detail: {
+        summary:
+          "Download the procedure as it stands now, as data. A past submission exports as a document instead",
+      },
+    },
+  )
+
   .get(
     "/:id/uploads",
     async ({ params, user }) => {
@@ -495,8 +569,7 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
   .delete(
     "/:id",
     async ({ params, user, set }) => {
-      const row = await findOwned(params.id, user.id);
-      await db.transaction(async (tx) => {
+      await withLockedProject(params.id, user.id, async (row, tx) => {
         await tx.update(upload).set({ projectId: null }).where(eq(upload.projectId, row.id));
         await tx.delete(project).where(eq(project.id, row.id));
       });
@@ -504,6 +577,65 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
     },
     { auth: true, params: idParam, detail: { summary: "Delete a project (files are kept, unfiled)" } },
   );
+
+/** Reads the project's current state and lays it out for a reviewer. Changes nothing. */
+async function buildPackage(row: Project) {
+  if (!row.serviceId) throw new AppError({ status: 409, code: "project_not_ready" });
+  const requirements = await listRequirements(row.id);
+  const uploadIds = requirements.flatMap((r) => (r.uploadId ? [r.uploadId] : []));
+  const files =
+    uploadIds.length > 0
+      ? await db
+          .select({
+            id: upload.id,
+            filename: upload.filename,
+            contentType: upload.contentType,
+            size: upload.size,
+            createdAt: upload.createdAt,
+          })
+          .from(upload)
+          .where(inArray(upload.id, uploadIds))
+      : [];
+  const byId = new Map(files.map((file) => [file.id, file]));
+  const items: PackageRequirement[] = requirements.map((requirement) => {
+    const file = requirement.uploadId ? byId.get(requirement.uploadId) : undefined;
+    return {
+      requirementId: requirement.requirementId,
+      status: requirement.status,
+      value: requirement.value ?? null,
+      note: requirement.note,
+      document: file
+        ? {
+            id: file.id,
+            filename: file.filename,
+            contentType: file.contentType,
+            size: file.size,
+            uploadedAt: file.createdAt.toISOString(),
+          }
+        : null,
+    };
+  });
+  return assemblePackage({
+    project: {
+      id: row.id,
+      name: row.name,
+      destination: row.destination,
+      serviceId: row.serviceId,
+    },
+    status: deriveProcedureStatus(row.serviceId, requirements, row.submissionStatus),
+    requirements: items,
+    submissions: await listSubmissions(row.id),
+  });
+}
+
+/** A filename safe to put in a header, and recognisable in a downloads folder. */
+function exportFilename(row: Project): string {
+  const name = row.name
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return `${name || "package"}-${row.id.slice(0, 8)}.json`;
+}
 
 /** Project owned by `userId`, or 404. Never reveals whether another user's id exists. */
 async function findOwned(id: string, userId: string): Promise<Project> {
@@ -516,8 +648,28 @@ async function findOwned(id: string, userId: string): Promise<Project> {
   return row;
 }
 
-async function listSubmissions(projectId: string) {
-  return db
+type ProjectTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+// All checklist mutations take the same parent lock before reading or changing children.
+async function withLockedProject<T>(
+  id: string,
+  userId: string,
+  run: (row: Project, tx: ProjectTransaction) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(project)
+      .where(and(eq(project.id, id), eq(project.userId, userId)))
+      .limit(1)
+      .for("update");
+    if (!row) throw new AppError({ status: 404, code: "project_not_found" });
+    return run(row, tx);
+  });
+}
+
+async function listSubmissions(projectId: string, client: typeof db | ProjectTransaction = db) {
+  return client
     .select()
     .from(submission)
     .where(eq(submission.projectId, projectId))
@@ -530,8 +682,8 @@ function newReference(): string {
   return `H4J-${day}-${randomBytes(3).toString("hex").toUpperCase()}`;
 }
 
-async function listRequirements(projectId: string) {
-  return db.select().from(projectRequirement).where(eq(projectRequirement.projectId, projectId));
+async function listRequirements(projectId: string, client: typeof db | ProjectTransaction = db) {
+  return client.select().from(projectRequirement).where(eq(projectRequirement.projectId, projectId));
 }
 
 function toSummary(row: Project, requirements: { requirementId: string; status: RequirementStatus }[]) {

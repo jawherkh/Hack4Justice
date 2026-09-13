@@ -13,6 +13,7 @@ import type {
 import { lifecycleCommandBody, prerequisiteBody } from "../lifecycle/validation";
 import type { ObligationObservationInput, OfficerReassessmentInput } from "../obligations/contracts";
 import { gateError, submissionAction } from "../requirements/evaluator";
+import type { PackageSelection } from "../submissions/package";
 import {
   createDemoDossierRepository,
   InMemoryDossierRepository,
@@ -43,6 +44,13 @@ export type BinaryUpload = Omit<UploadDocumentInput, "content" | "binary"> & {
 };
 export type TextUpload = UploadDocumentInput & { idempotencyKey?: string };
 export type AsyncAccessRepository = {
+  dossierPackage(
+    dossierId: string,
+    selection: PackageSelection,
+  ): ReturnType<AccessRepository["dossierPackage"]> | Promise<ReturnType<AccessRepository["dossierPackage"]>>;
+  submissions(
+    dossierId: string,
+  ): ReturnType<AccessRepository["submissions"]> | Promise<ReturnType<AccessRepository["submissions"]>>;
   dossiers(): ReturnType<AccessRepository["dossiers"]> | Promise<ReturnType<AccessRepository["dossiers"]>>;
   dossier(
     id: string,
@@ -212,6 +220,12 @@ export class PersistentRepository implements AsyncAccessRepository, AgentReposit
   actionGate(dossierId: string, action: NodeAction, nodeId?: string) {
     return this.read((r) => r.actionGate(dossierId, action, nodeId));
   }
+  dossierPackage(dossierId: string, selection: PackageSelection) {
+    return this.read((r) => r.dossierPackage(dossierId, selection));
+  }
+  submissions(dossierId: string) {
+    return this.read((r) => r.submissions(dossierId));
+  }
   dependencies(companyId: string, agency: "DGI" | "RNE" | "APII") {
     return this.read((r) => r.dependencies(companyId, agency));
   }
@@ -365,10 +379,19 @@ export class PersistentRepository implements AsyncAccessRepository, AgentReposit
     const action = submissionAction(command.type);
     if (!action) return {};
     try {
-      return { gate: repository.actionGate(command.dossierId, action, command.nodeId) };
+      return {
+        gate: repository.dossierPackage(command.dossierId, {
+          action,
+          nodeId: command.nodeId,
+          documentIds: command.submission?.documentIds,
+        }).gate,
+      };
     } catch (error) {
       // Old queued commands can name unavailable or ambiguous targets; reject them instead of retrying forever.
-      if (error instanceof AccessError && error.code === "action_not_available") {
+      if (
+        error instanceof AccessError &&
+        ["action_not_available", "invalid_document_selection", "not_found"].includes(error.code)
+      ) {
         return { validationError: error.code };
       }
       throw error;
@@ -438,6 +461,7 @@ export class PersistentRepository implements AsyncAccessRepository, AgentReposit
               createdAt: prepared.now,
             });
         }
+        r.finishSubmission(reference.commandId, error);
         await tx.query("UPDATE h4j_api.lifecycle_commands SET result=$2::jsonb WHERE id=$1", [
           reference.commandId,
           result,

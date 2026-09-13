@@ -16,6 +16,12 @@ export const lifecycleCommandBody = z
     nodeId: id.optional(),
     correlationId: id.optional(),
     confirmed: z.boolean().optional(),
+    submission: z
+      .strictObject({
+        documentIds: z.array(id).max(100).optional(),
+        mode: z.enum(["platform_review", "simulated_agency"]).optional(),
+      })
+      .optional(),
     decision: z
       .strictObject({
         action: z.enum(["accept", "refuse", "request_modification"]),
@@ -26,6 +32,8 @@ export const lifecycleCommandBody = z
       .optional(),
   })
   .superRefine((command, context) => {
+    if (command.submission && !["submission_requested", "resubmission_requested"].includes(command.type))
+      context.addIssue({ code: "custom", message: "Submission options do not match command" });
     if ((command.type === "decision_recorded") !== Boolean(command.decision))
       context.addIssue({ code: "custom", message: "Decision payload does not match command" });
     if (command.type === "decision_recorded" && !command.nodeId)

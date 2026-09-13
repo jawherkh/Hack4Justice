@@ -1,4 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
+import {
+  assembleDossierPackage,
+  packageChanges,
+  type PackageSelection,
+  type SubmissionOptions,
+} from "../submissions/package";
+import { simulatedReceipt, type SubmissionReceipt } from "../submissions/receipts";
 import type { LifecycleContext, PrerequisiteObservation } from "../lifecycle/contracts";
 import { combinePrerequisiteStatuses, observationStatus } from "../lifecycle/prerequisites";
 import {
@@ -398,6 +405,7 @@ export interface LifecycleCommandInput {
   readonly nodeId?: string;
   readonly correlationId?: string;
   readonly confirmed?: boolean;
+  readonly submission?: SubmissionOptions;
   readonly decision?: {
     action: "accept" | "refuse" | "request_modification";
     reason: string;
@@ -415,9 +423,13 @@ export interface LifecycleCommandAcknowledgement {
   readonly idempotencyKey: string;
   readonly status: "accepted";
   readonly acceptedAt: string;
+  readonly submissionId?: string;
+  readonly reference?: string;
 }
 
 export interface AccessRepository {
+  dossierPackage(dossierId: string, selection: PackageSelection): ReturnType<typeof assembleDossierPackage>;
+  submissions(dossierId: string): readonly SubmissionReceipt[];
   dossiers(): readonly DossierRecord[];
   dossier(id: string): DossierRecord | undefined;
   dossierDetail(id: string): DossierDetail | undefined;
@@ -525,9 +537,11 @@ export interface RepositorySnapshot {
   readonly helperTasks?: HelperTaskRecord[];
   readonly artifacts?: ArtifactRecord[];
   readonly artifactContents?: [string, string][];
+  readonly submissions?: SubmissionReceipt[];
 }
 
 export class InMemoryDossierRepository implements AgentRepository {
+  private readonly submissionRows = new Map<string, SubmissionReceipt>();
   private readonly dossierRows = new Map<string, DossierRecord>();
   private readonly documentRows = new Map<string, DocumentRecord>();
   private readonly nodeRows = new Map<string, NodeRecord>();
@@ -571,6 +585,7 @@ export class InMemoryDossierRepository implements AgentRepository {
       obligationEvents: [...this.obligationEventRows.values()],
       procedures: [...this.procedureRows.values()],
       commands: [...this.commandRows.entries()],
+      submissions: [...this.submissionRows.values()],
       grants: this.documentGrants,
       uploadReceipts: [...this.uploadReceiptRows.entries()],
       agentSessions: [...this.agentSessionRows.values()],
@@ -598,6 +613,7 @@ export class InMemoryDossierRepository implements AgentRepository {
     for (const row of copy.obligationEvents ?? []) repository.obligationEventRows.set(row.id, row);
     for (const row of copy.procedures) repository.procedureRows.set(row.id, row);
     for (const [key, row] of copy.commands) repository.commandRows.set(key, row);
+    for (const row of copy.submissions ?? []) repository.submissionRows.set(row.id, row);
     for (const [key, row] of copy.uploadReceipts ?? []) repository.uploadReceiptRows.set(key, row);
     for (const row of copy.agentSessions ?? []) repository.agentSessionRows.set(row.id, row);
     for (const row of copy.agentEvents ?? []) repository.agentEventRows.set(row.id, row);
@@ -1400,6 +1416,45 @@ export class InMemoryDossierRepository implements AgentRepository {
     return clone(assigned);
   }
 
+  public dossierPackage(dossierId: string, selection: PackageSelection) {
+    const detail = requireValue(this.dossierDetail(dossierId));
+    const procedure = requireValue(this.procedure(detail.dossier.procedureVersionId));
+    const sourceIds = new Set([
+      ...detail.sources.map((source) => source.id),
+      ...detail.requirements.flatMap((requirement) => requirement.sourceIds),
+      ...detail.findings.flatMap((finding) => finding.sourceIds),
+    ]);
+    const sources = [...sourceIds]
+      .map((id) => this.sourceRows.get(id))
+      .filter((source): source is SourceRecord => Boolean(source));
+    return clone(
+      assembleDossierPackage({ ...detail, sources }, procedure, [...this.obligationRows.values()], selection),
+    );
+  }
+
+  public submissions(dossierId: string): readonly SubmissionReceipt[] {
+    return clone(
+      [...this.submissionRows.values()]
+        .filter((receipt) => receipt.dossierId === dossierId)
+        .sort((a, b) => b.version - a.version),
+    );
+  }
+
+  public finishSubmission(commandId: string, error?: string): void {
+    const receipt = this.submissionRows.get(commandId);
+    if (!receipt || receipt.status !== "queued") return;
+    this.submissionRows.set(commandId, {
+      ...receipt,
+      status: error ? "rejected" : "completed",
+      processedAt: timestamp(),
+      ...(error
+        ? { error }
+        : receipt.mode === "simulated_agency"
+          ? { delivery: simulatedReceipt(receipt.snapshot.dossier.agency, receipt.id) }
+          : {}),
+    });
+  }
+
   public dispatchCommand(input: LifecycleCommandInput): LifecycleCommandAcknowledgement {
     const dossier = requireValue(this.dossierRows.get(input.dossierId));
     const key = `${input.dossierId}:${input.actorId}:${input.idempotencyKey}`;
@@ -1419,8 +1474,15 @@ export class InMemoryDossierRepository implements AgentRepository {
     if (input.nodeId && !dossier.nodeIds.includes(input.nodeId)) throw new AccessError(404, "not_found");
 
     const action = submissionAction(input.type);
+    const snapshot = action
+      ? this.dossierPackage(dossier.id, {
+          action,
+          nodeId: input.nodeId,
+          documentIds: input.submission?.documentIds,
+        })
+      : undefined;
     if (action) {
-      const error = gateError(this.actionGate(dossier.id, action, input.nodeId));
+      const error = gateError(snapshot!.gate);
       if (error) throw new AccessError(409, error);
     }
 
@@ -1432,7 +1494,30 @@ export class InMemoryDossierRepository implements AgentRepository {
       idempotencyKey: input.idempotencyKey,
       status: "accepted",
       acceptedAt: timestamp(),
+      ...(snapshot
+        ? { submissionId: `command-${dossier.id}-${this.sequence}`, reference: `DALIL-${randomUUID()}` }
+        : {}),
     };
+    if (snapshot) {
+      const receipts = this.submissions(dossier.id);
+      this.submissionRows.set(acknowledgement.commandId, {
+        id: acknowledgement.commandId,
+        dossierId: dossier.id,
+        actorId: input.actorId,
+        version: (receipts[0]?.version ?? 0) + 1,
+        reference: acknowledgement.reference!,
+        mode: input.submission?.mode ?? "platform_review",
+        simulated: snapshot.simulated || input.submission?.mode === "simulated_agency",
+        officialSubmission: false,
+        status: "queued",
+        createdAt: acknowledgement.acceptedAt,
+        snapshot,
+        changes: packageChanges(
+          receipts.find((receipt) => receipt.status === "completed")?.snapshot,
+          snapshot,
+        ),
+      });
+    }
     this.commandRows.set(key, { fingerprint, acknowledgement });
     return clone(acknowledgement);
   }
