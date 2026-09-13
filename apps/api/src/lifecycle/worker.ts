@@ -12,6 +12,7 @@ import { createDocumentActivities } from "../jobs/worker-activities";
 import { withDurableTurns } from "../jobs/agent-turn";
 import type { AgentActivities } from "./contracts";
 import { PostgresJobStore } from "../jobs/store";
+import { createKnowledgeSearch } from "../knowledge/search";
 
 // Match the API's root .env loading while allowing deployment-provided variables to win.
 config({ path: fileURLToPath(new URL("../../../../.env", import.meta.url)), quiet: true });
@@ -23,6 +24,7 @@ const namespace = process.env.TEMPORAL_NAMESPACE || "default";
 const taskQueue = process.env.TEMPORAL_TASK_QUEUE || DEFAULT_TASK_QUEUE;
 const repository = new PersistentRepository(url, new FileStore(process.env.DOCUMENT_STORAGE_DIR || ".local-data/documents"));
 const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+const turnStore = new PostgresJobStore(url);
 const agentActivities = geminiApiKey
   ? createAgentActivities(repository, {
       model: createGeminiAgentModel({
@@ -31,6 +33,8 @@ const agentActivities = geminiApiKey
         baseURL: process.env.GEMINI_AGENT_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai/",
       }),
       sandbox: { image: process.env.SANDBOX_IMAGE || "alpine:3.20", workspaceBaseDir: process.env.SANDBOX_BASE_DIR || ".local-data/agent-sandboxes" },
+      knowledge: createKnowledgeSearch(process.env.GRAPHITI_URL || "http://localhost:8010"),
+      jobs: turnStore,
     })
   : {};
 const connection = await Connection.connect({ address });
@@ -50,7 +54,6 @@ const documents = createDocumentActivities(url, {
     },
   },
 });
-const turnStore = new PostgresJobStore(url);
 const worker = await Worker.create({ connection: nativeConnection, namespace, taskQueue,
   workflowsPath: fileURLToPath(new URL("./workflows.ts", import.meta.url)),
   activities: {

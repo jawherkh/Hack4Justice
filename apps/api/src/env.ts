@@ -29,6 +29,7 @@ export const env = createEnv({
     S3_SECRET_ACCESS_KEY: z.string().default("minioadmin"),
     S3_BUCKET: z.string().default("hack4justice"),
     TIKA_URL: z.string().url().default("http://localhost:9998"),
+    GRAPHITI_URL: z.string().url().default("http://localhost:8010"),
     DOCUMENT_STORAGE_DIR: z.string().default(".local-data/documents"),
     GEMINI_API_KEY: z.string().min(1).optional(),
     GOOGLE_API_KEY: z.string().min(1).optional(),

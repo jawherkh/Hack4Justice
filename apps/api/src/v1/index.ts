@@ -13,6 +13,8 @@ import { PrincipalAgentService } from "../agent/service";
 import { env } from "../env";
 import { PersistentRepository } from "../dossiers/persistent";
 import { FileStore } from "../dossiers/files";
+import { PostgresJobStore } from "../jobs/store";
+import { createKnowledgeSearch } from "../knowledge/search";
 
 const repository = env.DATABASE_URL
   ? new PersistentRepository(env.DATABASE_URL, new FileStore(env.DOCUMENT_STORAGE_DIR))
@@ -27,6 +29,8 @@ const agentService = geminiApiKey
         baseURL: env.GEMINI_AGENT_BASE_URL,
       }),
       sandbox: { image: env.SANDBOX_IMAGE, workspaceBaseDir: env.SANDBOX_BASE_DIR },
+      knowledge: createKnowledgeSearch(env.GRAPHITI_URL),
+      jobs: new PostgresJobStore(env.DATABASE_URL),
     })
   : undefined;
 

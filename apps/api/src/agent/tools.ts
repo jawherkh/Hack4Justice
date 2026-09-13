@@ -21,6 +21,7 @@ import type {
   ProcedureVersionRecord,
   AgentEventType,
 } from "../dossiers/store";
+import type { KnowledgeSearch } from "../knowledge/search";
 import type { ProjectDockerSandboxSession } from "../sandbox/client";
 
 const identifier = z.string().trim().min(1).max(200);
@@ -40,6 +41,8 @@ export interface PrincipalAgentToolContext {
   selectedNodeId?: string;
   readonly userConfirmedAction?: "submission_requested" | "resubmission_requested" | "cancellation_requested";
   readonly sandbox?: ProjectDockerSandboxSession;
+  /** Approved legal sources. Absent when the knowledge service is not configured. */
+  readonly knowledge?: KnowledgeSearch;
   readonly emit?: (type: AgentEventType, data?: Readonly<Record<string, unknown>>) => Promise<void>;
 }
 
@@ -526,9 +529,47 @@ export const publishArtifactTool = tool({
   },
 });
 
+const legalQuery = z.string().trim().min(1).max(1_000);
+
+export const searchLegalKnowledgeTool = tool({
+  name: "search_legal_knowledge",
+  description: [
+    "Search the approved legal sources for this dossier's agency and return passages with the reference of each stored statement.",
+    "Use it before answering any question about what a rule, procedure, deadline or required document is.",
+    "Cite the reference of every passage you rely on.",
+    "When needsReview is true no approved source supports an answer: say the point needs review instead of answering from memory.",
+  ].join(" "),
+  parameters: z.object({ query: legalQuery }),
+  strict: true,
+  async execute({ query }, runContext) {
+    const context = agentContext(runContext);
+    // Reading the dossier first applies its access check, and supplies the agency. The
+    // agency is never taken from model input, so one agency's dossier cannot read another's
+    // rules by asking for them.
+    const detail = await detailFor(context);
+    if (!context.knowledge) {
+      return { agency: detail.dossier.agency, query, passages: [], needsReview: true, reason: "knowledge_source_unavailable" };
+    }
+    try {
+      return await context.knowledge.search({ agency: detail.dossier.agency, query });
+    } catch (error) {
+      // A lookup that could not run is not an absence of rules. Reporting it as needing
+      // review keeps the model from filling the gap from its own memory.
+      return {
+        agency: detail.dossier.agency,
+        query,
+        passages: [],
+        needsReview: true,
+        reason: error instanceof Error ? error.message : "knowledge_search_failed",
+      };
+    }
+  },
+});
+
 export const principalAgentTools = [
   getDossierContextTool,
   getNodeContextTool,
+  searchLegalKnowledgeTool,
   selectNodeTool,
   proposeValuesTool,
   attachEvidenceTool,

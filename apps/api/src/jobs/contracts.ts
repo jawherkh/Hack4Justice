@@ -1,5 +1,5 @@
-/** Work that runs outside the workflow: reading a document, or running a command in a sandbox. */
-export type JobKind = "document_text_extraction" | "sandbox_command" | "agent_turn";
+/** Work that runs outside the workflow: reading a document, running a command, asking the model, or looking a rule up. */
+export type JobKind = "document_text_extraction" | "sandbox_command" | "agent_turn" | "retrieval";
 
 export type JobStatus = "running" | "succeeded" | "failed";
 
