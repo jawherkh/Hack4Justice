@@ -38,9 +38,10 @@ services:
       minio:
         condition: service_healthy
     entrypoint: ["/bin/sh", "-c"]
-    command: >-
-      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-change-me-minio}
-      && mc mb --ignore-existing local/${S3_BUCKET:-hack4justice}
+    command:
+      - >-
+        mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-change-me-minio}
+        && mc mb --ignore-existing local/${S3_BUCKET:-hack4justice}
     restart: "no"
 
   neo4j:
@@ -242,4 +243,3 @@ volumes:
   h4j-neo4j-logs:
   h4j-temporal:
   h4j-documents:
-
