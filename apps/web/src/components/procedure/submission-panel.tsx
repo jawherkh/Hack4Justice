@@ -1,21 +1,44 @@
 import * as React from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { fieldsFor, type ProcedureStatus, type RequirementStatus } from '@hack4justice/shared'
 import {
   SERVICES,
   SubmissionStatus,
   isSatisfied,
   type SubmissionStatus as SubmissionStatusType,
 } from '@hack4justice/shared'
-import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, Send } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  ExternalLink,
+  FileDown,
+  FolderArchive,
+  Send,
+} from 'lucide-react'
 import { Button } from '@hack4justice/ui/components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@hack4justice/ui/components/card'
 import { toast } from '@hack4justice/ui/components/toast'
 import { toLocaleParam, useI18n } from '#/i18n'
 import { formatDate } from '#/lib/format'
 import { ApiError } from '#/lib/api-error'
-import { projectKeys, setSubmissionStatus, type ProjectDetail } from '#/lib/projects'
-import { humanize, requirementLabel, submissionModeLabel } from './labels'
+import {
+  exportSubmission,
+  projectKeys,
+  setSubmissionStatus,
+  type ProjectDetail,
+  type ProjectSubmission,
+} from '#/lib/projects'
+import {
+  humanize,
+  procedureStatusLabel,
+  requirementLabel,
+  requirementStatusLabel,
+  serviceName,
+  submissionModeLabel,
+} from './labels'
+import { fieldLabel } from './requirement-fields'
 import { ProcedureStatusBadge } from './status-badges'
 import { SubmitDialog } from './submit-dialog'
 
@@ -24,6 +47,28 @@ export function SubmissionPanel({ project }: { project: ProjectDetail }) {
   const { t, locale } = useI18n()
   const queryClient = useQueryClient()
   const [submitting, setSubmitting] = React.useState(false)
+
+  // Translated strings the API needs to print the cover sheet in the user's language.
+  const exportLabels = (item: ProjectSubmission): Record<string, string> => {
+    const labels: Record<string, string> = {
+      service: t(serviceName(item.serviceId)),
+      [`status:${item.status}`]: t(procedureStatusLabel(item.status as ProcedureStatus)),
+    }
+    for (const r of item.snapshot.requirements) {
+      labels[`req:${r.requirementId}`] = t(requirementLabel(r.requirementId))
+      labels[`rstatus:${r.status}`] = t(requirementStatusLabel(r.status as RequirementStatus))
+      for (const field of fieldsFor(r.requirementId)) {
+        labels[`field:${r.requirementId}.${field.key}`] = t(fieldLabel(r.requirementId, field.key))
+      }
+      labels[`field:${r.requirementId}.details`] = t('procedure.field.otherDetails')
+    }
+    return labels
+  }
+  const doExport = useMutation({
+    mutationFn: (input: { item: ProjectSubmission; format: 'pdf' | 'zip' }) =>
+      exportSubmission(project.id, input.item.id, input.format, exportLabels(input.item)),
+    onError: () => toast.add({ type: 'error', title: t('procedure.submissions.export.error') }),
+  })
   const params = { locale: toLocaleParam(locale), id: project.id }
   const service = project.serviceId ? SERVICES[project.serviceId] : undefined
 
@@ -236,6 +281,26 @@ export function SubmissionPanel({ project }: { project: ProjectDetail }) {
                   {item.note ? (
                     <span className="w-full text-xs text-muted-foreground">{item.note}</span>
                   ) : null}
+                  <span className="flex w-full flex-wrap gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      disabled={doExport.isPending}
+                      onClick={() => doExport.mutate({ item, format: 'pdf' })}
+                    >
+                      <FileDown data-icon="inline-start" />
+                      {t('procedure.submissions.export.pdf')}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      disabled={doExport.isPending}
+                      onClick={() => doExport.mutate({ item, format: 'zip' })}
+                    >
+                      <FolderArchive data-icon="inline-start" />
+                      {t('procedure.submissions.export.zip')}
+                    </Button>
+                  </span>
                 </li>
               ))}
             </ul>

@@ -21,9 +21,11 @@ import {
   SERVICES,
   SUBMISSION_STATUSES,
   deriveProcedureStatus,
+  fieldsComplete,
   isProjectDestination,
   isServiceId,
   serviceRequirementIds,
+  validateFields,
   waivableRequirementIds,
   type ProjectDestination,
   type SubmissionStatus,
@@ -36,6 +38,7 @@ import { authGuard } from "../../auth";
 import { db } from "../../db";
 import { i18n } from "../../i18n/plugin";
 import { notify } from "../../notifications/inbox";
+import { exportSubmission, type ExportLabels } from "./export";
 
 const idParam = t.Object({ id: t.String({ format: "uuid" }) });
 const destinationSchema = t.UnionEnum(PROJECT_DESTINATIONS);
@@ -247,12 +250,25 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
           await db.update(upload).set({ projectId: row.id }).where(eq(upload.id, file.id));
         }
       }
-      if (body.value !== undefined) patch.value = body.value;
+      if (body.value !== undefined) {
+        const checked = validateFields(params.requirementId, body.value);
+        if (Object.keys(checked.errors).length > 0) {
+          throw new AppError({
+            status: 422,
+            code: "validation_error",
+            details: Object.entries(checked.errors).map(([key, reason]) => ({
+              path: `/value/${key}`,
+              message: reason,
+            })),
+          });
+        }
+        patch.value = checked.value;
+      }
       if (body.note !== undefined) patch.note = emptyToNull(body.note);
       const status = parseRequirementStatus(body.status);
       if (status !== undefined) patch.status = status;
       else if (
-        (patch.uploadId || body.value) &&
+        (patch.uploadId || (body.value && fieldsComplete(params.requirementId, patch.value))) &&
         (current.status === RequirementStatus.MISSING ||
           current.status === RequirementStatus.NOT_APPLICABLE ||
           current.status === RequirementStatus.WAIVED)
@@ -420,6 +436,44 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
       }),
       detail: {
         summary: "Record an official submission: snapshots the checklist and moves the project to SUBMITTED",
+      },
+    },
+  )
+
+  .post(
+    "/:id/submissions/:submissionId/export",
+    async ({ params, body, user, set, locale }) => {
+      const row = await findOwned(params.id, user.id);
+      const [record] = await db
+        .select()
+        .from(submission)
+        .where(and(eq(submission.id, params.submissionId), eq(submission.projectId, row.id)))
+        .limit(1);
+      if (!record) throw new AppError({ status: 404, code: "not_found" });
+      const result = await exportSubmission({
+        project: row,
+        submission: record,
+        format: body.format,
+        locale,
+        labels: (body.labels ?? {}) as ExportLabels,
+      });
+      set.status = 200;
+      set.headers["content-type"] = result.contentType;
+      set.headers["content-disposition"] =
+        `attachment; filename*=UTF-8''${encodeURIComponent(result.filename)}`;
+      set.headers["cache-control"] = "no-store";
+      return new Uint8Array(result.bytes);
+    },
+    {
+      auth: true,
+      params: t.Object({ id: t.String({ format: "uuid" }), submissionId: t.String({ format: "uuid" }) }),
+      body: t.Object({
+        format: t.UnionEnum(["pdf", "zip"]),
+        /** Display strings the client already has translated (service, requirements, fields). */
+        labels: t.Optional(t.Record(t.String({ maxLength: 120 }), t.String({ maxLength: 300 }))),
+      }),
+      detail: {
+        summary: "Cover sheet (PDF) or full dossier (ZIP: cover sheet + attached files) for a submission",
       },
     },
   )
