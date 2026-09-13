@@ -268,7 +268,7 @@ export class PrincipalAgentService {
       throw new AccessError(404, "not_found");
     }
     const runId = randomUUID();
-    const { client: sandboxClient, session: sandbox } = await this.createSandbox(input.dossierId, runId);
+    const { client: sandboxClient, session: sandbox } = await this.createSandbox(input.dossierId, sessionRecord.id);
     const emit = async (type: AgentEventType, data?: Readonly<Record<string, unknown>>) => {
       const event = await this.repository.appendAgentEvent({
         sessionId: sessionRecord.id,
@@ -328,12 +328,12 @@ export class PrincipalAgentService {
     }
   }
 
-  private async createSandbox(dossierId: string, runId: string): Promise<{ client: ProjectDockerSandboxClient; session: ProjectDockerSandboxSession }> {
+  private async createSandbox(dossierId: string, workspaceId: string): Promise<{ client: ProjectDockerSandboxClient; session: ProjectDockerSandboxSession }> {
     const client = new ProjectDockerSandboxClient({
       ...this.sandboxOptions,
       dossierId,
-      runId,
+      runId: workspaceId,
     });
-    return { client, session: await client.create({ options: { dossierId, runId } }) };
+    return { client, session: await client.create({ options: { dossierId, runId: workspaceId } }) };
   }
 }
