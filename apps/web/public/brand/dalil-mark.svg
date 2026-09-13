@@ -1,10 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <!-- Frame: a squared, grid-built ring (Kufi-inspired construction) = the registry stamp / "proof" -->
-  <rect x="16" y="16" width="68" height="14" rx="7" fill="#2563eb"/>
-  <rect x="16" y="70" width="68" height="14" rx="7" fill="#2563eb"/>
-  <rect x="16" y="16" width="14" height="68" rx="7" fill="#2563eb"/>
-  <rect x="70" y="16" width="14" height="68" rx="7" fill="#2563eb"/>
-  <!-- Two footsteps inside the frame, descending right-to-left = the guided path / "دليل" -->
-  <rect x="44" y="32" width="12" height="12" rx="3" fill="#1e40af"/>
-  <rect x="32" y="50" width="12" height="12" rx="3" fill="#1e40af"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 234 260">
+  <rect width="234" height="260" rx="46" fill="#16213e"/>
+  <!-- ل (final lam) -->
+  <rect x="24" y="43" width="26" height="142" fill="#f7f4ec"/>
+  <!-- ي tooth, joined to the final lam -->
+  <rect x="50" y="139" width="24" height="22" fill="#f7f4ec"/>
+  <!-- shared baseline: ل - ي - ل -->
+  <rect x="24" y="161" width="174" height="24" fill="#f7f4ec"/>
+  <!-- ل (initial lam, before ي) -->
+  <rect x="132" y="43" width="26" height="142" fill="#f7f4ec"/>
+  <!-- د stem -->
+  <rect x="172" y="79" width="26" height="106" fill="#f7f4ec"/>
+  <!-- د hook -->
+  <rect x="172" y="79" width="38" height="20" fill="#f7f4ec"/>
+  <!-- ي's two dots -->
+  <rect x="69" y="199" width="18" height="18" fill="#f0a860"/>
+  <rect x="95" y="199" width="18" height="18" fill="#f0a860"/>
 </svg>
