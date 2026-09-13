@@ -76,7 +76,10 @@ describe("dossier transitions", () => {
   });
   test("nested decision payload changes cannot reuse an idempotency key", () => {
     const repository = createDemoDossierRepository();
-    const command = { dossierId: "dossier-alpha-dgi", actorId: "synthetic-officer", expectedVersion: 1, idempotencyKey: "same-key", type: "decision_recorded" as const,
+    const dossier = repository.dossier("dossier-alpha-dgi")!;
+    repository.addDossier({ ...dossier, lifecycle: "awaiting_review", agencyAcceptance: "pending" });
+    repository.assignDossier({ dossierId: dossier.id, expectedVersion: 1, officerId: "synthetic-officer" });
+    const command = { dossierId: dossier.id, actorId: "synthetic-officer", expectedVersion: 2, idempotencyKey: "same-key", type: "decision_recorded" as const,
       decision: { action: "accept" as const, reason: "One reason", targetNodeIds: [], evidenceIds: [] } };
     const first = repository.dispatchCommand(command);
     expect(repository.dispatchCommand({ ...command, decision: { ...command.decision } })).toEqual(first);

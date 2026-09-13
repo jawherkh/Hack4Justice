@@ -13,6 +13,7 @@ import { PrincipalAgentService } from "../agent/service";
 import { env } from "../env";
 import { PersistentRepository } from "../dossiers/persistent";
 import { FileStore } from "../dossiers/files";
+import { createAdminRoutes } from "../modules/admin/index";
 
 const repository = env.DATABASE_URL
   ? new PersistentRepository(env.DATABASE_URL, new FileStore(env.DOCUMENT_STORAGE_DIR))
@@ -29,11 +30,13 @@ const agentService = geminiApiKey
       sandbox: { image: env.SANDBOX_IMAGE, workspaceBaseDir: env.SANDBOX_BASE_DIR },
     })
   : undefined;
+const resolvePrincipal = createDemoIdentity(env.DEMO_ACCESS_ENABLED, env.NODE_ENV);
 
 export const v1 = new Elysia({ prefix: "/api/v1" })
   .use(authModule)
   .use(uploadsModule)
   .use(helloModule)
   .use(itemsModule)
-  .use(createAccessRoutes(repository, createDemoIdentity(env.DEMO_ACCESS_ENABLED, env.NODE_ENV)))
-  .use(createAgentRoutes(repository, createDemoIdentity(env.DEMO_ACCESS_ENABLED, env.NODE_ENV), agentService, Boolean(geminiApiKey)));
+  .use(createAccessRoutes(repository, resolvePrincipal))
+  .use(createAdminRoutes(repository, resolvePrincipal))
+  .use(createAgentRoutes(repository, resolvePrincipal, agentService, Boolean(geminiApiKey)));

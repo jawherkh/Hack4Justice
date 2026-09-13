@@ -8,6 +8,8 @@ import { Elysia } from "elysia";
 import { errorHandler } from "../errors";
 import { createAccessRoutes } from "../access/routes";
 import { createDemoIdentity } from "../access/identity";
+import { createAdminRoutes } from "../modules/admin/index";
+import { transition } from "../lifecycle/state";
 import { FileStore, checksum } from "./files";
 import { PersistentRepository } from "./persistent";
 import type { DossierDetail, DocumentRecord } from "./store";
@@ -53,7 +55,8 @@ describe.skipIf(!url)("persistent API storage", () => {
   });
   function server(connection = repository) {
     return new Elysia({ prefix: "/api/v1" }).use(errorHandler)
-      .use(createAccessRoutes(connection, createDemoIdentity(true, "test")));
+      .use(createAccessRoutes(connection, createDemoIdentity(true, "test")))
+      .use(createAdminRoutes(connection, createDemoIdentity(true, "test")));
   }
   function request(path: string, user = "demo-member-alpha", method = "GET", body?: unknown) {
     return new Request(`http://localhost/api/v1${path}`, { method,
@@ -147,6 +150,87 @@ describe.skipIf(!url)("persistent API storage", () => {
     expect(await restarted.dispatchCommand(command)).toEqual(first);
     expect(await rejected(restarted.dispatchCommand({ ...command, expectedVersion: 2 }))).toMatchObject({ code: "idempotency_conflict" });
     expect((await restarted.dossier(base.dossierId))?.agencyAcceptance).toBe("not_submitted");
+  });
+
+  test("persists assignments, review decisions and lifecycle audit events", async () => {
+    const submission = await repository.dispatchCommand({
+      dossierId: base.dossierId,
+      type: "submission_requested",
+      expectedVersion: 1,
+      idempotencyKey: "submit-for-review",
+      actorId: "demo-member-alpha",
+      confirmed: true,
+    });
+    const preparedSubmission = await repository.prepare({ dossierId: base.dossierId, commandId: submission.commandId });
+    expect(preparedSubmission).not.toBeNull();
+    expect((await repository.commit(preparedSubmission!, transition(preparedSubmission!))).status).toBe("completed");
+
+    const claim = await server().handle(request(
+      `/admin/dgi/dossiers/${base.dossierId}/assignment`,
+      "demo-officer-dgi",
+      "POST",
+      { expectedVersion: 2 },
+    ));
+    expect(claim.status).toBe(200);
+    expect(await claim.json()).toMatchObject({ dossier: { version: 3, assignedOfficerId: "demo-officer-dgi" } });
+
+    const decisionBody = {
+      expectedVersion: 3,
+      idempotencyKey: "request-correction",
+      correlationId: "review-session-persistent",
+      nodeId: "node-alpha-dgi-human_review",
+      action: "request_modification",
+      reason: "Replace the unreadable page",
+      targetNodeIds: [base.nodeId],
+      evidenceIds: ["document-alpha-dgi"],
+    };
+    const decision = await server().handle(request(
+      `/admin/dgi/dossiers/${base.dossierId}/decisions`,
+      "demo-officer-dgi",
+      "POST",
+      decisionBody,
+    ));
+    expect(decision.status).toBe(202);
+    const decisionAck = await decision.json() as { commandId: string };
+    const preparedDecision = await repository.prepare({ dossierId: base.dossierId, commandId: decisionAck.commandId });
+    expect(preparedDecision).not.toBeNull();
+    expect((await repository.commit(preparedDecision!, transition(preparedDecision!))).status).toBe("completed");
+
+    await repository.close();
+    const restarted = connect();
+    await restarted.initialize(true);
+    const detail = await restarted.dossierDetail(base.dossierId);
+    expect(detail?.dossier).toMatchObject({
+      version: 4,
+      assignedOfficerId: "demo-officer-dgi",
+      lifecycle: "correction_requested",
+      agencyAcceptance: "modification_requested",
+    });
+    expect(detail?.decisions).toContainEqual(expect.objectContaining({
+      actorId: "demo-officer-dgi",
+      reason: "Replace the unreadable page",
+      evidenceIds: ["document-alpha-dgi"],
+      targetNodeIds: [base.nodeId],
+    }));
+    const events = await restarted.lifecycleEvents(base.dossierId, 0);
+    expect(events).toContainEqual(expect.objectContaining({
+      aggregateVersion: 3,
+      actorId: "demo-officer-dgi",
+    }));
+    expect(events).toContainEqual(expect.objectContaining({
+      aggregateVersion: 4,
+      actorId: "demo-officer-dgi",
+      decisionId: `decision-${decisionAck.commandId}`,
+      correlationId: "review-session-persistent",
+    }));
+    const retry = await server(restarted).handle(request(
+      `/admin/dgi/dossiers/${base.dossierId}/decisions`,
+      "demo-officer-dgi",
+      "POST",
+      decisionBody,
+    ));
+    expect(retry.status).toBe(202);
+    expect(await retry.json()).toMatchObject({ commandId: decisionAck.commandId });
   });
 
   test("keeps JSON text uploads working and persists their original UTF-8 bytes", async () => {
