@@ -33,5 +33,8 @@
   "workflow_not_configured": "Le flux de travail n'est pas configuré",
   "extraction_in_progress": "Une extraction est déjà en cours pour ce document",
   "invalid_export_format": "Le format d'export n'est pas pris en charge",
-  "agent_output_not_available": "La réponse de l'agent n'est pas prête à être exportée"
+  "agent_output_not_available": "La réponse de l'agent n'est pas prête à être exportée",
+  "project_not_found": "Projet introuvable",
+  "requirement_not_found": "Exigence introuvable",
+  "project_not_ready": "La liste des pièces n’est pas encore complète"
 }

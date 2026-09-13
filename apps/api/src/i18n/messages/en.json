@@ -33,5 +33,8 @@
   "workflow_not_configured": "Workflow is not configured",
   "extraction_in_progress": "An extraction is already running for this upload",
   "invalid_export_format": "Export format is not supported",
-  "agent_output_not_available": "The agent response is not ready to export"
+  "agent_output_not_available": "The agent response is not ready to export",
+  "project_not_found": "Project not found",
+  "requirement_not_found": "Requirement not found",
+  "project_not_ready": "The checklist is not complete yet"
 }

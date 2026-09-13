@@ -15,6 +15,20 @@
       "when": 1789241299454,
       "tag": "0001_sad_nighthawk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789259807631,
+      "tag": "0002_rainy_prism",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789263168225,
+      "tag": "0003_aberrant_omega_flight",
+      "breakpoints": true
     }
   ]
 }

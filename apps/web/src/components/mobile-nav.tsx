@@ -5,6 +5,7 @@ import { Button } from '@hack4justice/ui/components/button'
 import { Separator } from '@hack4justice/ui/components/separator'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@hack4justice/ui/components/sheet'
 import { LanguageSwitcher } from '#/components/language-switcher'
+import { ThemeToggle } from '#/components/theme-toggle'
 import { toLocaleParam, useI18n } from '#/i18n'
 import type { SessionData } from '#/lib/session'
 
@@ -29,20 +30,25 @@ export function MobileNav({ session }: { session: SessionData }) {
           <SheetTitle>Hack4Justice</SheetTitle>
         </SheetHeader>
         <nav className="flex flex-col gap-1">
-          <Link
-            to="/{-$locale}"
-            params={params}
-            activeOptions={{ exact: true }}
-            className={linkClass}
-            onClick={close}
-          >
-            {t('nav.home')}
-          </Link>
+          {session ? null : (
+            <Link
+              to="/{-$locale}"
+              params={params}
+              activeOptions={{ exact: true }}
+              className={linkClass}
+              onClick={close}
+            >
+              {t('nav.home')}
+            </Link>
+          )}
           <Link to="/{-$locale}/about" params={params} className={linkClass} onClick={close}>
             {t('nav.about')}
           </Link>
           {session ? (
             <>
+              <Link to="/{-$locale}/projects" params={params} className={linkClass} onClick={close}>
+                {t('nav.projects')}
+              </Link>
               <Link to="/{-$locale}/uploads" params={params} className={linkClass} onClick={close}>
                 {t('nav.uploads')}
               </Link>
@@ -62,7 +68,10 @@ export function MobileNav({ session }: { session: SessionData }) {
           )}
         </nav>
         <Separator />
-        <LanguageSwitcher />
+        <div className="flex items-center justify-between">
+          <LanguageSwitcher />
+          <ThemeToggle />
+        </div>
       </SheetContent>
     </Sheet>
   )

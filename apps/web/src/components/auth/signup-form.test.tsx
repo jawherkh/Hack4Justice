@@ -23,7 +23,12 @@ describe('SignupForm', () => {
     renderWithApp(<SignupForm redirectTo="/" />)
     await screen.findByText('Create your account')
 
-    await fill(user, { 'Full name': 'Aziz', Email: 'aziz@example.com', Password: 'short', 'Confirm password': 'other' })
+    await fill(user, {
+      'Full name': 'Aziz',
+      Email: 'aziz@example.com',
+      Password: 'short',
+      'Confirm password': 'other',
+    })
     await user.click(screen.getByRole('button', { name: 'Create account' }))
 
     expect(await screen.findByText('Password must be at least 8 characters.')).toBeInTheDocument()

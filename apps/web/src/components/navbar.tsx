@@ -2,6 +2,7 @@ import { Link, useNavigate, useRouteContext, useRouter } from '@tanstack/react-r
 import { Button } from '@hack4justice/ui/components/button'
 import { LanguageSwitcher } from '#/components/language-switcher'
 import { MobileNav } from '#/components/mobile-nav'
+import { ThemeToggle } from '#/components/theme-toggle'
 import { toLocaleParam, useI18n } from '#/i18n'
 import { signOut } from '#/lib/auth'
 
@@ -21,26 +22,35 @@ export function Navbar() {
         </Link>
 
         <ul className="hidden items-center gap-4 md:flex">
-          <li>
-            <Link to="/{-$locale}" params={params} activeOptions={{ exact: true }} className={navLinkClass}>
-              {t('nav.home')}
-            </Link>
-          </li>
+          {session ? (
+            <>
+              <li>
+                <Link to="/{-$locale}/projects" params={params} className={navLinkClass}>
+                  {t('nav.projects')}
+                </Link>
+              </li>
+              <li>
+                <Link to="/{-$locale}/uploads" params={params} className={navLinkClass}>
+                  {t('nav.uploads')}
+                </Link>
+              </li>
+            </>
+          ) : (
+            <li>
+              <Link to="/{-$locale}" params={params} activeOptions={{ exact: true }} className={navLinkClass}>
+                {t('nav.home')}
+              </Link>
+            </li>
+          )}
           <li>
             <Link to="/{-$locale}/about" params={params} className={navLinkClass}>
               {t('nav.about')}
             </Link>
           </li>
-          {session ? (
-            <li>
-              <Link to="/{-$locale}/uploads" params={params} className={navLinkClass}>
-                {t('nav.uploads')}
-              </Link>
-            </li>
-          ) : null}
         </ul>
 
-        <div className="ms-auto hidden items-center gap-4 md:flex">
+        <div className="ms-auto hidden items-center gap-2 md:flex">
+          <ThemeToggle />
           <LanguageSwitcher />
           <SessionActions />
         </div>
