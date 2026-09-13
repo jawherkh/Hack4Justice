@@ -131,6 +131,32 @@ describe("legal knowledge search", () => {
     }
   });
 
+  test("keeps a fact whose document was not returned in the same response", async () => {
+    // The service ranks and caps edges and episodes separately, so an edge routinely names
+    // an episode this response did not carry. The fact is still traceable to that document.
+    vi.stubGlobal("fetch", respondWith({
+      agency: "DGI", group_id: "dgi", query: "quittance",
+      edges: [{
+        uuid: "edge-9", name: "REQUIRES", fact: "Une quittance fiscale est exigee.",
+        episodes: ["episode-not-in-this-response"], attributes: {},
+      }],
+      nodes: [], episodes: [],
+    }));
+    try {
+      const context = await createKnowledgeSearch("http://knowledge.test").search({ agency: "DGI", query: "quittance" });
+      expect(context.needsReview).toBe(false);
+      expect(context.unsourcedStatements).toBe(0);
+      // No source description is invented for a document this response did not describe.
+      expect(context.passages).toEqual([{
+        fact: "Une quittance fiscale est exigee.",
+        reference: "episode-not-in-this-response",
+        statement: "edge-9",
+      }]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   test("keeps matching legal text that no relation was extracted from", async () => {
     vi.stubGlobal("fetch", respondWith({ ...serviceBody, edges: [] }));
     try {

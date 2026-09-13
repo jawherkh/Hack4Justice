@@ -4,14 +4,18 @@ import type { Agency } from "../access/policy";
 export interface LegalPassage {
   /** What the source says. */
   fact: string;
-  /** The document this was drawn from, as it should be cited. */
-  source: string;
   /**
-   * Identifies the stored document. An answer quoting this passage can be traced back to
-   * the exact version that was read, and a later ingestion changes the identifier rather
-   * than the meaning of an answer already given.
+   * Identifies the document this was drawn from. An answer quoting this passage can be
+   * traced back to the exact version that was read, and a later ingestion changes the
+   * identifier rather than the meaning of an answer already given.
    */
   reference: string;
+  /**
+   * How to cite that document. Absent when the search returned the statement without also
+   * returning the document it names: the statement is still traceable by its reference, but
+   * naming a source that was not returned would be inventing one.
+   */
+  source?: string;
   /** The extracted relation this fact came from, when it came from one rather than from the text. */
   statement?: string;
   /** The window the statement applies in. A statement with an end date has been replaced. */
@@ -137,27 +141,31 @@ function asLegalContext(agency: Agency, query: string, body: SearchResponse): Le
   const passages: LegalPassage[] = [];
   let unsourcedStatements = 0;
 
-  // An extracted relation states a fact, but only the episode it came from says where that
-  // fact is written. A relation with no episode cannot be cited, so it is not offered as if
-  // it could be: its relation name is not a source.
+  // An extracted relation states a fact; the episodes it names say where that fact is
+  // written. The service ranks and caps edges and episodes separately, so an edge often
+  // names an episode this response did not carry. That is still provenance, and dropping it
+  // would discard law the service did find. A relation naming no episode at all is
+  // different: it has no document behind it, and its relation name is not a source.
   for (const edge of body.edges ?? []) {
     const fact = edge.fact?.trim();
     if (!fact) continue;
-    const episode = (edge.episodes ?? []).map((uuid) => episodes.get(uuid)).find((candidate) => provenance(candidate));
-    const source = provenance(episode);
-    if (!episode || !source) {
+    const named = (edge.episodes ?? []).filter((uuid) => uuid);
+    if (named.length === 0) {
       unsourcedStatements += 1;
       continue;
     }
-    cited.add(episode.uuid);
+    const episode = named.map((uuid) => episodes.get(uuid)).find((candidate) => provenance(candidate));
+    const source = provenance(episode);
+    const reference = episode?.uuid ?? named[0]!;
+    if (episode) cited.add(episode.uuid);
     passages.push({
       fact,
-      source,
-      reference: episode.uuid,
+      reference,
+      ...(source ? { source } : {}),
       statement: edge.uuid,
       ...(edge.valid_at ? { validFrom: edge.valid_at } : {}),
       ...(edge.invalid_at ? { validUntil: edge.invalid_at } : {}),
-      ...(episode.content_excerpt?.trim() ? { excerpt: episode.content_excerpt.trim() } : {}),
+      ...(episode?.content_excerpt?.trim() ? { excerpt: episode.content_excerpt.trim() } : {}),
     });
   }
 
@@ -168,7 +176,7 @@ function asLegalContext(agency: Agency, query: string, body: SearchResponse): Le
     const source = provenance(episode);
     const text = episode.content_excerpt?.trim();
     if (!source || !text) continue;
-    passages.push({ fact: text, source, reference: episode.uuid, excerpt: text });
+    passages.push({ fact: text, reference: episode.uuid, source, excerpt: text });
   }
 
   return { agency, query, passages, unsourcedStatements, needsReview: passages.length === 0 };
