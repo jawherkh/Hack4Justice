@@ -19,7 +19,8 @@ import { adminKeys, listSubmissions } from '#/lib/admin'
 import { formatDate, humanize } from '#/lib/format'
 
 const STATUSES = ['', 'SUBMITTED', 'UNDER_REVIEW', 'ACCEPTED', 'REJECTED'] as const
-const searchSchema = z.object({ status: z.enum(STATUSES).optional(), q: z.string().optional() })
+const statusSchema = z.enum(STATUSES).optional().catch(undefined)
+const searchSchema = z.object({ status: statusSchema, q: z.string().optional() })
 
 export const Route = createFileRoute('/_app/submissions/')({
   validateSearch: searchSchema,
@@ -56,17 +57,17 @@ function SubmissionsPage() {
           <ToggleGroup
             variant="outline"
             spacing={0}
-            value={[status]}
+            value={[status || 'all']}
             onValueChange={(values) =>
               void navigate({
                 search: (prev) => ({
                   ...prev,
-                  status: (values[0] as (typeof STATUSES)[number]) || undefined,
+                  status: statusSchema.parse(values[0]) || undefined,
                 }),
               })
             }
           >
-            <ToggleGroupItem value="">All</ToggleGroupItem>
+            <ToggleGroupItem value="all">All</ToggleGroupItem>
             <ToggleGroupItem value="SUBMITTED">Submitted</ToggleGroupItem>
             <ToggleGroupItem value="UNDER_REVIEW">Under review</ToggleGroupItem>
             <ToggleGroupItem value="ACCEPTED">Accepted</ToggleGroupItem>
