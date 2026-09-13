@@ -248,7 +248,13 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
       if (body.note !== undefined) patch.note = emptyToNull(body.note);
       const status = parseRequirementStatus(body.status);
       if (status !== undefined) patch.status = status;
-      else if (current.status === RequirementStatus.MISSING && (patch.uploadId || body.value)) {
+      else if (
+        (patch.uploadId || body.value) &&
+        (current.status === RequirementStatus.MISSING ||
+          current.status === RequirementStatus.NOT_APPLICABLE ||
+          current.status === RequirementStatus.WAIVED)
+      ) {
+        // Supplying evidence for an item implies it applies after all.
         patch.status = RequirementStatus.PROVIDED;
       }
       const before = deriveProcedureStatus(
