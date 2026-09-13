@@ -32,7 +32,7 @@ const app = new Elysia()
   .use(v1)
   .listen({
     port: PORT,
-    hostname: env.DEMO_ACCESS_ENABLED ? "127.0.0.1" : "0.0.0.0",
+    hostname: "0.0.0.0",
     maxRequestBodySize: MAX_UPLOAD_REQUEST_BYTES,
   });
 

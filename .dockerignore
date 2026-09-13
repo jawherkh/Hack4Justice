@@ -1,0 +1,33 @@
+# Dependencies — never copy from host, always install inside the image
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+**/dist
+.output
+**/.output
+
+# Local data
+.local-data
+**/.local-data
+
+# Git
+.git
+.gitignore
+
+# Env files — injected at runtime via docker-compose environment:
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage
+**/.turbo

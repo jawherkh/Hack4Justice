@@ -10,7 +10,12 @@ import viteReact from '@vitejs/plugin-react'
 const config = defineConfig({
   // Single .env at the repo root; only VITE_* keys are exposed to the client.
   envDir: fileURLToPath(new URL('../..', import.meta.url)),
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    tsconfigPaths: true,
+    // Force a single React instance to prevent "invalid hook call" errors
+    // caused by bun resolving react from different case-variant cache paths.
+    dedupe: ['react', 'react-dom', 'react/jsx-runtime'],
+  },
   plugins: [tailwindcss(), tanstackStart(), viteReact()],
 })
 

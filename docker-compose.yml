@@ -1,4 +1,60 @@
 services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      DEMO_ACCESS_ENABLED: "true"
+      PORT: 3001
+      WEB_ORIGIN: http://localhost:3000
+      DATABASE_URL: postgres://postgres:postgres@db:5432/hack4justice
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-to-a-random-32-plus-character-string}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3001}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET:-hack4justice}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - api_documents:/app/.local-data/documents
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3001/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   neo4j:
     image: neo4j:5.26-community
     restart: unless-stopped
@@ -78,20 +134,10 @@ services:
       mc mb --ignore-existing local/hack4justice
       "
 
-  # Apache Tika with Tesseract: text extraction + OCR for PDFs and images.
-  tika:
-    image: apache/tika:latest-full
-    restart: unless-stopped
-    ports:
-      - "9998:9998"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9998/tika || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
 
 volumes:
   pgdata:
   miniodata:
   neo4jdata:
   neo4jlogs:
+  api_documents:

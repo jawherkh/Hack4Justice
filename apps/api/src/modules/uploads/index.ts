@@ -1,4 +1,4 @@
-import { upload, type NewUpload, type Upload } from "@hack4justice/db";
+import { upload, type Upload } from "@hack4justice/db";
 import { AppError, UploadStatus } from "@hack4justice/shared";
 import { and, desc, eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
@@ -6,7 +6,6 @@ import { Elysia, t } from "elysia";
 import { authGuard } from "../../auth";
 import { db } from "../../db";
 import { i18n } from "../../i18n/plugin";
-import { tika, TikaError, type ExtractResult } from "../../ocr/index";
 import { storage } from "../../storage";
 
 const PDF_CONTENT_TYPE = "application/pdf";
@@ -34,18 +33,17 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
         contentType: PDF_CONTENT_TYPE,
         metadata: { filename: encodeURIComponent(body.file.name), userId: user.id },
       });
-      await db.insert(upload).values({
+
+      const row = await db.insert(upload).values({
         id,
         userId: user.id,
         storageKey,
         filename: body.file.name,
         contentType: PDF_CONTENT_TYPE,
         size: bytes.byteLength,
-        status: UploadStatus.PROCESSING,
-      });
-
-      const { text, pageCount } = await extractText(id, bytes, body.languages);
-      const row = await updateUpload(id, { status: UploadStatus.EXTRACTED, text, pageCount, extractedAt: new Date(), error: null });
+        status: UploadStatus.EXTRACTED,
+        extractedAt: new Date(),
+      }).returning().then(([r]) => r!);
 
       set.status = 201;
       return toView(row);
@@ -54,10 +52,8 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
       auth: true,
       body: t.Object({
         file: t.File({ type: PDF_CONTENT_TYPE, maxSize: MAX_PDF_SIZE }),
-        /** Tesseract language codes joined with "+", default "fra+eng". */
-        languages: t.Optional(t.String({ pattern: "^[a-z_]{3,7}(\\+[a-z_]{3,7})*$" })),
       }),
-      detail: { summary: "Upload a PDF and extract its text (OCR for scanned pages)" },
+      detail: { summary: "Upload a PDF" },
     },
   )
 
@@ -91,22 +87,6 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
     { auth: true, params: idParam, detail: { summary: "Delete an upload" } },
   );
 
-/** Runs Tika. On failure, marks the row `failed` (file stays stored for a retry) and fails with 502. */
-async function extractText(id: string, bytes: Uint8Array<ArrayBuffer>, languages?: string): Promise<ExtractResult> {
-  try {
-    return await tika.extract(bytes, { contentType: PDF_CONTENT_TYPE, ocrLanguages: languages });
-  } catch (cause) {
-    const error = cause instanceof TikaError ? cause.message : "Text extraction failed";
-    await updateUpload(id, { status: UploadStatus.FAILED, error });
-    throw new AppError({ status: 502, code: "extraction_failed", details: { uploadId: id }, cause });
-  }
-}
-
-async function updateUpload(id: string, values: Partial<NewUpload>): Promise<Upload> {
-  const [row] = await db.update(upload).set(values).where(eq(upload.id, id)).returning();
-  if (!row) throw new AppError({ status: 404, code: "upload_not_found" });
-  return row;
-}
 
 /** Upload owned by `userId`, or 404. Never reveals whether another user's id exists. */
 async function findOwned(id: string, userId: string): Promise<Upload> {
