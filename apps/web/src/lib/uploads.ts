@@ -6,7 +6,6 @@ export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 export const OCR_LANGUAGES = ['fra+eng', 'fra', 'eng', 'ara+fra'] as const
 export type OcrLanguages = (typeof OCR_LANGUAGES)[number]
 
-export type UploadSummary = Awaited<ReturnType<typeof listUploads>>[number]
 export type UploadDetail = Awaited<ReturnType<typeof getUpload>>
 
 export async function listUploads() {

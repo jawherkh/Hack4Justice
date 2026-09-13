@@ -50,7 +50,6 @@ export function changePasswordSchema(t: Translate) {
     })
 }
 
-export type ProfileValues = z.infer<ReturnType<typeof profileSchema>>
 export type ChangePasswordValues = z.infer<ReturnType<typeof changePasswordSchema>>
 
 export function forgotPasswordSchema(t: Translate) {

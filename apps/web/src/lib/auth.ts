@@ -5,4 +5,4 @@ const baseURL = (import.meta.env['VITE_API_URL'] as string | undefined) ?? 'http
 /** Better Auth React client. Session cookies are sent with every request. */
 export const authClient = createClient({ baseURL })
 
-export const { useSession, signIn, signUp, signOut } = authClient
+export const { signIn, signUp, signOut } = authClient

@@ -267,5 +267,3 @@ export class ProjectDockerSandboxClient implements SandboxClient<ProjectDockerSa
     await session.close();
   }
 }
-
-export type ProjectSandboxSession = ProjectDockerSandboxSession;

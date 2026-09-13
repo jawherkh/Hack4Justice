@@ -82,5 +82,3 @@ function normalize(text: string): string {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
-
-export type TikaClient = ReturnType<typeof createTikaClient>;

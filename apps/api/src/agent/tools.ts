@@ -13,7 +13,6 @@ import {
 } from "../access/policy";
 import type {
   AgentRepository,
-  ArtifactRecord,
   DossierDetail,
   DocumentRecord,
   FindingRecord,
@@ -538,9 +537,3 @@ export const principalAgentTools = [
   prepareDocumentTool,
   publishArtifactTool,
 ] as const;
-
-export function isAgentToolEventType(type: string): type is AgentEventType {
-  return ["run_started", "agent_updated", "text_delta", "tool_started", "tool_completed", "tool_failed", "node_selected", "task_created", "artifact_created", "run_completed", "run_failed"].includes(type);
-}
-
-export type PublishedArtifact = ArtifactRecord;

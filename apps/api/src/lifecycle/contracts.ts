@@ -88,5 +88,4 @@ export interface AgentActivities {
 export const COMMAND_SIGNAL = "dossierCommand";
 export const STATUS_QUERY = "processingStatus";
 export const WORKFLOW_TYPE = "dossierWorkflow";
-export const AGENT_WORKFLOW_TYPE = "agentTurnWorkflow";
 export const DEFAULT_TASK_QUEUE = "dossier-lifecycle";
