@@ -40,8 +40,8 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
-        mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-change-me-minio}
-        && mc mb --ignore-existing local/${S3_BUCKET:-hack4justice}
+        until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-change-me-minio}; do sleep 2; done
+        && until mc mb --ignore-existing local/${S3_BUCKET:-hack4justice}; do sleep 2; done
     restart: "no"
 
   neo4j:
