@@ -1,4 +1,4 @@
-import { Context } from "@temporalio/activity";
+import { ApplicationFailure, CancelledFailure, Context } from "@temporalio/activity";
 
 import type { AgentActivities, AgentTurnWorkflowInput, AgentTurnWorkflowResult } from "../lifecycle/contracts";
 import { JobCancelled, type JobContext, type JobStore } from "./contracts";
@@ -49,6 +49,8 @@ function activityContext(): JobContext {
 export interface DurableAgentOptions {
   /** Used when the turn does not run inside a workflow, such as in tests. */
   turnKey?: string;
+  /** Cancellation for the same case: inside a workflow it comes from the activity context. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -67,7 +69,7 @@ export function withDurableTurns(
 ): AgentActivities {
   return {
     async runAgentTurn(input: AgentTurnWorkflowInput): Promise<AgentTurnWorkflowResult> {
-      const context = activityContext();
+      const context = { ...activityContext(), ...(options.signal ? { signal: options.signal } : {}) };
       const jobId = turnKey(input, options.turnKey);
 
       const receipt = await runJob(
@@ -102,14 +104,21 @@ export function withDurableTurns(
       if (receipt.status === "succeeded" && receipt.output) {
         return receipt.output as unknown as AgentTurnWorkflowResult;
       }
-      if (receipt.status === "running") {
-        // Another worker is answering this turn. Failing here lets the workflow's retry
-        // come back and read that answer, rather than asking the model a second time.
-        throw new Error("agent_turn_in_progress");
+      if (receipt.error === "job_cancelled") {
+        // Cancellation has its own failure type. A plain error would be read as an ordinary
+        // failure and retried, spending the retry budget on a turn the caller stopped.
+        throw new CancelledFailure("agent_turn_cancelled");
       }
-      // A failure is raised so the workflow's own retry policy and history see it, rather
-      // than a successful-looking result that carries an error inside it.
-      throw new Error(receipt.error ?? "agent_turn_failed");
+      if (receipt.status === "running") {
+        // Another worker is answering this turn. Failing lets the retry come back and read
+        // that answer, rather than asking the model a second time.
+        throw ApplicationFailure.retryable("agent_turn_in_progress", "AgentTurnInProgress");
+      }
+      if (receipt.retryable) {
+        throw ApplicationFailure.retryable(receipt.error ?? "agent_turn_failed", "AgentTurnRetryable");
+      }
+      // Asking again would be refused the same way, so the workflow is told once.
+      throw ApplicationFailure.nonRetryable(receipt.error ?? "agent_turn_failed", "AgentTurnFailed");
     },
   };
 }

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { CancelledFailure } from "@temporalio/activity";
 import { randomUUID } from "node:crypto";
 
 import type { AgentActivities, AgentTurnWorkflowInput } from "../lifecycle/contracts";
@@ -147,15 +148,26 @@ describe("durable agent turns", () => {
   });
 
   test("a cancelled turn is reported as cancelled, not as something to retry", async () => {
-    const { CancelledFailure } = await import("@temporalio/activity");
-    // settle() is the activity boundary: a cancelled record must leave it as a
-    // cancellation, so Temporal stops rather than spending retries on stopped work.
-    const { settleForTest } = await import("./worker-activities");
-    expect(() => settleForTest({
-      jobId: "j", dossierId: "d", kind: "sandbox_command", status: "failed",
-      error: "job_cancelled", retryable: false, attempts: 1,
-      startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-    })).toThrow(CancelledFailure);
+    const store = new MemoryJobStore();
+    const controller = new AbortController();
+    controller.abort();
+    let calls = 0;
+    const durable = withDurableTurns(answering(() => { calls += 1; }), store, { turnKey: "turn-cancelled", signal: controller.signal });
+
+    // The model is never asked, and the boundary reports a cancellation rather than a
+    // failure the service would retry.
+    await expect(durable.runAgentTurn(turn())).rejects.toThrow(CancelledFailure);
+    expect(calls).toBe(0);
+  });
+
+  test("a refusal is reported as not worth retrying", async () => {
+    const store = new MemoryJobStore();
+    const refusing: AgentActivities = {
+      async runAgentTurn() { throw Object.assign(new Error("procedure_version_not_pinned"), { status: 422 }); },
+    };
+    const durable = withDurableTurns(refusing, store, { turnKey: "turn-nonretry" });
+
+    await expect(durable.runAgentTurn(turn())).rejects.toMatchObject({ nonRetryable: true });
   });
 
   test("the answer survives a worker restart", async () => {

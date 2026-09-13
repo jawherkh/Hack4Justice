@@ -40,10 +40,6 @@ function activityContext(): JobContext {
  * completed. A job that failed in a way no retry would change is returned, because the
  * record of that refusal is the useful answer.
  */
-export function settleForTest(receipt: JobReceipt): JobReceipt {
-  return settle(receipt);
-}
-
 function settle(receipt: JobReceipt): JobReceipt {
   if (receipt.error === "job_cancelled") {
     // Cancellation has its own failure type. A plain error would be read as an ordinary
