@@ -15,6 +15,9 @@ export const adminUser = pgTable("admin_user", {
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
   role: adminRole("role").default(AdminRole.SUPPORT).notNull(),
+  banned: boolean("banned").default(false),
+  banReason: text("ban_reason"),
+  banExpires: timestamp("ban_expires"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
@@ -39,6 +42,7 @@ export const adminSession = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => adminUser.id, { onDelete: "cascade" }),
+    impersonatedBy: text("impersonated_by"),
   },
   (table) => [index("admin_session_user_id_idx").on(table.userId)],
 );

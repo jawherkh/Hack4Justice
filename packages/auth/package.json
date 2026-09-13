@@ -32,6 +32,7 @@
     "./server": "./src/server.ts",
     "./client": "./src/client.ts",
     "./admin/server": "./src/admin/server.ts",
-    "./admin/client": "./src/admin/client.ts"
+    "./admin/client": "./src/admin/client.ts",
+    "./admin/access": "./src/admin/access.ts"
   }
 }

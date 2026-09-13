@@ -22,6 +22,7 @@ export function hasRole(role: AdminRole, required: AdminRole): boolean {
 export const AdminPermission = {
   VIEW: "view",
   REVIEW_SUBMISSIONS: "review_submissions",
+  MANAGE_USERS: "manage_users",
   MANAGE_STAFF: "manage_staff",
 } as const;
 export type AdminPermission = (typeof AdminPermission)[keyof typeof AdminPermission];
@@ -29,6 +30,7 @@ export type AdminPermission = (typeof AdminPermission)[keyof typeof AdminPermiss
 const REQUIRED_ROLE: Record<AdminPermission, AdminRole> = {
   view: AdminRole.SUPPORT,
   review_submissions: AdminRole.ADMIN,
+  manage_users: AdminRole.ADMIN,
   manage_staff: AdminRole.SUPERADMIN,
 };
 

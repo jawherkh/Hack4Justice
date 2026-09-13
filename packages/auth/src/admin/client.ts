@@ -1,7 +1,7 @@
-import { ADMIN_ROLES, AdminRole } from "@hack4justice/shared";
-import { inferAdditionalFields } from "better-auth/client/plugins";
+import { adminClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
+import { ac, roles } from "./access";
 import { ADMIN_AUTH_BASE_PATH } from "./server";
 
 export interface CreateAdminClientOptions {
@@ -9,16 +9,13 @@ export interface CreateAdminClientOptions {
   baseURL: string;
 }
 
+/** Staff auth client with the admin plugin: user management, ban / unban, session revocation. */
 export function createAdminClient({ baseURL }: CreateAdminClientOptions) {
   return createAuthClient({
     baseURL,
     basePath: ADMIN_AUTH_BASE_PATH,
     fetchOptions: { credentials: "include" },
-    plugins: [
-      inferAdditionalFields({
-        user: { role: { type: ADMIN_ROLES, required: false, defaultValue: AdminRole.SUPPORT, input: false } },
-      }),
-    ],
+    plugins: [adminClient({ ac, roles })],
   });
 }
 

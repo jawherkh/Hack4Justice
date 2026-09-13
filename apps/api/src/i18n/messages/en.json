@@ -40,5 +40,6 @@
   "submission_in_progress": "A submission is already recorded; update its status or go back to preparation first",
   "email_taken": "An account with this email already exists",
   "cannot_demote_self": "You cannot lower your own role",
-  "cannot_delete_self": "You cannot delete your own account"
+  "cannot_delete_self": "You cannot delete your own account",
+  "banned": "This account is suspended"
 }

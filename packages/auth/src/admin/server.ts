@@ -1,8 +1,11 @@
 import type { Database } from "@hack4justice/db";
 import { adminAccount, adminSession, adminUser, adminVerification } from "@hack4justice/db/schema";
-import { ADMIN_ROLES, AdminRole } from "@hack4justice/shared";
+import { AdminRole } from "@hack4justice/shared";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { admin } from "better-auth/plugins";
+
+import { ac, roles } from "./access";
 
 export const ADMIN_AUTH_BASE_PATH = "/api/admin/auth";
 
@@ -56,17 +59,6 @@ export function createAdminAuth({
       enabled: true,
       disableSignUp: true,
     },
-    user: {
-      additionalFields: {
-        role: {
-          type: ADMIN_ROLES,
-          required: false,
-          defaultValue: AdminRole.SUPPORT,
-          // Never settable from the client; the admin API changes roles.
-          input: false,
-        },
-      },
-    },
     session: {
       expiresIn: 60 * 60 * 12,
       updateAge: 60 * 60,
@@ -76,6 +68,9 @@ export function createAdminAuth({
       cookiePrefix: "admin",
       database: { generateId: "uuid" },
     },
+    // Staff management (create, roles, ban, sessions) is Better Auth's admin
+    // plugin; only superadmins may call it.
+    plugins: [admin({ ac, roles, adminRoles: [AdminRole.SUPERADMIN], defaultRole: AdminRole.SUPPORT })],
   });
 }
 

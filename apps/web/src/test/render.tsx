@@ -1,10 +1,5 @@
 import * as React from 'react'
-import {
-  RouterProvider,
-  createMemoryHistory,
-  createRootRoute,
-  createRouter,
-} from '@tanstack/react-router'
+import { RouterProvider, createMemoryHistory, createRootRoute, createRouter } from '@tanstack/react-router'
 import { render, type RenderResult } from '@testing-library/react'
 import { I18nProvider, type Locale } from '#/i18n'
 

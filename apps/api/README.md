@@ -34,7 +34,12 @@ An activity retry after a successful commit returns the stored result.
 Example explicit submission for the synthetic platform review:
 
 ```json
-{"type":"submission_requested","expectedVersion":1,"idempotencyKey":"submit-example","confirmed":true}
+{
+  "type": "submission_requested",
+  "expectedVersion": 1,
+  "idempotencyKey": "submit-example",
+  "confirmed": true
+}
 ```
 
 Read `GET /api/v1/dossiers/:dossierId/commands/:commandId` until its status is
@@ -45,7 +50,18 @@ acknowledgement; a changed payload returns 409. Officer decisions use the same
 command endpoint, with a `nodeId` identifying a decision or human-review node:
 
 ```json
-{"type":"decision_recorded","expectedVersion":2,"idempotencyKey":"review-example","nodeId":"<review-node-id>","decision":{"action":"request_modification","reason":"The uploaded page is unreadable.","targetNodeIds":["<document-node-id>"],"evidenceIds":["<document-id>"]}}
+{
+  "type": "decision_recorded",
+  "expectedVersion": 2,
+  "idempotencyKey": "review-example",
+  "nodeId": "<review-node-id>",
+  "decision": {
+    "action": "request_modification",
+    "reason": "The uploaded page is unreadable.",
+    "targetNodeIds": ["<document-node-id>"],
+    "evidenceIds": ["<document-id>"]
+  }
+}
 ```
 
 Only an officer for the dossier's agency can record a decision. Modification
@@ -151,18 +167,17 @@ Demo mode binds the server to `127.0.0.1` and cannot start in production. The
 `X-Demo-User` header selects one of these public synthetic identities; it is a
 development selector, not authentication:
 
-| Identity | Access |
-| --- | --- |
-| `demo-member-alpha` | Member of `company-alpha` |
-| `demo-member-beta` | Member of `company-beta` |
-| `demo-officer-dgi` | DGI officer |
-| `demo-officer-rne` | RNE officer |
-| `demo-officer-apii` | APII officer |
-| `demo-rule-maintainer` | Rule maintenance only |
+| Identity               | Access                    |
+| ---------------------- | ------------------------- |
+| `demo-member-alpha`    | Member of `company-alpha` |
+| `demo-member-beta`     | Member of `company-beta`  |
+| `demo-officer-dgi`     | DGI officer               |
+| `demo-officer-rne`     | RNE officer               |
+| `demo-officer-apii`    | APII officer              |
+| `demo-rule-maintainer` | Rule maintenance only     |
 
 For example, request `/api/v1/dossiers/dossier-alpha-dgi` with
-`X-Demo-User: demo-member-alpha`. Changing the ID to `dossier-beta-dgi` returns
-403. The client cannot override server roles with headers or body fields.
+`X-Demo-User: demo-member-alpha`. Changing the ID to `dossier-beta-dgi` returns 403. The client cannot override server roles with headers or body fields.
 
 Fixtures contain two companies and three agencies. An RNE officer may view
 `/api/v1/dependencies/dependency-alpha-dgi`, but cannot read
@@ -232,13 +247,13 @@ file for later cleanup.
 `POST /api/v1/dossiers/:dossierId/documents` continues accepting the existing
 JSON text payload. With database storage, it also accepts multipart fields:
 
-| Field | Value |
-| --- | --- |
-| `file` | PDF, PNG or JPEG, nonempty and at most 20 MiB |
-| `nodeId` | The dossier's evidence node ID |
-| `expectedVersion` | Current dossier revision |
-| `requirementIds` | Optional JSON array of requirement IDs belonging to that node |
-| `replacesDocumentId` | Optional ID of the latest original being replaced |
+| Field                | Value                                                         |
+| -------------------- | ------------------------------------------------------------- |
+| `file`               | PDF, PNG or JPEG, nonempty and at most 20 MiB                 |
+| `nodeId`             | The dossier's evidence node ID                                |
+| `expectedVersion`    | Current dossier revision                                      |
+| `requirementIds`     | Optional JSON array of requirement IDs belonging to that node |
+| `replacesDocumentId` | Optional ID of the latest original being replaced             |
 
 For example, from PowerShell with a local PDF:
 
@@ -319,6 +334,7 @@ Cleanup and retention:
 
 The live isolation checks run against a local container daemon only when
 `SANDBOX_DOCKER_TESTS=1` is set; the rest of the suite runs without one.
+
 ## Uploads (PDF upload + text extraction)
 
 Requires the local stack: `docker compose up -d db minio minio-init` and Poppler
@@ -335,13 +351,13 @@ root `.env` before uploading scanned documents. The default endpoint is
 
 All routes need a Better Auth session cookie.
 
-| Method | Path | Notes |
-| --- | --- | --- |
-| `POST` | `/api/v1/uploads` | multipart `file` (PDF, max 25 MB), optional `languages` (Tesseract codes, default `fra+eng`). Returns 201 with status `PROCESSING`; poll `GET /:id` until `EXTRACTED` or `FAILED`. |
-| `POST` | `/api/v1/uploads/:id/extract` | Re-run extraction (e.g. after `FAILED`). 202. |
-| `GET` | `/api/v1/uploads` | List own uploads. |
-| `GET` | `/api/v1/uploads/:id` | Own upload plus a 15-minute presigned `downloadUrl`. |
-| `DELETE` | `/api/v1/uploads/:id` | Remove from storage and database. |
+| Method   | Path                          | Notes                                                                                                                                                                              |
+| -------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST`   | `/api/v1/uploads`             | multipart `file` (PDF, max 25 MB), optional `languages` (Tesseract codes, default `fra+eng`). Returns 201 with status `PROCESSING`; poll `GET /:id` until `EXTRACTED` or `FAILED`. |
+| `POST`   | `/api/v1/uploads/:id/extract` | Re-run extraction (e.g. after `FAILED`). 202.                                                                                                                                      |
+| `GET`    | `/api/v1/uploads`             | List own uploads.                                                                                                                                                                  |
+| `GET`    | `/api/v1/uploads/:id`         | Own upload plus a 15-minute presigned `downloadUrl`.                                                                                                                               |
+| `DELETE` | `/api/v1/uploads/:id`         | Remove from storage and database.                                                                                                                                                  |
 
 ```bash
 curl -b cookies.txt -F file=@dossier.pdf -F languages=fra+ara http://localhost:3001/api/v1/uploads

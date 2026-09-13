@@ -8,7 +8,7 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { AdminPermission, can, type AdminRole } from '@hack4justice/shared'
-import { FileCheck2, LayoutDashboard, LogOut, ShieldCheck, Users, UserCog } from 'lucide-react'
+import { FileCheck2, LayoutDashboard, LogOut, ShieldCheck, UserCircle, Users, UserCog } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -88,24 +88,35 @@ function AppShell() {
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroup>
-          {can(role, AdminPermission.MANAGE_STAFF) ? (
-            <SidebarGroup>
-              <SidebarGroupLabel>Administration</SidebarGroupLabel>
-              <SidebarMenu>
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarMenu>
+              {can(role, AdminPermission.MANAGE_STAFF) ? (
                 <SidebarMenuItem>
                   <SidebarMenuButton isActive={active('/staff')} render={<Link to="/staff" />}>
                     <UserCog />
                     Staff
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroup>
-          ) : null}
+              ) : null}
+              <SidebarMenuItem>
+                <SidebarMenuButton isActive={active('/account')} render={<Link to="/account" />}>
+                  <UserCircle />
+                  My account
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg" className="pe-9">
+              <SidebarMenuButton
+                size="lg"
+                className="pe-9"
+                isActive={active('/account')}
+                render={<Link to="/account" />}
+              >
                 <span className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted text-sm font-medium uppercase">
                   {session.user.name.slice(0, 1)}
                 </span>

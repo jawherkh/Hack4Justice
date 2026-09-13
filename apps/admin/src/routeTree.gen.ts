@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppAccountRouteImport } from './routes/_app/account'
 import { Route as AppStaffRouteImport } from './routes/_app/staff'
 import { Route as AppSubmissionsIndexRouteImport } from './routes/_app/submissions/index'
 import { Route as AppSubmissionsIdRouteImport } from './routes/_app/submissions/$id'
@@ -30,6 +31,11 @@ const LoginRoute = LoginRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAccountRoute = AppAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => AppRoute,
 } as any)
 const AppStaffRoute = AppStaffRouteImport.update({
@@ -61,6 +67,7 @@ const AppUsersIdRoute = AppUsersIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/account': typeof AppAccountRoute
   '/staff': typeof AppStaffRoute
   '/submissions/$id': typeof AppSubmissionsIdRoute
   '/users/$id': typeof AppUsersIdRoute
@@ -69,6 +76,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/account': typeof AppAccountRoute
   '/staff': typeof AppStaffRoute
   '/': typeof AppIndexRoute
   '/submissions/$id': typeof AppSubmissionsIdRoute
@@ -80,6 +88,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/account': typeof AppAccountRoute
   '/_app/staff': typeof AppStaffRoute
   '/_app/': typeof AppIndexRoute
   '/_app/submissions/$id': typeof AppSubmissionsIdRoute
@@ -92,6 +101,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/account'
     | '/staff'
     | '/submissions/$id'
     | '/users/$id'
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/account'
     | '/staff'
     | '/'
     | '/submissions/$id'
@@ -110,6 +121,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/login'
+    | '/_app/account'
     | '/_app/staff'
     | '/_app/'
     | '/_app/submissions/$id'
@@ -144,6 +156,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/account': {
+      id: '/_app/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AppAccountRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/staff': {
@@ -185,6 +204,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAccountRoute: typeof AppAccountRoute
   AppStaffRoute: typeof AppStaffRoute
   AppIndexRoute: typeof AppIndexRoute
   AppSubmissionsIdRoute: typeof AppSubmissionsIdRoute
@@ -194,6 +214,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAccountRoute: AppAccountRoute,
   AppStaffRoute: AppStaffRoute,
   AppIndexRoute: AppIndexRoute,
   AppSubmissionsIdRoute: AppSubmissionsIdRoute,

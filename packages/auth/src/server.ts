@@ -2,6 +2,7 @@ import type { Database } from "@hack4justice/db";
 import * as schema from "@hack4justice/db/schema";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { admin } from "better-auth/plugins";
 
 export interface CreateAuthOptions {
   db: Database;
@@ -67,6 +68,11 @@ export function createAuth({
     advanced: {
       database: { generateId: "uuid" },
     },
+    // Ban / unban and session management for end users. Nobody holds an admin
+    // role on this instance: staff act through the back-office API instead.
+    plugins: [
+      admin({ adminRoles: [], defaultRole: "user", bannedUserMessage: "This account is suspended." }),
+    ],
   });
 }
 

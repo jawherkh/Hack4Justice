@@ -1,28 +1,14 @@
+import { adminUser, project, projectRequirement, session, submission, upload, user } from "@hack4justice/db";
 import {
-  adminAccount,
-  adminUser,
-  project,
-  projectRequirement,
-  submission,
-  upload,
-  user,
-  type AdminUser,
-} from "@hack4justice/db";
-import {
-  ADMIN_ROLES,
   AdminPermission,
-  AdminRole,
   AppError,
   NotificationType,
   SUBMISSION_STATUSES,
   SubmissionStatus,
   deriveProcedureStatus,
-  isAdminRole,
 } from "@hack4justice/shared";
 import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { Elysia, t } from "elysia";
-
-import { hashPassword } from "better-auth/crypto";
 
 import { adminGuard } from "../../admin-auth";
 import { db } from "../../db";
@@ -86,6 +72,7 @@ export const backofficeModule = new Elysia({ prefix: "/api/admin", tags: ["backo
           name: user.name,
           email: user.email,
           emailVerified: user.emailVerified,
+          banned: user.banned,
           createdAt: user.createdAt,
           projects: sql<number>`(select count(*) from project p where p.user_id = "user".id)`.mapWith(Number),
           submissions:
@@ -138,6 +125,7 @@ export const backofficeModule = new Elysia({ prefix: "/api/admin", tags: ["backo
       ]);
       return {
         user: row,
+        sessions: await listSessions(row.id),
         projects: projects.map((p) => ({
           ...p,
           status: deriveProcedureStatus(
@@ -302,119 +290,107 @@ export const backofficeModule = new Elysia({ prefix: "/api/admin", tags: ["backo
     },
   )
 
-  .get(
-    "/staff",
-    async () =>
-      db
-        .select({
-          id: adminUser.id,
-          name: adminUser.name,
-          email: adminUser.email,
-          role: adminUser.role,
-          createdAt: adminUser.createdAt,
-        })
-        .from(adminUser)
-        .orderBy(desc(adminUser.createdAt)),
-    { admin: AdminPermission.MANAGE_STAFF, detail: { summary: "Staff accounts" } },
+  .post(
+    "/users/:id/ban",
+    async ({ params, body }) => {
+      const found = await findUser(params.id);
+      const days = body.expiresInDays;
+      const banExpires = days && days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000) : null;
+      await db.transaction(async (tx) => {
+        await tx
+          .update(user)
+          .set({ banned: true, banReason: body.reason?.trim() || null, banExpires })
+          .where(eq(user.id, found.id));
+        // A banned user is signed out everywhere immediately.
+        await tx.delete(session).where(eq(session.userId, found.id));
+      });
+      return findUser(found.id);
+    },
+    {
+      admin: AdminPermission.MANAGE_USERS,
+      params: idParam,
+      body: t.Object({
+        reason: t.Optional(t.String({ maxLength: 500 })),
+        /** Omit for a permanent ban. */
+        expiresInDays: t.Optional(t.Number({ minimum: 1, maximum: 3650 })),
+      }),
+      detail: { summary: "Ban an end user (Better Auth admin semantics) and revoke their sessions" },
+    },
   )
 
   .post(
-    "/staff",
-    async ({ body, set }) => {
-      const role = body.role;
-      if (!isAdminRole(role))
-        throw new AppError({
-          status: 422,
-          code: "validation_error",
-          details: [{ path: "/role", message: `Expected one of: ${ADMIN_ROLES.join(", ")}` }],
-        });
-      const [existing] = await db
-        .select({ id: adminUser.id })
-        .from(adminUser)
-        .where(eq(adminUser.email, body.email.toLowerCase()))
-        .limit(1);
-      if (existing) throw new AppError({ status: 409, code: "email_taken" });
-      const password = await hashPassword(body.password);
-      const created = await db.transaction(async (tx) => {
-        const [row] = await tx
-          .insert(adminUser)
-          .values({
-            name: body.name.trim(),
-            email: body.email.toLowerCase(),
-            emailVerified: true,
-            role,
-          })
-          .returning();
-        // Credential account in Better Auth's format so the panel login works.
-        await tx.insert(adminAccount).values({
-          userId: row!.id,
-          providerId: "credential",
-          accountId: row!.id,
-          password,
-          updatedAt: new Date(),
-        });
-        return row!;
-      });
-      set.status = 201;
-      return toStaff(created);
+    "/users/:id/unban",
+    async ({ params }) => {
+      const found = await findUser(params.id);
+      await db
+        .update(user)
+        .set({ banned: false, banReason: null, banExpires: null })
+        .where(eq(user.id, found.id));
+      return findUser(found.id);
     },
-    {
-      admin: AdminPermission.MANAGE_STAFF,
-      body: t.Object({
-        name: t.String({ minLength: 1, maxLength: 120 }),
-        email: t.String({ format: "email", maxLength: 200 }),
-        password: t.String({ minLength: 10, maxLength: 200 }),
-        role: t.String({ maxLength: 20 }),
-      }),
-      detail: { summary: "Create a staff account" },
-    },
+    { admin: AdminPermission.MANAGE_USERS, params: idParam, detail: { summary: "Lift a ban" } },
   )
 
-  .patch(
-    "/staff/:id",
-    async ({ params, body, staff }) => {
-      const patch: Partial<AdminUser> = {};
-      if (body.name !== undefined) patch.name = body.name.trim();
-      if (body.role !== undefined) {
-        if (!isAdminRole(body.role))
-          throw new AppError({
-            status: 422,
-            code: "validation_error",
-            details: [{ path: "/role", message: `Expected one of: ${ADMIN_ROLES.join(", ")}` }],
-          });
-        if (params.id === staff.id && body.role !== AdminRole.SUPERADMIN)
-          throw new AppError({ status: 409, code: "cannot_demote_self" });
-        patch.role = body.role;
-      }
-      if (Object.keys(patch).length === 0) throw new AppError({ status: 422, code: "validation_error" });
-      const [updated] = await db.update(adminUser).set(patch).where(eq(adminUser.id, params.id)).returning();
-      if (!updated) throw new AppError({ status: 404, code: "not_found" });
-      return toStaff(updated);
+  .get("/users/:id/sessions", async ({ params }) => listSessions((await findUser(params.id)).id), {
+    admin: AdminPermission.VIEW,
+    params: idParam,
+    detail: { summary: "Active sessions of an end user" },
+  })
+
+  .delete(
+    "/users/:id/sessions",
+    async ({ params, set }) => {
+      await db.delete(session).where(eq(session.userId, (await findUser(params.id)).id));
+      set.status = 204;
     },
     {
-      admin: AdminPermission.MANAGE_STAFF,
+      admin: AdminPermission.MANAGE_USERS,
       params: idParam,
-      body: t.Object({
-        name: t.Optional(t.String({ minLength: 1, maxLength: 120 })),
-        role: t.Optional(t.String({ maxLength: 20 })),
-      }),
-      detail: { summary: "Rename a staff member or change their role" },
+      detail: { summary: "Revoke every session of an end user" },
     },
   )
 
   .delete(
-    "/staff/:id",
-    async ({ params, staff, set }) => {
-      if (params.id === staff.id) throw new AppError({ status: 409, code: "cannot_delete_self" });
+    "/users/:id/sessions/:sessionId",
+    async ({ params, set }) => {
+      const found = await findUser(params.id);
       const [deleted] = await db
-        .delete(adminUser)
-        .where(eq(adminUser.id, params.id))
-        .returning({ id: adminUser.id });
+        .delete(session)
+        .where(and(eq(session.id, params.sessionId), eq(session.userId, found.id)))
+        .returning({ id: session.id });
       if (!deleted) throw new AppError({ status: 404, code: "not_found" });
       set.status = 204;
     },
-    { admin: AdminPermission.MANAGE_STAFF, params: idParam, detail: { summary: "Remove a staff account" } },
+    {
+      admin: AdminPermission.MANAGE_USERS,
+      params: t.Object({
+        id: t.String({ minLength: 1, maxLength: 64 }),
+        sessionId: t.String({ minLength: 1, maxLength: 64 }),
+      }),
+      detail: { summary: "Revoke one session of an end user" },
+    },
   );
+
+async function findUser(id: string) {
+  const [row] = await db.select().from(user).where(eq(user.id, id)).limit(1);
+  if (!row) throw new AppError({ status: 404, code: "not_found" });
+  return row;
+}
+
+async function listSessions(userId: string) {
+  return db
+    .select({
+      id: session.id,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      expiresAt: session.expiresAt,
+      ipAddress: session.ipAddress,
+      userAgent: session.userAgent,
+    })
+    .from(session)
+    .where(eq(session.userId, userId))
+    .orderBy(desc(session.updatedAt));
+}
 
 async function loadSubmission(id: string) {
   const [row] = await db
@@ -426,10 +402,6 @@ async function loadSubmission(id: string) {
     .limit(1);
   if (!row) throw new AppError({ status: 404, code: "not_found" });
   return row;
-}
-
-function toStaff(row: AdminUser) {
-  return { id: row.id, name: row.name, email: row.email, role: row.role, createdAt: row.createdAt };
 }
 
 function escapeLike(value: string): string {

@@ -8,6 +8,8 @@ export function authErrorKey(code: string | undefined): MessageKey {
       return 'auth.error.invalidCredentials'
     case 'INVALID_PASSWORD':
       return 'auth.error.wrongPassword'
+    case 'BANNED_USER':
+      return 'auth.error.banned'
     case 'USER_ALREADY_EXISTS':
     case 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL':
       return 'auth.error.emailTaken'

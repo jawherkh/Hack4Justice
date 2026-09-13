@@ -40,5 +40,6 @@
   "submission_in_progress": "Un dépôt est déjà enregistré ; mettez à jour son statut ou revenez à la préparation",
   "email_taken": "Un compte existe déjà avec cet e-mail",
   "cannot_demote_self": "Vous ne pouvez pas abaisser votre propre rôle",
-  "cannot_delete_self": "Vous ne pouvez pas supprimer votre propre compte"
+  "cannot_delete_self": "Vous ne pouvez pas supprimer votre propre compte",
+  "banned": "Ce compte est suspendu"
 }

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@hack4justice/ui/components/input-group'
+import { Badge } from '@hack4justice/ui/components/badge'
 import { Skeleton } from '@hack4justice/ui/components/skeleton'
 import {
   Table,
@@ -66,6 +67,11 @@ function UsersPage() {
                     <Link to="/users/$id" params={{ id: u.id }} className="hover:underline">
                       {u.name}
                     </Link>
+                    {u.banned ? (
+                      <Badge variant="destructive" className="ms-2">
+                        Banned
+                      </Badge>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{u.email}</TableCell>
                   <TableCell className="text-end tabular-nums">{u.projects}</TableCell>

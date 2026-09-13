@@ -43,6 +43,8 @@ try {
         columns: {
           // drizzle-seed's own uuid generator is not RFC 4122; pin a real one.
           id: f.default({ defaultValue: randomUUID() }),
+          createdAt: f.default({ defaultValue: new Date() }),
+          updatedAt: f.default({ defaultValue: new Date() }),
           name: f.valuesFromArray({ values: [name] }),
           email: f.valuesFromArray({ values: [email] }),
           emailVerified: f.valuesFromArray({ values: [true] }),

@@ -31,11 +31,11 @@ small Graphiti model), and `GEMINI_EMBEDDING_MODEL` configures embeddings.
 Every ontology, ingest, and search request must send one of the existing shared
 agency enum values in `X-Agency-Code`:
 
-| Header | Graphiti group id | Domain |
-| --- | --- | --- |
-| `DGI` | `dgi` | Tax and fiscal compliance |
-| `RNE` | `rne` | Corporate registry and status updates |
-| `APII` | `apii` | Licensing and administrative approvals |
+| Header | Graphiti group id | Domain                                 |
+| ------ | ----------------- | -------------------------------------- |
+| `DGI`  | `dgi`             | Tax and fiscal compliance              |
+| `RNE`  | `rne`             | Corporate registry and status updates  |
+| `APII` | `apii`            | Licensing and administrative approvals |
 
 The client never supplies `group_id`; the service derives it from the header.
 This prevents a request scoped to one agency from searching another agency's
@@ -53,7 +53,7 @@ legal graph.
   document's skipped chunks do not stop later documents.
 - `POST /api/v1/knowledge/search` uses
   `graphiti.search_(query, group_ids=[group_id],
-  config=COMBINED_HYBRID_SEARCH_CROSS_ENCODER)` and returns edges, nodes, and
+config=COMBINED_HYBRID_SEARCH_CROSS_ENCODER)` and returns edges, nodes, and
   source episode excerpts for the future agent and side panel.
 
 Example:
