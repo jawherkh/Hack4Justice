@@ -1,4 +1,4 @@
-import { Outlet, createFileRoute, notFound, useRouter } from '@tanstack/react-router'
+import { Outlet, createFileRoute, notFound, useMatches, useRouter } from '@tanstack/react-router'
 import type { ErrorComponentProps } from '@tanstack/react-router'
 import { ErrorPage } from '#/components/error-page'
 import { Toaster } from '@hack4justice/ui/components/toast'
@@ -8,6 +8,13 @@ import { getSession } from '#/lib/session'
 import { DEFAULT_LOCALE, I18nProvider, createTranslator, isLocale, resolveLocale, type Locale } from '#/i18n'
 
 const OG_LOCALE: Record<Locale, string> = { fr: 'fr_FR', en: 'en_GB', ar: 'ar_TN' }
+
+declare module '@tanstack/react-router' {
+  interface StaticDataRouteOption {
+    /** `app`: full-height workspace with its own sidebar, no marketing navbar or footer. */
+    chrome?: 'app'
+  }
+}
 
 export const Route = createFileRoute('/{-$locale}')({
   beforeLoad: async ({ params }) => {
@@ -44,15 +51,20 @@ export const Route = createFileRoute('/{-$locale}')({
 
 function LocaleLayout() {
   const { locale } = Route.useRouteContext()
+  const appChrome = useMatches().some((match) => match.staticData.chrome === 'app')
   return (
     <I18nProvider locale={locale}>
-      <div className="flex min-h-svh flex-col">
-        <Navbar />
-        <div className="flex flex-1 flex-col">
-          <Outlet />
+      {appChrome ? (
+        <Outlet />
+      ) : (
+        <div className="flex min-h-svh flex-col">
+          <Navbar />
+          <div className="flex flex-1 flex-col">
+            <Outlet />
+          </div>
+          <Footer />
         </div>
-        <Footer />
-      </div>
+      )}
       <Toaster />
     </I18nProvider>
   )

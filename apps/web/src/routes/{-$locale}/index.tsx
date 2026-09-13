@@ -4,8 +4,10 @@ import { Badge } from '@hack4justice/ui/components/badge'
 import { Button } from '@hack4justice/ui/components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@hack4justice/ui/components/card'
 import { toLocaleParam, useI18n, type MessageKey } from '#/i18n'
+import { redirectSignedIn } from '#/lib/guards'
 
-export const Route = createFileRoute('/{-$locale}/')({ component: Home })
+// Signed-in users have a home already: their projects.
+export const Route = createFileRoute('/{-$locale}/')({ beforeLoad: redirectSignedIn, component: Home })
 
 const FEATURES: { icon: typeof FileText; title: MessageKey; description: MessageKey }[] = [
   { icon: FileText, title: 'home.features.upload.title', description: 'home.features.upload.description' },
@@ -15,7 +17,6 @@ const FEATURES: { icon: typeof FileText; title: MessageKey; description: Message
 
 function Home() {
   const { t, locale } = useI18n()
-  const { session } = Route.useRouteContext()
   const params = { locale: toLocaleParam(locale) }
 
   return (
@@ -27,17 +28,10 @@ function Home() {
         </h1>
         <p className="max-w-2xl text-lg text-pretty text-muted-foreground">{t('home.hero.subtitle')}</p>
         <div className="flex flex-wrap gap-3">
-          {session ? (
-            <Button size="lg" render={<Link to="/{-$locale}/uploads" params={params} />}>
-              {t('home.hero.secondary')}
-              <ArrowRight data-icon="inline-end" className="rtl:rotate-180" />
-            </Button>
-          ) : (
-            <Button size="lg" render={<Link to="/{-$locale}/register" params={params} />}>
-              {t('home.hero.cta')}
-              <ArrowRight data-icon="inline-end" className="rtl:rotate-180" />
-            </Button>
-          )}
+          <Button size="lg" render={<Link to="/{-$locale}/register" params={params} />}>
+            {t('home.hero.cta')}
+            <ArrowRight data-icon="inline-end" className="rtl:rotate-180" />
+          </Button>
           <Button size="lg" variant="outline" render={<Link to="/{-$locale}/about" params={params} />}>
             {t('home.hero.learnMore')}
           </Button>

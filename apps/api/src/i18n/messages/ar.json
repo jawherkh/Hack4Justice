@@ -31,5 +31,8 @@
   "identity_provider_not_configured": "لم يتم إعداد مزوّد الهوية",
   "storage_not_initialized": "لم تتم تهيئة التخزين",
   "workflow_not_configured": "لم يتم إعداد سير العمل",
-  "extraction_in_progress": "هناك عملية استخراج جارية بالفعل لهذا الملف"
+  "extraction_in_progress": "هناك عملية استخراج جارية بالفعل لهذا الملف",
+  "project_not_found": "المشروع غير موجود",
+  "requirement_not_found": "المتطلب غير موجود",
+  "project_not_ready": "قائمة المتطلبات لم تكتمل بعد"
 }

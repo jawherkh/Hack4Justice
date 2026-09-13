@@ -1,4 +1,4 @@
-import { upload, type NewUpload, type Upload } from "@hack4justice/db";
+import { project, upload, type NewUpload, type Upload } from "@hack4justice/db";
 import { AppError, UploadStatus } from "@hack4justice/shared";
 import { and, desc, eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
@@ -29,6 +29,7 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
 
       const id = crypto.randomUUID();
       const storageKey = `users/${user.id}/uploads/${id}.pdf`;
+      const projectId = body.projectId ? await ownedProjectId(body.projectId, user.id) : null;
 
       await storage.put({
         key: storageKey,
@@ -46,6 +47,7 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
           contentType: PDF_CONTENT_TYPE,
           size: bytes.byteLength,
           status: UploadStatus.PROCESSING,
+          projectId,
         })
         .returning();
       if (!row) throw new AppError({ status: 500, code: "internal_error" });
@@ -62,6 +64,8 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
         file: t.File({ type: PDF_CONTENT_TYPE, maxSize: MAX_PDF_SIZE }),
         /** Tesseract language codes joined with "+", default "fra+eng". */
         languages: t.Optional(languagesSchema),
+        /** File the upload under one of my projects. */
+        projectId: t.Optional(t.String({ format: "uuid" })),
       }),
       detail: { summary: "Upload a PDF; text extraction (OCR for scanned pages) starts in the background" },
     },
@@ -153,6 +157,17 @@ async function updateUpload(id: string, values: Partial<NewUpload>): Promise<Upl
   const [row] = await db.update(upload).set(values).where(eq(upload.id, id)).returning();
   if (!row) throw new AppError({ status: 404, code: "upload_not_found" });
   return row;
+}
+
+/** Project owned by `userId`, or 404, so a file cannot be filed under someone else's project. */
+async function ownedProjectId(id: string, userId: string): Promise<string> {
+  const [row] = await db
+    .select({ id: project.id })
+    .from(project)
+    .where(and(eq(project.id, id), eq(project.userId, userId)))
+    .limit(1);
+  if (!row) throw new AppError({ status: 404, code: "project_not_found" });
+  return row.id;
 }
 
 /** Upload owned by `userId`, or 404. Never reveals whether another user's id exists. */

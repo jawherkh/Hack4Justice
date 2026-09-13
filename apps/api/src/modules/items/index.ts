@@ -1,10 +1,6 @@
 import { Elysia } from "elysia";
 
-import {
-  buildPaginatedResponse,
-  createListQuerySchema,
-  getPagination,
-} from "@hack4justice/shared";
+import { buildPaginatedResponse, createListQuerySchema, getPagination } from "@hack4justice/shared";
 
 export const itemsModule = new Elysia().get(
   "/items",

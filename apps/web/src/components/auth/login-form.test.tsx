@@ -36,7 +36,10 @@ describe('LoginForm', () => {
     await user.click(screen.getByRole('button', { name: 'Login' }))
 
     await waitFor(() =>
-      expect(signInEmail).toHaveBeenCalledWith({ email: 'aziz@example.com', password: 'correct-horse-battery' }),
+      expect(signInEmail).toHaveBeenCalledWith({
+        email: 'aziz@example.com',
+        password: 'correct-horse-battery',
+      }),
     )
     expect(await screen.findByText('Invalid email or password.')).toBeInTheDocument()
   })

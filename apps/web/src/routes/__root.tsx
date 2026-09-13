@@ -1,5 +1,6 @@
 import { HeadContent, Scripts, createRootRoute, useParams } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ThemeProvider } from 'next-themes'
 import * as React from 'react'
 
 import { getDirection, resolveLocale } from '#/i18n'
@@ -29,12 +30,15 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const params = useParams({ strict: false })
   const locale = resolveLocale(params.locale)
   return (
-    <html lang={locale} dir={getDirection(locale)}>
+    // next-themes sets the `dark` class on <html> before hydration, hence suppressHydrationWarning.
+    <html lang={locale} dir={getDirection(locale)} suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        </ThemeProvider>
 
         <Scripts />
       </body>
