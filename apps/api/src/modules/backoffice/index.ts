@@ -380,6 +380,14 @@ export const backofficeModule = new Elysia({ prefix: "/api/admin", tags: ["backo
       const status = body.status as SubmissionStatus;
       const note = body.note?.trim() || null;
       await db.transaction(async (tx) => {
+        // Match checklist/submission lock order: parent first, then its receipt.
+        const [currentProject] = await tx
+          .select()
+          .from(project)
+          .where(eq(project.id, found.project.id))
+          .limit(1)
+          .for("update");
+        if (!currentProject) throw new AppError({ status: 404, code: "project_not_found" });
         await tx
           .update(submission)
           .set({ status, reviewedAt: new Date(), reviewedBy: staff.id, reviewNote: note })
@@ -391,7 +399,11 @@ export const backofficeModule = new Elysia({ prefix: "/api/admin", tags: ["backo
           .where(eq(submission.projectId, found.project.id))
           .orderBy(desc(submission.submittedAt))
           .limit(1);
-        if (latest?.id === found.submission.id) {
+        if (
+          latest?.id === found.submission.id &&
+          currentProject.serviceId === found.submission.serviceId &&
+          currentProject.submissionStatus !== null
+        ) {
           await tx.update(project).set({ submissionStatus: status }).where(eq(project.id, found.project.id));
         }
       });
