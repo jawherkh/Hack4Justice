@@ -4,6 +4,7 @@ import { Menu } from 'lucide-react'
 import { Button } from '@hack4justice/ui/components/button'
 import { Separator } from '@hack4justice/ui/components/separator'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@hack4justice/ui/components/sheet'
+import { BrandLogo } from '#/components/brand-logo'
 import { LanguageSwitcher } from '#/components/language-switcher'
 import { ThemeToggle } from '#/components/theme-toggle'
 import { toLocaleParam, useI18n } from '#/i18n'
@@ -27,7 +28,9 @@ export function MobileNav({ session }: { session: SessionData }) {
       </SheetTrigger>
       <SheetContent side={locale === 'ar' ? 'left' : 'right'} className="flex flex-col gap-4">
         <SheetHeader>
-          <SheetTitle>Hack4Justice</SheetTitle>
+          <SheetTitle>
+            <BrandLogo />
+          </SheetTitle>
         </SheetHeader>
         <nav className="flex flex-col gap-1">
           {session ? null : (

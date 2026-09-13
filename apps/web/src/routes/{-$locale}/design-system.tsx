@@ -35,7 +35,7 @@ export const Route = createFileRoute('/{-$locale}/design-system')({
   beforeLoad: () => {
     if (!import.meta.env.DEV) throw notFound()
   },
-  head: () => ({ meta: [{ title: 'Design system · Hack4Justice' }] }),
+  head: () => ({ meta: [{ title: 'Design system · Dalil' }] }),
   component: DesignSystem,
 })
 
