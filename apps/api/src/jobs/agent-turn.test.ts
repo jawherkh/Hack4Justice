@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { randomUUID } from "node:crypto";
 
-import type { AgentActivities, AgentTurnWorkflowInput, AgentTurnWorkflowResult } from "../lifecycle/contracts";
+import type { AgentActivities, AgentTurnWorkflowInput } from "../lifecycle/contracts";
 import { withDurableTurns } from "./agent-turn";
 import type { JobReceipt, JobRequest, JobStore } from "./contracts";
 
