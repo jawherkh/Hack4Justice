@@ -14,6 +14,10 @@ export const getSession = createServerFn({ method: 'GET' }).handler(async (): Pr
   const cookie = getRequestHeader('cookie')
   try {
     const { data } = await authClient.getSession({
+      // Read the user from the database, not the signed cookie cache: the cache
+      // keeps the display name (and ban state) stale for up to its `maxAge`
+      // after the profile form renames the user.
+      query: { disableCookieCache: true },
       fetchOptions: { headers: cookie ? { cookie } : {} },
     })
     return data ?? null

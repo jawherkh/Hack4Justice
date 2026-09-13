@@ -114,9 +114,10 @@ function argumentSummary(name: string, input: Rec): string | null {
 
 /**
  * One tool call as a single quiet line: chevron, what happened, the key argument. The label
- * shimmers while the call runs; opening the row shows the arguments and the result.
+ * shimmers while the call runs; opening the row shows the arguments and the result. The row is
+ * always collapsed by default, whether the call succeeded or failed.
  */
-export function ToolCallWidget({ call, defaultOpen }: { call: ChatToolCall; defaultOpen?: boolean }) {
+export function ToolCallWidget({ call }: { call: ChatToolCall }) {
   const { t } = useI18n()
   const labels = TOOL_LABEL[call.name]
   const running = call.status === 'running'
@@ -129,7 +130,7 @@ export function ToolCallWidget({ call, defaultOpen }: { call: ChatToolCall; defa
   const hasInput = call.input !== undefined && call.input !== null && Object.keys(input).length > 0
 
   return (
-    <Collapsible defaultOpen={defaultOpen ?? failed} className="group/tool w-full">
+    <Collapsible defaultOpen={false} className="group/tool w-full">
       <CollapsibleTrigger
         className={cn(
           'flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-start text-sm text-muted-foreground',
