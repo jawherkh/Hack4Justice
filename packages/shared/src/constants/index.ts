@@ -6,3 +6,4 @@ export * from "./upload";
 export * from "./project";
 export * from "./notification";
 export * from "./admin";
+export * from "./profile";

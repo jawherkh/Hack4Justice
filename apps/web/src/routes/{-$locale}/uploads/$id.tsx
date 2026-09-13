@@ -22,11 +22,11 @@ import { UploadStatusBadge } from '#/components/uploads/upload-status-badge'
 import { toLocaleParam, useI18n } from '#/i18n'
 import { ApiError } from '#/lib/api-error'
 import { formatBytes, formatDate } from '#/lib/format'
-import { requireAuth } from '#/lib/guards'
+import { requireOnboarded } from '#/lib/guards'
 import { deleteUpload, getUpload, pollingInterval, retryExtraction } from '#/lib/uploads'
 
 export const Route = createFileRoute('/{-$locale}/uploads/$id')({
-  beforeLoad: requireAuth,
+  beforeLoad: requireOnboarded,
   component: UploadDetail,
 })
 

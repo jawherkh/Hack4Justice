@@ -30,10 +30,6 @@ export function signupSchema(t: Translate) {
 export type LoginValues = z.infer<ReturnType<typeof loginSchema>>
 export type SignupValues = z.infer<ReturnType<typeof signupSchema>>
 
-export function profileSchema(t: Translate) {
-  return z.object({ name: z.string().trim().min(1, t('auth.validation.nameRequired')) })
-}
-
 export function changePasswordSchema(t: Translate) {
   return z
     .object({
@@ -50,7 +46,6 @@ export function changePasswordSchema(t: Translate) {
     })
 }
 
-export type ProfileValues = z.infer<ReturnType<typeof profileSchema>>
 export type ChangePasswordValues = z.infer<ReturnType<typeof changePasswordSchema>>
 
 export function forgotPasswordSchema(t: Translate) {

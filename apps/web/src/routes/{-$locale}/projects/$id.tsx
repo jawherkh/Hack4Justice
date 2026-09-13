@@ -17,12 +17,12 @@ import { ProjectSidebar } from '#/components/projects/project-sidebar'
 import { ThemeToggle } from '#/components/theme-toggle'
 import { toLocaleParam, useI18n } from '#/i18n'
 import { ApiError } from '#/lib/api-error'
-import { requireAuth } from '#/lib/guards'
+import { requireOnboarded } from '#/lib/guards'
 import { getProject, projectKeys } from '#/lib/projects'
 
 /** Workspace shell: floating sidebar + breadcrumb header. Child routes render the sections. */
 export const Route = createFileRoute('/{-$locale}/projects/$id')({
-  beforeLoad: requireAuth,
+  beforeLoad: requireOnboarded,
   staticData: { chrome: 'app' },
   component: ProjectWorkspace,
 })

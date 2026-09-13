@@ -5,7 +5,7 @@ import { Button } from '@hack4justice/ui/components/button'
 import { Skeleton } from '@hack4justice/ui/components/skeleton'
 import { NotificationList } from '#/components/notifications/notification-list'
 import { useI18n } from '#/i18n'
-import { requireAuth } from '#/lib/guards'
+import { requireOnboarded } from '#/lib/guards'
 import {
   NOTIFICATIONS_POLL_MS,
   listNotifications,
@@ -16,7 +16,7 @@ import {
 const PAGE_LIMIT = 100
 
 export const Route = createFileRoute('/{-$locale}/notifications')({
-  beforeLoad: requireAuth,
+  beforeLoad: requireOnboarded,
   component: Notifications,
 })
 

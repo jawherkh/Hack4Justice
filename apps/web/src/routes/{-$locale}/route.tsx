@@ -4,6 +4,7 @@ import { ErrorPage } from '#/components/error-page'
 import { Toaster } from '@hack4justice/ui/components/toast'
 import { Footer } from '#/components/footer'
 import { Navbar } from '#/components/navbar'
+import { getProfileForSession } from '#/lib/profile'
 import { getSession } from '#/lib/session'
 import { DEFAULT_LOCALE, I18nProvider, createTranslator, isLocale, resolveLocale, type Locale } from '#/i18n'
 
@@ -24,7 +25,9 @@ export const Route = createFileRoute('/{-$locale}')({
       throw notFound()
     }
     const session = await getSession()
-    return { locale: resolveLocale(params.locale), session }
+    // Onboarding state travels with the session so guards can gate the workspace.
+    const profile = session ? await getProfileForSession() : null
+    return { locale: resolveLocale(params.locale), session, profile }
   },
   head: ({ params }) => {
     // Derive from params, not context: `head` also runs when `beforeLoad`
