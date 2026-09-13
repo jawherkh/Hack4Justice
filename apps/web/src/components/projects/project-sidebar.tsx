@@ -135,6 +135,21 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
   return (
     <Sidebar variant="floating" side={locale === 'ar' ? 'right' : 'left'} {...props}>
       <SidebarHeader>
+        <Link
+          to="/{-$locale}"
+          params={params}
+          aria-label={t('meta.title')}
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+        >
+          <img src="/brand/dalil-mark.svg" alt="" draggable={false} className="size-7 rounded-md dark:hidden" />
+          <img
+            src="/brand/dalil-mark-dark.svg"
+            alt=""
+            draggable={false}
+            className="hidden size-7 rounded-md dark:block"
+          />
+          <span className="text-base font-semibold tracking-tight">{t('meta.title')}</span>
+        </Link>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link to="/{-$locale}/projects/$id" params={idParams} />}>
