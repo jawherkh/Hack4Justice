@@ -4,7 +4,7 @@ import { z } from "zod";
 import { AccessError, canReadDossier, requireAccess } from "../access/policy";
 import type { ResolvePrincipal } from "../access/identity";
 import type { AgentRepository } from "../dossiers/store";
-import { PrincipalAgentService } from "./service";
+import type { PrincipalAgentService } from "./service";
 
 const requestBody = z.strictObject({
   message: z.string().trim().min(1).max(20_000),

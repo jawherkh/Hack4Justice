@@ -2,7 +2,7 @@ import type { AgentActivities, AgentTurnWorkflowInput } from "../lifecycle/contr
 import type { AgentRepository } from "../dossiers/store";
 import { PrincipalAgentService, type PrincipalAgentServiceOptions } from "./service";
 
-export interface AgentTurnActivityOptions extends Omit<PrincipalAgentServiceOptions, "repository" | "runner"> {}
+export type AgentTurnActivityOptions = Omit<PrincipalAgentServiceOptions, "repository" | "runner">;
 
 /** Creates the Temporal activity implementation without making the workflow bundle import the
  * OpenAI SDK, Docker or database clients. */
