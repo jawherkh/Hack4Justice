@@ -41,12 +41,20 @@ export function NotificationsPopover({ className }: { className?: string }) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          <Button variant="ghost" size="icon-sm" aria-label={label} className={cn('relative', className)} />
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={label}
+            className={cn('relative overflow-visible', className)}
+          />
         }
       >
         <Bell />
         {unread > 0 ? (
-          <span className="absolute end-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground tabular-nums">
+          <span
+            style={{ top: -4, insetInlineEnd: -4 }}
+            className="absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground tabular-nums ring-2 ring-background"
+          >
             {unread > 99 ? '99+' : unread}
           </span>
         ) : null}
