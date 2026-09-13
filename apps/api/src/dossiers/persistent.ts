@@ -505,6 +505,10 @@ export class PersistentRepository implements AsyncAccessRepository, AgentReposit
     return this.read((r) => r.agentEvents(sessionId, after));
   }
 
+  agentRun(sessionId: string, runId: string) {
+    return this.read((r) => r.agentRun(sessionId, runId));
+  }
+
   createHelperTask(input: CreateHelperTaskInput): Promise<HelperTaskRecord> {
     return this.write((r) => r.createHelperTask(input));
   }

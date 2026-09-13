@@ -19,11 +19,50 @@ from .models import (
     SearchEpisode,
     SearchNode,
     SearchResponse,
+    SkippedChunk,
 )
 from .ontology import EDGE_TYPE_MAP, EDGE_TYPES, ENTITY_TYPES, EXTRACTION_INSTRUCTIONS
 from .settings import GraphitiSettings
 
 logger = logging.getLogger(__name__)
+
+_RETRYABLE_ERROR_NAMES = {
+    "emptyresponseerror",
+    "ratelimiterror",
+}
+_RETRYABLE_ERROR_MARKERS = (
+    "429",
+    "500",
+    "502",
+    "503",
+    "504",
+    "connection reset",
+    "connection refused",
+    "deadline exceeded",
+    "internal server error",
+    "rate limit",
+    "resource exhausted",
+    "temporarily unavailable",
+    "timeout",
+    "timed out",
+    "try again",
+    "unavailable",
+)
+_PERMANENT_ERROR_MARKERS = (
+    "authentication",
+    "blocked",
+    "context length",
+    "forbidden",
+    "invalid argument",
+    "invalid request",
+    "malformed",
+    "not found",
+    "permission",
+    "refusal",
+    "safety",
+    "unauthenticated",
+    "unsupported",
+)
 
 
 class GraphitiNotReadyError(RuntimeError):
@@ -113,6 +152,79 @@ def _get(value: Any, name: str, default: Any = None) -> Any:
     if isinstance(value, dict):
         return value.get(name, default)
     return getattr(value, name, default)
+
+
+def _exception_chain(error: BaseException) -> list[BaseException]:
+    """Return an exception and its causes, including Graphiti's wrappers."""
+
+    chain: list[BaseException] = []
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        chain.append(current)
+        current = current.__cause__ or current.__context__
+    return chain
+
+
+def _error_summary(error: BaseException, max_length: int = 500) -> str:
+    summary = " -> ".join(
+        f"{type(item).__name__}: {item}" for item in _exception_chain(error)
+    )
+    return (summary or type(error).__name__)[:max_length]
+
+
+def _status_code(error: BaseException) -> int | None:
+    for attribute in ("status_code", "code"):
+        value = getattr(error, attribute, None)
+        if isinstance(value, int):
+            return value
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
+    response = getattr(error, "response", None)
+    value = getattr(response, "status_code", None)
+    return value if isinstance(value, int) else None
+
+
+def _is_retryable_episode_error(error: BaseException) -> bool:
+    """Identify failures worth retrying after Graphiti exhausts provider retries.
+
+    Graphiti's Gemini client can re-raise a bare ``Exception`` with the provider
+    failure attached as ``__cause__``. Inspecting the complete chain preserves
+    retry behavior for those wrapped 429/5xx/timeout errors while avoiding
+    retries for authentication, permissions, malformed requests, and refusals.
+    Unknown errors remain retryable because this boundary is an external LLM
+    operation and the retry count is explicitly bounded by configuration.
+    """
+
+    chain = _exception_chain(error)
+    messages = " ".join(
+        f"{type(item).__name__} {item}".lower()
+        for item in chain
+    )
+    status_codes = [_status_code(item) for item in chain]
+
+    if any(
+        status is not None and 400 <= status < 500 and status not in {408, 425, 429}
+        for status in status_codes
+    ):
+        return False
+    if any(marker in messages for marker in _PERMANENT_ERROR_MARKERS):
+        return False
+    if any(
+        status is not None and (status in {408, 425, 429} or status >= 500)
+        for status in status_codes
+    ):
+        return True
+    if any(
+        isinstance(item, (ConnectionError, TimeoutError, OSError))
+        or type(item).__name__.lower() in _RETRYABLE_ERROR_NAMES
+        for item in chain
+    ):
+        return True
+    return any(marker in messages for marker in _RETRYABLE_ERROR_MARKERS) or bool(chain)
 
 
 class GraphitiKnowledgeService:
@@ -223,28 +335,49 @@ class GraphitiKnowledgeService:
             overlap_chars=self.settings.chunk_overlap_chars,
         )
         episodes: list[IngestedEpisode] = []
+        skipped_chunks: list[SkippedChunk] = []
 
         # Graphiti recommends sequential episode writes because each write uses
         # the recent graph context to resolve entities and relationships.
         async with self._write_lock:
             for index, chunk in enumerate(chunks):
                 body = self._episode_body(document, chunk, index, len(chunks))
-                result = await self._client.add_episode(
-                    name=f"{document.title} [{index + 1}/{len(chunks)}]",
-                    episode_body=body,
-                    source_description=(
-                        f"{document.source_kind} legal source {document.source_uri}; "
-                        f"document_id={document.document_id}"
-                    ),
-                    reference_time=document.retrieved_at,
-                    source=self._episode_type_text(),
-                    group_id=scope.group_id,
-                    update_communities=self.settings.update_communities,
-                    entity_types=ENTITY_TYPES,
-                    edge_types=EDGE_TYPES,
-                    edge_type_map=EDGE_TYPE_MAP,
-                    custom_extraction_instructions=EXTRACTION_INSTRUCTIONS,
-                )
+                try:
+                    result = await self._add_episode_with_retry(
+                        name=f"{document.title} [{index + 1}/{len(chunks)}]",
+                        episode_body=body,
+                        source_description=(
+                            f"{document.source_kind} legal source {document.source_uri}; "
+                            f"document_id={document.document_id}"
+                        ),
+                        reference_time=document.retrieved_at,
+                        source=self._episode_type_text(),
+                        group_id=scope.group_id,
+                        update_communities=self.settings.update_communities,
+                        entity_types=ENTITY_TYPES,
+                        edge_types=EDGE_TYPES,
+                        edge_type_map=EDGE_TYPE_MAP,
+                        custom_extraction_instructions=EXTRACTION_INSTRUCTIONS,
+                    )
+                except Exception as error:
+                    skipped_chunks.append(
+                        SkippedChunk(
+                            chunk_index=index,
+                            chunk_count=len(chunks),
+                            start_index=chunk.start_index,
+                            end_index=chunk.end_index,
+                            token_count=chunk.token_count,
+                            error=_error_summary(error),
+                        )
+                    )
+                    logger.error(
+                        "Skipping failed Graphiti chunk %d/%d for document %s: %s",
+                        index + 1,
+                        len(chunks),
+                        document.document_id,
+                        _error_summary(error),
+                    )
+                    continue
                 episodes.append(
                     IngestedEpisode(
                         episode_uuid=_get(_get(result, "episode"), "uuid", ""),
@@ -262,8 +395,40 @@ class GraphitiKnowledgeService:
             group_id=scope.group_id,
             document_id=document.document_id,
             source_kind=document.source_kind,
+            status="partial" if skipped_chunks else "processed",
             episodes=episodes,
+            skipped_chunks=skipped_chunks,
         )
+
+    async def _add_episode_with_retry(self, **kwargs: Any) -> Any:
+        """Write one episode with bounded exponential backoff."""
+
+        assert self._client is not None
+        max_attempts = self.settings.ingest_max_retries + 1
+        for attempt in range(max_attempts):
+            try:
+                return await self._client.add_episode(**kwargs)
+            except Exception as error:
+                is_last_attempt = attempt == max_attempts - 1
+                if is_last_attempt or not _is_retryable_episode_error(error):
+                    raise
+
+                delay = min(
+                    self.settings.ingest_retry_max_seconds,
+                    self.settings.ingest_retry_base_seconds * (2**attempt),
+                )
+                logger.warning(
+                    "Graphiti episode write failed on attempt %d/%d; retrying in %.2fs: %s",
+                    attempt + 1,
+                    max_attempts,
+                    delay,
+                    " -> ".join(
+                        f"{type(item).__name__}: {item}" for item in _exception_chain(error)
+                    ),
+                )
+                await asyncio.sleep(delay)
+
+        raise AssertionError("unreachable retry loop")
 
     @staticmethod
     def _episode_type_text() -> Any:

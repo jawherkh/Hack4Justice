@@ -7,7 +7,7 @@ import { authGuard } from "../../auth";
 import { db } from "../../db";
 import { i18n } from "../../i18n/plugin";
 import { logger } from "../../logger";
-import { tika, TikaError } from "../../ocr/index";
+import { DeepSeekOcrError, documentTextExtractor } from "../../ocr/index";
 import { storage } from "../../storage";
 import { notify } from "../../notifications/inbox";
 
@@ -129,15 +129,18 @@ export const uploadsModule = new Elysia({ prefix: "/uploads", tags: ["uploads"] 
   );
 
 /**
- * Runs Tika and stores the outcome on the row. Never throws: it runs detached
+ * Runs PDF text extraction/OCR and stores the outcome on the row. Never throws: it runs detached
  * from the request, so failures are persisted as FAILED and logged instead.
  */
 async function extractInBackground(id: string, bytes: Uint8Array, languages?: string): Promise<void> {
   try {
-    const { text, pageCount } = await tika.extract(bytes, {
+    const { text, pageCount, method } = await documentTextExtractor.extract({
+      bytes,
+      filename: `${id}.pdf`,
       contentType: PDF_CONTENT_TYPE,
-      ocrLanguages: languages,
+      languages,
     });
+    logger.info({ uploadId: id, method, pageCount }, "document text extracted");
     const row = await updateUpload(id, {
       status: UploadStatus.EXTRACTED,
       text,
@@ -153,7 +156,7 @@ async function extractInBackground(id: string, bytes: Uint8Array, languages?: st
       projectId: row.projectId,
     });
   } catch (cause) {
-    const error = cause instanceof TikaError ? cause.message : "Text extraction failed";
+    const error = cause instanceof DeepSeekOcrError ? cause.message : "Text extraction failed";
     logger.error({ err: cause, uploadId: id }, "extraction failed");
     await updateUpload(id, { status: UploadStatus.FAILED, error })
       .then((row) =>

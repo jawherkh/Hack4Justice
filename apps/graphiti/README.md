@@ -46,9 +46,11 @@ legal graph.
 - `GET /api/v1/ontology` returns the extraction ontology and provenance rules.
 - `POST /api/v1/knowledge/ingest` uses Chonkie's sentence chunker, attaches
   provenance and source offsets, extracts typed entities/edges, and stores each
-  chunk as an episode in Neo4j.
+  chunk as an episode in Neo4j. Exhausted chunks are skipped and returned in a
+  `partial` response so later chunks continue processing.
 - `POST /api/v1/knowledge/ingest/bulk` processes several documents sequentially
-  so Graphiti can use recent episode context during entity resolution.
+  so Graphiti can use recent episode context during entity resolution; one
+  document's skipped chunks do not stop later documents.
 - `POST /api/v1/knowledge/search` uses
   `graphiti.search_(query, group_ids=[group_id],
   config=COMBINED_HYBRID_SEARCH_CROSS_ENCODER)` and returns edges, nodes, and
@@ -75,6 +77,17 @@ curl -X POST http://127.0.0.1:8010/api/v1/knowledge/ingest \
 The service does not promote scraped content to an approved legal procedure.
 That promotion remains subject to the existing contracts' maintainer approval
 and official-source safeguards.
+
+## Ingestion retries
+
+Each Graphiti episode write has a bounded service-level retry around the
+provider client's own retry loop. Transient 429, 5xx, timeout, connection, and
+empty-response failures use exponential backoff; authentication, permission,
+malformed-request, and refusal errors are recorded as skipped chunks after the
+retry budget is exhausted (or immediately when they are classified as
+non-retryable). Configure the policy with
+`GRAPHITI_INGEST_MAX_RETRIES`, `GRAPHITI_INGEST_RETRY_BASE_SECONDS`, and
+`GRAPHITI_INGEST_RETRY_MAX_SECONDS`.
 
 ## Chunking and upload architecture
 

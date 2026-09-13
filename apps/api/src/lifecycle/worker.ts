@@ -48,7 +48,9 @@ const connection = await Connection.connect({ address });
 const nativeConnection = await NativeConnection.connect({ address });
 const client = new Client({ connection, namespace });
 const documents = createDocumentActivities(url, {
-  tikaUrl: process.env.TIKA_URL || "http://localhost:9998",
+  deepSeekOcrEndpoint: process.env.DEEPSEEK_OCR_ENDPOINT || "https://api.deepseek.com/chat/completions",
+  deepSeekOcrApiKey: process.env.DEEPSEEK_API_KEY,
+  deepSeekOcrModel: process.env.DEEPSEEK_OCR_MODEL || "deepseek-flash",
   workspaceBaseDir: process.env.DOCUMENT_STORAGE_DIR || ".local-data/documents",
   image: process.env.SANDBOX_IMAGE || "alpine:3.20",
   // Documents are read here, from the store the API already writes them to, so their bytes

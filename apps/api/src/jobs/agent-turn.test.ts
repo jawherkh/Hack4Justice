@@ -63,7 +63,8 @@ const turn = (overrides: Partial<AgentTurnWorkflowInput> = {}): AgentTurnWorkflo
 const answering = (onCall?: () => void): AgentActivities => ({
   async runAgentTurn(input) {
     onCall?.();
-    return { sessionId: input.sessionId, finalOutput: "Il manque l'attestation.", interrupted: false };
+    return { sessionId: input.sessionId, runId: "run-1", outputFormat: "markdown",
+      finalOutput: "Il manque l'attestation.", interrupted: false };
   },
 });
 
@@ -125,7 +126,8 @@ describe("durable agent turns", () => {
       async runAgentTurn(input) {
         calls += 1;
         if (calls === 1) throw outage();
-        return { sessionId: input.sessionId, finalOutput: "reprise", interrupted: false };
+        return { sessionId: input.sessionId, runId: "run-retry", outputFormat: "markdown",
+          finalOutput: "reprise", interrupted: false };
       },
     };
     const durable = withDurableTurns(flaky, store, { turnKey: "turn-retry" });
