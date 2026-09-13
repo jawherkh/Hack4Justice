@@ -14,6 +14,7 @@ import {
 } from './labels'
 import { RequirementStatusBadge } from './status-badges'
 import { StepGuide } from './step-guide'
+import { stepAnchor } from './step-rail'
 
 interface StepsTimelineProps {
   project: ProjectDetail
@@ -37,7 +38,7 @@ export function StepsTimeline({ project, onSelectRequirement }: StepsTimelinePro
         const last = index === steps.length - 1
         const showNodes = STEPS_WITH_NODES.has(step) && requirementIds.length > 0
         return (
-          <li key={step} className="relative flex gap-4 pb-8 last:pb-0">
+          <li key={step} id={stepAnchor(step)} className="relative flex scroll-mt-24 gap-4 pb-8 last:pb-0">
             {!last ? (
               <span
                 aria-hidden

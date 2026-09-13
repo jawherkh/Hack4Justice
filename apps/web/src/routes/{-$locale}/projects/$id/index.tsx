@@ -16,6 +16,7 @@ import { Button } from '@hack4justice/ui/components/button'
 import { OnboardingWizard } from '#/components/procedure/onboarding-wizard'
 import { serviceName, submissionModeLabel } from '#/components/procedure/labels'
 import { RequirementSheet } from '#/components/procedure/requirement-sheet'
+import { StepRail } from '#/components/procedure/step-rail'
 import { ProcedureStatusBadge } from '#/components/procedure/status-badges'
 import { StepsTimeline } from '#/components/procedure/steps-timeline'
 import { DestinationBadge } from '#/components/projects/destination-badge'
@@ -99,25 +100,17 @@ function Overview() {
         </div>
       </header>
 
-      <section className="flex flex-col gap-2">
-        <div className="flex items-center justify-between text-sm">
-          <span className="font-medium">{t('procedure.overview.progress', { done, total })}</span>
-          <span className="text-muted-foreground tabular-nums">
-            {total ? Math.round((done / total) * 100) : 0}%
-          </span>
+      <div className="grid gap-6 lg:grid-cols-[15rem_1fr] lg:gap-10">
+        {/* Sticky rail: keeps the step list and progress in view while the timeline scrolls. */}
+        <div className="sticky top-0 z-10 -mx-4 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 md:-mx-6 md:px-6 lg:top-4 lg:mx-0 lg:self-start lg:rounded-xl lg:border lg:px-4 lg:py-4">
+          <StepRail project={data} done={done} total={total} />
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full rounded-full bg-primary transition-[width]"
-            style={{ width: `${total ? (done / total) * 100 : 0}%` }}
-          />
-        </div>
-      </section>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="font-semibold">{t('procedure.overview.steps')}</h2>
-        <StepsTimeline project={data} onSelectRequirement={(r) => setSelectedId(r.requirementId)} />
-      </section>
+        <section className="flex min-w-0 flex-col gap-4">
+          <h2 className="font-semibold">{t('procedure.overview.steps')}</h2>
+          <StepsTimeline project={data} onSelectRequirement={(r) => setSelectedId(r.requirementId)} />
+        </section>
+      </div>
 
       <RequirementSheet
         projectId={id}
