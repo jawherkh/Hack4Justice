@@ -259,6 +259,26 @@ export class Workspace {
     }
   }
 
+  async listDirectory(relativePath = "."): Promise<{ name: string; path: string; type: "file" | "dir" | "other" }[]> {
+    const target = await this.resolvePath(relativePath);
+    const info = await lstat(target).catch(() => undefined);
+    if (!info) throw new SandboxPathError("path not found");
+    if (!info.isDirectory()) throw new SandboxPathError("path is not a directory");
+    const entries = await readdir(target, { withFileTypes: true });
+    const prefix = relativePath === "." || relativePath === "" ? "" : relativePath.replace(/[\\/]+$/g, "");
+    return entries.map((entry) => ({
+      name: entry.name,
+      path: prefix ? `${prefix}/${entry.name}` : entry.name,
+      type: entry.isFile() ? "file" as const : entry.isDirectory() ? "dir" as const : "other" as const,
+    }));
+  }
+
+  async deleteFile(relativePath: string): Promise<void> {
+    const target = await this.resolvePath(relativePath);
+    await this.assertRegularFile(target);
+    await rm(target, { force: true });
+  }
+
   /** Reads a file and describes where it came from, so an artifact can be traced to its run. */
   async exportArtifact(relativePath: string): Promise<{ bytes: Uint8Array; provenance: ArtifactProvenance }> {
     const bytes = await this.readFile(relativePath);

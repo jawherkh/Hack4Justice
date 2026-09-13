@@ -3,7 +3,6 @@ import { Context } from "@temporalio/activity";
 import { env } from "../env";
 import { createTikaClient } from "../ocr/tika";
 import { extractDocumentText, runSandboxCommand, type ExtractTextInput, type SandboxCommandInput } from "./activities";
-import { retrieveLegalContext, runAgentTurn, type AgentRunner, type AgentTurnInput, type LegalContextInput, type LegalKnowledge } from "./agent";
 import type { JobContext, JobReceipt } from "./contracts";
 import { PostgresJobStore } from "./store";
 
@@ -37,27 +36,12 @@ function activityContext(): JobContext {
 export function forHistory(receipt: JobReceipt): JobReceipt {
   const output = receipt.output;
   if (!output) return receipt;
-  const { text, sources, reply, question, proposals, ...rest } = output as Record<string, unknown>;
+  const { text, ...rest } = output as Record<string, unknown>;
   return {
     ...receipt,
     output: {
       ...rest,
       ...(typeof text === "string" ? { textCharacters: text.length } : {}),
-      ...(Array.isArray(sources)
-        ? { sourceRefs: (sources as { sourceRef: string }[]).map((source) => source.sourceRef) }
-        : {}),
-      ...(typeof reply === "string" ? { replyCharacters: reply.length } : {}),
-      // Always present for a turn: a reader branching on this must see false, not a
-      // missing key, when the agent asked nothing.
-      ...(typeof reply === "string" ? { askedQuestion: typeof question === "string" } : {}),
-      // The actions and the sources they rest on, without the wording that explains them.
-      ...(Array.isArray(proposals)
-        ? {
-            proposals: (proposals as { action: string; nodeId?: string; sourceRefs: string[] }[]).map(
-              ({ action, nodeId, sourceRefs }) => ({ action, nodeId, sourceRefs }),
-            ),
-          }
-        : {}),
     },
   };
 }
@@ -73,13 +57,7 @@ export interface DocumentActivityInputs {
  * Each one records its own receipt, so a workflow that replays, or a worker that restarts,
  * reads what already happened rather than doing the work a second time.
  */
-export interface AgentDependencies {
-  /** Supplied once the conversational agent exists; until then its activities report it. */
-  agent?: AgentRunner;
-  knowledge?: LegalKnowledge;
-}
-
-export function createDocumentActivities(databaseUrl: string, dependencies: AgentDependencies = {}) {
+export function createDocumentActivities(databaseUrl: string) {
   const store = new PostgresJobStore(databaseUrl);
   const tika = createTikaClient(env.TIKA_URL);
 
@@ -103,16 +81,6 @@ export function createDocumentActivities(databaseUrl: string, dependencies: Agen
       async extractDocumentText(input: DocumentActivityInputs["extractDocumentText"]) {
         const bytes = input.bytes instanceof Uint8Array ? input.bytes : new Uint8Array(input.bytes);
         const { receipt } = await extractDocumentText(store, extractor, { ...input, bytes }, activityContext());
-        return forHistory(receipt);
-      },
-      async runAgentTurn(input: AgentTurnInput) {
-        if (!dependencies.agent) throw new Error("agent_not_configured");
-        const { receipt } = await runAgentTurn(store, dependencies.agent, input, activityContext());
-        return forHistory(receipt);
-      },
-      async retrieveLegalContext(input: LegalContextInput) {
-        if (!dependencies.knowledge) throw new Error("knowledge_not_configured");
-        const { receipt } = await retrieveLegalContext(store, dependencies.knowledge, input, activityContext());
         return forHistory(receipt);
       },
       async runSandboxCommand(input: SandboxCommandInput) {

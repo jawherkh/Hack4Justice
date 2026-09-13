@@ -27,3 +27,5 @@ export async function dossierWorkflow(dossierId: string): Promise<void> {
     if (++processed >= 100 && queue.length === 0) await continueAsNew<typeof dossierWorkflow>(dossierId);
   }
 }
+
+export { agentTurnWorkflow } from "../agent/workflow";

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { LifecycleContext, PrerequisiteObservation } from "../lifecycle/contracts";
 
 import {
@@ -209,6 +209,125 @@ export interface DossierDetail {
   readonly decisions: readonly DecisionRecord[];
 }
 
+/** JSON-safe model items persisted for an Agents SDK session. */
+export type AgentSessionItem = Record<string, unknown>;
+
+export interface AgentSessionRecord {
+  readonly id: string;
+  readonly dossierId: string;
+  readonly principalId: string;
+  readonly selectedNodeId?: string;
+  readonly lastResponseId?: string;
+  readonly history: readonly AgentSessionItem[];
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export type AgentEventType =
+  | "run_started"
+  | "agent_updated"
+  | "text_delta"
+  | "tool_started"
+  | "tool_completed"
+  | "tool_failed"
+  | "node_selected"
+  | "task_created"
+  | "artifact_created"
+  | "run_completed"
+  | "run_failed";
+
+export interface AgentEventRecord {
+  readonly id: string;
+  readonly sequence: number;
+  readonly sessionId: string;
+  readonly dossierId: string;
+  readonly actorId: string;
+  readonly type: AgentEventType;
+  readonly data: Readonly<Record<string, unknown>>;
+  readonly occurredAt: string;
+}
+
+export interface HelperTaskRecord extends ResourceScope {
+  readonly id: string;
+  readonly nodeId?: string;
+  readonly title: string;
+  readonly description: string;
+  readonly requestedBy: string;
+  readonly status: "open" | "completed" | "cancelled";
+  readonly idempotencyKey: string;
+  readonly createdAt: string;
+}
+
+export interface ArtifactProvenanceRecord {
+  readonly path: string;
+  readonly dossierId: string;
+  readonly runId: string;
+  readonly sourceDocumentIds: readonly string[];
+  readonly sha256: string;
+  readonly exportedAt: string;
+}
+
+export interface ArtifactRecord extends ResourceScope {
+  readonly id: string;
+  readonly nodeId: string;
+  readonly draftKey: string;
+  readonly filename: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+  readonly sha256: string;
+  readonly storageRef: string;
+  readonly version: number;
+  readonly provenance: ArtifactProvenanceRecord;
+  readonly createdBy: string;
+  readonly idempotencyKey: string;
+  readonly createdAt: string;
+  readonly immutable: true;
+}
+
+export interface CreateAgentSessionInput {
+  readonly id?: string;
+  readonly dossierId: string;
+  readonly principalId: string;
+  readonly selectedNodeId?: string;
+}
+
+export interface AgentEventInput {
+  readonly sessionId: string;
+  readonly dossierId: string;
+  readonly actorId: string;
+  readonly type: AgentEventType;
+  readonly data?: Readonly<Record<string, unknown>>;
+}
+
+export interface CreateHelperTaskInput {
+  readonly dossierId: string;
+  readonly nodeId?: string;
+  readonly title: string;
+  readonly description: string;
+  readonly requestedBy: string;
+  readonly idempotencyKey: string;
+}
+
+export interface PublishArtifactInput {
+  readonly dossierId: string;
+  readonly nodeId: string;
+  readonly draftKey: string;
+  readonly filename: string;
+  readonly mimeType: string;
+  readonly bytes: Uint8Array;
+  readonly provenance: ArtifactProvenanceRecord;
+  readonly createdBy: string;
+  readonly idempotencyKey: string;
+  readonly storageRef?: string;
+}
+
+export type UploadDocumentResult = ReturnType<AccessRepository["uploadDocument"]>;
+
+export type BinaryEvidenceInput = Omit<UploadDocumentInput, "content" | "binary"> & {
+  readonly bytes: Uint8Array;
+  readonly idempotencyKey?: string;
+};
+
 export interface CreateDossierInput {
   readonly companyId: string;
   readonly procedureVersionId: string;
@@ -225,6 +344,7 @@ export interface UploadDocumentInput {
   readonly replacesDocumentId?: string;
   readonly expectedVersion: number;
   readonly uploadedBy: string;
+  readonly idempotencyKey?: string;
   readonly binary?: { readonly bytes: Uint8Array; readonly storageRef: string; readonly sha256: string };
 }
 
@@ -288,6 +408,28 @@ export interface AccessRepository {
   dispatchCommand(input: LifecycleCommandInput): LifecycleCommandAcknowledgement;
 }
 
+export type MaybePromise<T> = T | Promise<T>;
+
+export interface AgentRepository {
+  dossierDetail(id: string): MaybePromise<DossierDetail | undefined>;
+  dependencies(companyId: string, agency: Agency): MaybePromise<readonly DependencyRecord[]>;
+  procedure(id: string): MaybePromise<ProcedureVersionRecord | undefined>;
+  uploadDocument(input: UploadDocumentInput): MaybePromise<UploadDocumentResult>;
+  dispatchCommand(input: LifecycleCommandInput): MaybePromise<LifecycleCommandAcknowledgement>;
+  agentSession(id: string, dossierId: string, principalId: string): MaybePromise<AgentSessionRecord | undefined>;
+  createAgentSession(input: CreateAgentSessionInput): MaybePromise<AgentSessionRecord>;
+  saveAgentSession(session: AgentSessionRecord): MaybePromise<AgentSessionRecord>;
+  appendAgentEvent(input: AgentEventInput): MaybePromise<AgentEventRecord>;
+  agentEvents(sessionId: string, after: number): MaybePromise<readonly AgentEventRecord[]>;
+  createHelperTask(input: CreateHelperTaskInput): MaybePromise<HelperTaskRecord>;
+  helperTask(id: string): MaybePromise<HelperTaskRecord | undefined>;
+  publishArtifact(input: PublishArtifactInput): MaybePromise<ArtifactRecord>;
+  artifact(id: string): MaybePromise<ArtifactRecord | undefined>;
+  uploadFile?(input: BinaryEvidenceInput): MaybePromise<UploadDocumentResult>;
+  readContent?(id: string): MaybePromise<Uint8Array>;
+  readArtifact?(id: string): MaybePromise<Uint8Array>;
+}
+
 const ALL_NODE_TYPES: readonly NodeType[] = [
   "information_input",
   "document_evidence",
@@ -328,9 +470,16 @@ export interface RepositorySnapshot {
   readonly procedures: ProcedureVersionRecord[];
   readonly commands: [string, { fingerprint: string; acknowledgement: LifecycleCommandAcknowledgement }][];
   readonly grants: readonly DocumentGrant[];
+  readonly uploadReceipts?: [string, { fingerprint: string; response: UploadDocumentResult }][];
+  readonly agentSessions?: AgentSessionRecord[];
+  readonly agentEvents?: AgentEventRecord[];
+  readonly agentEventSequence?: number;
+  readonly helperTasks?: HelperTaskRecord[];
+  readonly artifacts?: ArtifactRecord[];
+  readonly artifactContents?: [string, string][];
 }
 
-export class InMemoryDossierRepository implements AccessRepository {
+export class InMemoryDossierRepository implements AgentRepository {
   private readonly dossierRows = new Map<string, DossierRecord>();
   private readonly documentRows = new Map<string, DocumentRecord>();
   private readonly nodeRows = new Map<string, NodeRecord>();
@@ -340,7 +489,14 @@ export class InMemoryDossierRepository implements AccessRepository {
   private readonly dependencyRows = new Map<string, DependencyRecord>();
   private readonly procedureRows = new Map<string, ProcedureVersionRecord>();
   private readonly commandRows = new Map<string, { fingerprint: string; acknowledgement: LifecycleCommandAcknowledgement }>();
+  private readonly uploadReceiptRows = new Map<string, { fingerprint: string; response: UploadDocumentResult }>();
+  private readonly agentSessionRows = new Map<string, AgentSessionRecord>();
+  private readonly agentEventRows = new Map<string, AgentEventRecord>();
+  private readonly helperTaskRows = new Map<string, HelperTaskRecord>();
+  private readonly artifactRows = new Map<string, ArtifactRecord>();
+  private readonly artifactContents = new Map<string, string>();
   private sequence = 0;
+  private agentEventSequence = 0;
 
   public constructor(private readonly documentGrants: readonly DocumentGrant[] = []) {}
 
@@ -349,7 +505,11 @@ export class InMemoryDossierRepository implements AccessRepository {
       documents: [...this.documentRows.values()], nodes: [...this.nodeRows.values()],
       findings: [...this.findingRows.values()], decisions: [...this.decisionRows.values()],
       sources: [...this.sourceRows.values()], dependencies: [...this.dependencyRows.values()],
-      procedures: [...this.procedureRows.values()], commands: [...this.commandRows.entries()], grants: this.documentGrants });
+      procedures: [...this.procedureRows.values()], commands: [...this.commandRows.entries()], grants: this.documentGrants,
+      uploadReceipts: [...this.uploadReceiptRows.entries()],
+      agentSessions: [...this.agentSessionRows.values()], agentEvents: [...this.agentEventRows.values()],
+      agentEventSequence: this.agentEventSequence, helperTasks: [...this.helperTaskRows.values()],
+      artifacts: [...this.artifactRows.values()], artifactContents: [...this.artifactContents.entries()] });
   }
 
   public static restore(snapshot: RepositorySnapshot): InMemoryDossierRepository {
@@ -366,6 +526,13 @@ export class InMemoryDossierRepository implements AccessRepository {
     for (const row of copy.dependencies) repository.dependencyRows.set(row.id, row);
     for (const row of copy.procedures) repository.procedureRows.set(row.id, row);
     for (const [key, row] of copy.commands) repository.commandRows.set(key, row);
+    for (const [key, row] of copy.uploadReceipts ?? []) repository.uploadReceiptRows.set(key, row);
+    for (const row of copy.agentSessions ?? []) repository.agentSessionRows.set(row.id, row);
+    for (const row of copy.agentEvents ?? []) repository.agentEventRows.set(row.id, row);
+    repository.agentEventSequence = copy.agentEventSequence ?? Math.max(0, ...(copy.agentEvents ?? []).map((event) => event.sequence));
+    for (const row of copy.helperTasks ?? []) repository.helperTaskRows.set(row.id, row);
+    for (const row of copy.artifacts ?? []) repository.artifactRows.set(row.id, row);
+    for (const [id, content] of copy.artifactContents ?? []) repository.artifactContents.set(id, content);
     return repository;
   }
 
@@ -413,6 +580,12 @@ export class InMemoryDossierRepository implements AccessRepository {
   public dependency(id: string): DependencyRecord | undefined {
     const value = this.dependencyRows.get(id);
     return value ? clone(value) : undefined;
+  }
+
+  public dependencies(companyId: string, agency: Agency): readonly DependencyRecord[] {
+    return [...this.dependencyRows.values()]
+      .filter((dependency) => dependency.companyId === companyId && dependency.agency === agency)
+      .map(clone);
   }
 
   public grants(): readonly DocumentGrant[] {
@@ -508,6 +681,20 @@ export class InMemoryDossierRepository implements AccessRepository {
 
   public uploadDocument(input: UploadDocumentInput) {
     const dossier = requireValue(this.dossierRows.get(input.dossierId));
+    const receiptKey = input.idempotencyKey ? `${input.dossierId}:${input.uploadedBy}:${input.idempotencyKey}` : undefined;
+    const fingerprint = commandFingerprint({
+      dossierId: input.dossierId, nodeId: input.nodeId, filename: input.filename, mimeType: input.mimeType,
+      contentSha256: input.binary?.sha256 ?? checksum(input.content), requirementIds: input.requirementIds ?? null,
+      replacesDocumentId: input.replacesDocumentId ?? null, expectedVersion: input.expectedVersion,
+      uploadedBy: input.uploadedBy,
+    });
+    if (receiptKey) {
+      const previous = this.uploadReceiptRows.get(receiptKey);
+      if (previous) {
+        if (previous.fingerprint !== fingerprint) throw new AccessError(409, "idempotency_conflict");
+        return clone(previous.response);
+      }
+    }
     if (dossier.lifecycle === "closed" || dossier.lifecycle === "cancelled") throw new AccessError(409, "dossier_closed");
     assertVersion(dossier.version, input.expectedVersion);
     const node = requireValue(this.nodeRows.get(input.nodeId));
@@ -602,11 +789,13 @@ export class InMemoryDossierRepository implements AccessRepository {
       updatedAt: timestamp(),
     });
 
-    return {
+    const response = {
       document: clone(document),
       detail: requireValue(this.dossierDetail(dossier.id)),
       invalidatedFindingIds: [...invalidatedFindingIds],
     };
+    if (receiptKey) this.uploadReceiptRows.set(receiptKey, { fingerprint, response: clone(response) });
+    return response;
   }
 
   public updateConfirmedFacts(input: ConfirmedFactsInput) {
@@ -694,6 +883,160 @@ export class InMemoryDossierRepository implements AccessRepository {
   public addDependency(dependency: DependencyRecord): void {
     this.dependencyRows.set(dependency.id, clone(dependency));
   }
+
+  public agentSession(id: string, dossierId: string, principalId: string): AgentSessionRecord | undefined {
+    const session = this.agentSessionRows.get(id);
+    if (!session || session.dossierId !== dossierId || session.principalId !== principalId) return undefined;
+    return clone(session);
+  }
+
+  public createAgentSession(input: CreateAgentSessionInput): AgentSessionRecord {
+    const id = input.id ?? `agent-session-${randomUUID()}`;
+    const existing = this.agentSessionRows.get(id);
+    if (existing) {
+      if (existing.dossierId !== input.dossierId || existing.principalId !== input.principalId) {
+        throw new AccessError(409, "agent_session_conflict");
+      }
+      return clone(existing);
+    }
+    const now = timestamp();
+    const session: AgentSessionRecord = {
+      id,
+      dossierId: input.dossierId,
+      principalId: input.principalId,
+      ...(input.selectedNodeId ? { selectedNodeId: input.selectedNodeId } : {}),
+      history: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.agentSessionRows.set(id, session);
+    return clone(session);
+  }
+
+  public saveAgentSession(session: AgentSessionRecord): AgentSessionRecord {
+    const previous = this.agentSessionRows.get(session.id);
+    if (previous && (previous.dossierId !== session.dossierId || previous.principalId !== session.principalId)) {
+      throw new AccessError(409, "agent_session_conflict");
+    }
+    const saved = { ...session, updatedAt: timestamp(), history: [...session.history] };
+    this.agentSessionRows.set(session.id, clone(saved));
+    return clone(saved);
+  }
+
+  public appendAgentEvent(input: AgentEventInput): AgentEventRecord {
+    const event: AgentEventRecord = {
+      id: `${input.sessionId}:${++this.agentEventSequence}`,
+      sequence: this.agentEventSequence,
+      sessionId: input.sessionId,
+      dossierId: input.dossierId,
+      actorId: input.actorId,
+      type: input.type,
+      data: { ...(input.data ?? {}) },
+      occurredAt: timestamp(),
+    };
+    this.agentEventRows.set(event.id, event);
+    return clone(event);
+  }
+
+  public agentEvents(sessionId: string, after: number): readonly AgentEventRecord[] {
+    return [...this.agentEventRows.values()]
+      .filter((event) => event.sessionId === sessionId && event.sequence > after)
+      .sort((a, b) => a.sequence - b.sequence)
+      .slice(0, 100)
+      .map(clone);
+  }
+
+  public createHelperTask(input: CreateHelperTaskInput): HelperTaskRecord {
+    const existing = [...this.helperTaskRows.values()].find((task) =>
+      task.dossierId === input.dossierId && task.requestedBy === input.requestedBy && task.idempotencyKey === input.idempotencyKey);
+    if (existing) {
+      if (existing.title !== input.title || existing.description !== input.description || existing.nodeId !== input.nodeId) {
+        throw new AccessError(409, "idempotency_conflict");
+      }
+      return clone(existing);
+    }
+    const dossier = requireValue(this.dossierRows.get(input.dossierId));
+    const task: HelperTaskRecord = {
+      companyId: dossier.companyId,
+      dossierId: dossier.id,
+      agency: dossier.agency,
+      id: `helper-task-${dossier.id}-${++this.sequence}`,
+      ...(input.nodeId ? { nodeId: input.nodeId } : {}),
+      title: input.title,
+      description: input.description,
+      requestedBy: input.requestedBy,
+      status: "open",
+      idempotencyKey: input.idempotencyKey,
+      createdAt: timestamp(),
+    };
+    this.helperTaskRows.set(task.id, task);
+    return clone(task);
+  }
+
+  public helperTask(id: string): HelperTaskRecord | undefined {
+    const task = this.helperTaskRows.get(id);
+    return task ? clone(task) : undefined;
+  }
+
+  public publishArtifact(input: PublishArtifactInput): ArtifactRecord {
+    const existing = [...this.artifactRows.values()].find((artifact) =>
+      artifact.dossierId === input.dossierId && artifact.createdBy === input.createdBy &&
+      artifact.idempotencyKey === input.idempotencyKey);
+    if (existing) {
+      const checksumValue = createHash("sha256").update(input.bytes).digest("hex");
+      if (existing.sha256 !== checksumValue || existing.nodeId !== input.nodeId || existing.draftKey !== input.draftKey) {
+        throw new AccessError(409, "idempotency_conflict");
+      }
+      return clone(existing);
+    }
+
+    const dossier = requireValue(this.dossierRows.get(input.dossierId));
+    const currentVersions = [...this.artifactRows.values()]
+      .filter((artifact) => artifact.dossierId === dossier.id && artifact.nodeId === input.nodeId && artifact.draftKey === input.draftKey)
+      .map((artifact) => artifact.version);
+    const bytes = new Uint8Array(input.bytes);
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    if (sha256 !== input.provenance.sha256) throw new AccessError(422, "artifact_checksum_mismatch");
+    const id = `artifact-${dossier.id}-${++this.sequence}`;
+    const artifact: ArtifactRecord = {
+      companyId: dossier.companyId,
+      dossierId: dossier.id,
+      agency: dossier.agency,
+      id,
+      nodeId: input.nodeId,
+      draftKey: input.draftKey,
+      filename: input.filename,
+      mimeType: input.mimeType,
+      sizeBytes: bytes.byteLength,
+      sha256,
+      storageRef: input.storageRef ?? `memory://${dossier.id}/${id}/${input.filename}`,
+      version: Math.max(0, ...currentVersions) + 1,
+      provenance: clone(input.provenance),
+      createdBy: input.createdBy,
+      idempotencyKey: input.idempotencyKey,
+      createdAt: timestamp(),
+      immutable: true,
+    };
+    this.artifactRows.set(id, artifact);
+    this.artifactContents.set(id, Buffer.from(bytes).toString("base64"));
+    return clone(artifact);
+  }
+
+  public artifact(id: string): ArtifactRecord | undefined {
+    const artifact = this.artifactRows.get(id);
+    return artifact ? clone(artifact) : undefined;
+  }
+
+  public readArtifact(id: string): Uint8Array {
+    const artifact = requireValue(this.artifactRows.get(id));
+    const content = this.artifactContents.get(id);
+    if (content === undefined) throw new AccessError(500, "artifact_not_available");
+    const bytes = new Uint8Array(Buffer.from(content, "base64"));
+    if (createHash("sha256").update(bytes).digest("hex") !== artifact.sha256) {
+      throw new AccessError(500, "file_integrity_failure");
+    }
+    return bytes;
+  }
 }
 
 const procedureSource = (agency: Agency): SourceRecord => ({
@@ -723,7 +1066,7 @@ const procedureNodes: readonly ProcedureNodeDefinition[] = ALL_NODE_TYPES.map((t
           : type === "decision" || type === "human_review"
             ? ["view", "record_decision"]
             : type === "submission"
-              ? ["view", "submit"]
+              ? ["view", "submit", "resubmit"]
               : ["view", "execute_external"],
 }));
 
