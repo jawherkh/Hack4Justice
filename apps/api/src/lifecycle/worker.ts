@@ -33,8 +33,20 @@ const agentActivities = geminiApiKey
 const connection = await Connection.connect({ address });
 const nativeConnection = await NativeConnection.connect({ address });
 const client = new Client({ connection, namespace });
-const documents = createDocumentActivities(url);
-await documents.initialize();
+const documents = createDocumentActivities(url, {
+  tikaUrl: process.env.TIKA_URL || "http://localhost:9998",
+  workspaceBaseDir: process.env.DOCUMENT_STORAGE_DIR || ".local-data/documents",
+  image: process.env.SANDBOX_IMAGE || "alpine:3.20",
+  // Documents are read here, from the store the API already writes them to, so their bytes
+  // never travel as an activity argument.
+  documents: {
+    async read({ documentId }) {
+      const document = await repository.document(documentId);
+      if (!document) throw new Error(`document ${documentId} not found`);
+      return { bytes: await repository.readContent(documentId), filename: document.filename, contentType: document.mimeType };
+    },
+  },
+});
 const worker = await Worker.create({ connection: nativeConnection, namespace, taskQueue,
   workflowsPath: fileURLToPath(new URL("./workflows.ts", import.meta.url)),
   activities: {

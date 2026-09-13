@@ -50,6 +50,11 @@ export interface JobStore {
    * undefined when another caller took it first, so two retries cannot run at once.
    */
   reattempt(jobId: string, expectedAttempts: number): Promise<JobReceipt | undefined>;
+  /**
+   * Marks a running job as still alive. Optional: a store without it simply reports a long
+   * job as abandoned sooner.
+   */
+  touch?(jobId: string): Promise<void>;
   /** Jobs still marked running after the cutoff. A worker that stopped leaves these behind. */
   abandoned(olderThan: string): Promise<JobReceipt[]>;
 }

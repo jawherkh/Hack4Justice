@@ -1,5 +1,8 @@
 import { JobCancelled, maxJobAttempts, type JobContext, type JobReceipt, type JobRequest, type JobStore } from "./contracts";
 
+/** How often a running job record is refreshed while the job reports progress. */
+const touchIntervalMs = 10_000;
+
 export interface JobOutcome {
   output?: Record<string, unknown>;
 }
@@ -43,6 +46,11 @@ export async function runJob(
   const heartbeat = context.heartbeat ?? (() => {});
 
   const existing = await store.findReceipt(request.jobId);
+  if (existing && (existing.dossierId !== request.dossierId || existing.kind !== request.kind)) {
+    // The same id naming different work means the caller built it from something that is
+    // not unique. Reusing that record would answer with another dossier's result.
+    throw new Error(`job ${request.jobId} already refers to different work`);
+  }
   if (existing) {
     // Done, or failed in a way that will fail again: the stored result is the answer.
     if (existing.status === "succeeded") return existing;
@@ -66,8 +74,19 @@ export async function runJob(
   }
 
   try {
-    heartbeat({ jobId: request.jobId, phase: "started" });
-    const outcome = await work({ ...context, heartbeat });
+    // Heartbeats reach the workflow service, which does not update the stored record.
+    // Touching it here keeps a healthy long job from being listed as abandoned.
+    let lastTouch = 0;
+    const touching: typeof heartbeat = (details) => {
+      heartbeat(details);
+      const now = Date.now();
+      if (store.touch && now - lastTouch > touchIntervalMs) {
+        lastTouch = now;
+        void store.touch(request.jobId).catch(() => {});
+      }
+    };
+    touching({ jobId: request.jobId, phase: "started" });
+    const outcome = await work({ ...context, heartbeat: touching });
     return await store.complete(request.jobId, { status: "succeeded", output: outcome.output });
   } catch (error) {
     const cancelled = error instanceof JobCancelled || context.signal?.aborted === true;

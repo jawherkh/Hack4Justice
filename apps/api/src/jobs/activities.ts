@@ -15,14 +15,26 @@ const containerStartFailure = 125;
  * keeping it here does not enlarge a workflow history.
  */
 
+/**
+ * Reads a stored document. The worker holds this, so a document's bytes never travel as an
+ * activity argument and never enter a workflow history.
+ */
+export interface DocumentSource {
+  read(reference: DocumentReference): Promise<{ bytes: Uint8Array; filename: string; contentType?: string }>;
+}
+
+/** Identifies a stored document. Small enough to sit in a workflow history. */
+export interface DocumentReference {
+  documentId: string;
+  storageKey?: string;
+}
+
 export interface ExtractTextInput {
   jobId: string;
   dossierId: string;
-  documentId: string;
-  filename: string;
-  bytes: Uint8Array;
+  /** A reference, not the document. The worker reads the bytes. */
+  document: DocumentReference;
   languages?: string;
-  contentType?: string;
 }
 
 /** Reads text out of an uploaded document. */
@@ -40,6 +52,7 @@ export interface TextExtractor {
 export async function extractDocumentText(
   store: JobStore,
   extractor: TextExtractor,
+  documents: DocumentSource,
   input: ExtractTextInput,
   context: JobContext = {},
 ): Promise<{ receipt: JobReceipt; text?: string }> {
@@ -49,12 +62,23 @@ export async function extractDocumentText(
     store,
     { jobId: input.jobId, dossierId: input.dossierId, kind: "document_text_extraction" },
     async ({ heartbeat, signal }) => {
-      heartbeat({ jobId: input.jobId, phase: "extracting", documentId: input.documentId });
+      heartbeat({ jobId: input.jobId, phase: "extracting", documentId: input.document.documentId });
       if (signal?.aborted) throw new JobCancelled("cancelled before extraction");
+
+      let stored: { bytes: Uint8Array; filename: string; contentType?: string };
+      try {
+        stored = await documents.read(input.document);
+      } catch (error) {
+        // Storage being briefly unreachable is worth another attempt.
+        throw new RetryableJobError(error instanceof Error ? error.message : "document_unreadable");
+      }
 
       let result: { text: string; pageCount?: number | null };
       try {
-        result = await extractor.extract({ bytes: input.bytes, filename: input.filename, languages: input.languages, contentType: input.contentType });
+        result = await extractor.extract({
+          bytes: stored.bytes, filename: stored.filename,
+          languages: input.languages, contentType: stored.contentType,
+        });
       } catch (error) {
         // The extraction service being unavailable is worth another attempt; a document it
         // refuses to read is not, and will be reported for a person to look at.
@@ -64,7 +88,7 @@ export async function extractDocumentText(
       text = result.text;
       return {
         output: {
-          documentId: input.documentId,
+          documentId: input.document.documentId,
           characters: result.text.length,
           checksum: createHash("sha256").update(result.text).digest("hex"),
           pageCount: result.pageCount ?? null,
@@ -89,8 +113,11 @@ export interface SandboxCommandInput {
   dossierId: string;
   runId: string;
   command: readonly string[];
-  /** Files placed in the workspace before the command runs. */
-  inputs?: { path: string; bytes: Uint8Array }[];
+  /**
+   * Documents placed in the workspace before the command runs, given as references. The
+   * worker reads them, so their bytes never travel as an activity argument.
+   */
+  inputs?: { path: string; document: DocumentReference }[];
   /** Files collected afterwards, each recorded with its checksum. */
   artifacts?: string[];
 }
@@ -112,6 +139,7 @@ export interface SandboxSettings {
 export async function runSandboxCommand(
   store: JobStore,
   settings: SandboxSettings,
+  documents: DocumentSource,
   input: SandboxCommandInput,
   context: JobContext = {},
 ): Promise<JobReceipt> {
@@ -127,7 +155,8 @@ export async function runSandboxCommand(
 
       try {
         for (const file of input.inputs ?? []) {
-          await workspace.writeFile(file.path, file.bytes);
+          const stored = await documents.read(file.document);
+          await workspace.writeFile(file.path, stored.bytes);
         }
 
         heartbeat({ jobId: input.jobId, phase: "running", runId: input.runId });
@@ -138,10 +167,11 @@ export async function runSandboxCommand(
 
         if (result.timedOut) throw new RetryableJobError("sandbox_run_timed_out");
         if (signal?.aborted) throw new JobCancelled("cancelled during the command");
-        // The container runtime refused to start the run at all, so the command never ran.
-        // Reporting that as a completed run would record a success that never happened.
-        if (result.exitCode === containerStartFailure) {
-          throw new RetryableJobError(`sandbox_did_not_start: ${result.stderr.trim().slice(0, 200)}`);
+        // The command never ran: either the runtime refused the run, or the client could
+        // not be started at all and reports no exit code. Recording either as a completed
+        // run would be a success that never happened.
+        if (result.exitCode === containerStartFailure || result.exitCode === null) {
+          throw new RetryableJobError(`sandbox_did_not_start: ${result.stderr.trim().slice(0, 200) || "runtime_unavailable"}`);
         }
 
         const artifacts = [];

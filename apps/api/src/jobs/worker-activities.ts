@@ -1,8 +1,7 @@
 import { Context } from "@temporalio/activity";
 
-import { env } from "../env";
 import { createTikaClient } from "../ocr/tika";
-import { extractDocumentText, runSandboxCommand, type ExtractTextInput, type SandboxCommandInput } from "./activities";
+import { extractDocumentText, runSandboxCommand, type DocumentSource, type ExtractTextInput, type SandboxCommandInput } from "./activities";
 import type { JobContext, JobReceipt } from "./contracts";
 import { PostgresJobStore } from "./store";
 
@@ -33,6 +32,23 @@ function activityContext(): JobContext {
  * anyone who can inspect the workflow, so it carries references and counts rather than a
  * second copy of a dossier's documents or of what the agent said about them.
  */
+/**
+ * Hands a finished job back to the workflow.
+ *
+ * A job the workflow should act on must fail the activity: Temporal applies its retry and
+ * cancellation policy to a failed activity, and sees a returned value as work that
+ * completed. A job that failed in a way no retry would change is returned, because the
+ * record of that refusal is the useful answer.
+ */
+function settle(receipt: JobReceipt): JobReceipt {
+  if (receipt.status === "failed" && (receipt.retryable || receipt.error === "job_cancelled")) {
+    const failure = new Error(receipt.error ?? "job_failed");
+    failure.name = receipt.error === "job_cancelled" ? "JobCancelled" : "RetryableJobFailure";
+    throw failure;
+  }
+  return forHistory(receipt);
+}
+
 export function forHistory(receipt: JobReceipt): JobReceipt {
   const output = receipt.output;
   if (!output) return receipt;
@@ -46,20 +62,26 @@ export function forHistory(receipt: JobReceipt): JobReceipt {
   };
 }
 
-export interface DocumentActivityInputs {
-  extractDocumentText: Omit<ExtractTextInput, "bytes"> & { bytes: ArrayBuffer | Uint8Array };
-  runSandboxCommand: SandboxCommandInput;
-}
-
 /**
  * Builds the document activities the worker registers.
  *
  * Each one records its own receipt, so a workflow that replays, or a worker that restarts,
  * reads what already happened rather than doing the work a second time.
  */
-export function createDocumentActivities(databaseUrl: string) {
+export interface DocumentActivitySettings {
+  /** Reads stored documents inside the worker, so bytes never cross the activity boundary. */
+  documents: DocumentSource;
+  /** Where Tika is reachable. */
+  tikaUrl: string;
+  /** Root for per-run sandbox workspaces. */
+  workspaceBaseDir: string;
+  /** Image the sandbox runs. */
+  image: string;
+}
+
+export function createDocumentActivities(databaseUrl: string, settings: DocumentActivitySettings) {
   const store = new PostgresJobStore(databaseUrl);
-  const tika = createTikaClient(env.TIKA_URL);
+  const tika = createTikaClient(settings.tikaUrl);
 
   const extractor = {
     async extract(input: { bytes: Uint8Array; filename: string; languages?: string; contentType?: string }) {
@@ -74,22 +96,20 @@ export function createDocumentActivities(databaseUrl: string) {
   };
 
   return {
-    /** Created once so the table exists before the first job runs. */
-    initialize: () => store.initialize(),
     close: () => store.close(),
     activities: {
-      async extractDocumentText(input: DocumentActivityInputs["extractDocumentText"]) {
-        const bytes = input.bytes instanceof Uint8Array ? input.bytes : new Uint8Array(input.bytes);
-        const { receipt } = await extractDocumentText(store, extractor, { ...input, bytes }, activityContext());
-        return forHistory(receipt);
+      async extractDocumentText(input: ExtractTextInput) {
+        const { receipt } = await extractDocumentText(store, extractor, settings.documents, input, activityContext());
+        return settle(receipt);
       },
       async runSandboxCommand(input: SandboxCommandInput) {
-        return forHistory(await runSandboxCommand(
+        return settle(await runSandboxCommand(
           store,
           {
-            baseDir: env.DOCUMENT_STORAGE_DIR,
-            image: process.env.SANDBOX_IMAGE ?? "alpine:3.20",
+            baseDir: settings.workspaceBaseDir,
+            image: settings.image,
           },
+          settings.documents,
           input,
           activityContext(),
         ));
