@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 190">
+  <g transform="translate(30,14)">
+    <rect x="16" y="16" width="68" height="14" rx="7" fill="#2563eb"/>
+    <rect x="16" y="70" width="68" height="14" rx="7" fill="#2563eb"/>
+    <rect x="16" y="16" width="14" height="68" rx="7" fill="#2563eb"/>
+    <rect x="70" y="16" width="14" height="68" rx="7" fill="#2563eb"/>
+    <rect x="44" y="32" width="12" height="12" rx="3" fill="#1e40af"/>
+    <rect x="32" y="50" width="12" height="12" rx="3" fill="#1e40af"/>
+  </g>
+  <text x="80" y="165" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="34" font-weight="600" letter-spacing="-0.5" fill="#0f172a">Dalil</text>
+</svg>
