@@ -5,6 +5,7 @@ import type { AsyncAccessRepository } from "../dossiers/persistent";
 import { MAX_UPLOAD_BYTES } from "../dossiers/files";
 import { lifecycleCommandBody } from "../lifecycle/validation";
 import { evaluateRequirements } from "../requirements/evaluator";
+import { exportDossierPackage, type DossierPackage } from "../submissions/package";
 import { type ResolvePrincipal } from "./identity";
 import {
   AccessError,
@@ -67,12 +68,39 @@ const nodeAction = z.enum([
   "cancel",
 ]);
 
+const packageQuery = z.strictObject({
+  action: z.enum(["submit", "resubmit"]).default("submit"),
+  nodeId: z.string().min(1).max(200).optional(),
+  documentIds: z
+    .string()
+    .max(20100)
+    .transform((value) => (value ? value.split(",") : []))
+    .optional(),
+  format: z.enum(["json", "zip"]).default("json"),
+});
+
+const submissionBody = z.strictObject({
+  action: z.enum(["submit", "resubmit"]),
+  nodeId: z.string().min(1).max(200).optional(),
+  expectedVersion: z.number().int().positive(),
+  idempotencyKey: z.string().min(1).max(200),
+  confirmed: z.literal(true),
+  documentIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+  mode: z.enum(["platform_review", "simulated_agency"]).default("platform_review"),
+});
+
 function found<T>(value: T | undefined): T {
   if (!value) throw new AccessError(404, "not_found");
   return value;
 }
 
 export function createAccessRoutes(repository: AsyncAccessRepository, resolvePrincipal: ResolvePrincipal) {
+  const exportPackage = (snapshot: DossierPackage, format: "json" | "zip") =>
+    exportDossierPackage(snapshot, format, async (document) =>
+      repository.readContent
+        ? repository.readContent(document.id)
+        : new TextEncoder().encode(found(await repository.document(document.id)).originalText),
+    );
   return new Elysia({ name: "scoped-resources" })
     .resolve(async ({ request }) => ({ principal: await resolvePrincipal(request) }))
     .get("/me", ({ principal }) => ({
@@ -121,6 +149,58 @@ export function createAccessRoutes(repository: AsyncAccessRepository, resolvePri
       if (!parsed.success) throw new AccessError(422, "invalid_action");
       const nodeId = typeof query.nodeId === "string" && query.nodeId ? query.nodeId : undefined;
       return repository.actionGate(detail.dossier.id, parsed.data, nodeId);
+    })
+    .get("/dossiers/:dossierId/package", async ({ params, query, principal }) => {
+      const dossier = found(await repository.dossier(params.dossierId));
+      requireAccess(canReadDossier(principal, dossier));
+      const parsed = packageQuery.safeParse(query);
+      if (!parsed.success) throw new AccessError(422, "invalid_package_options");
+      return repository.dossierPackage(dossier.id, parsed.data);
+    })
+    .get("/dossiers/:dossierId/package/export", async ({ params, query, principal }) => {
+      const dossier = found(await repository.dossier(params.dossierId));
+      requireAccess(canReadDossier(principal, dossier));
+      const parsed = packageQuery.safeParse(query);
+      if (!parsed.success) throw new AccessError(422, "invalid_package_options");
+      return exportPackage(await repository.dossierPackage(dossier.id, parsed.data), parsed.data.format);
+    })
+    .post("/dossiers/:dossierId/submissions", async ({ params, body, principal, set }) => {
+      const dossier = found(await repository.dossier(params.dossierId));
+      requireAccess(canEditEvidence(principal, dossier));
+      const parsed = submissionBody.safeParse(body);
+      if (!parsed.success) throw new AccessError(422, "invalid_submission");
+      const { action, documentIds, mode, ...command } = parsed.data;
+      const acknowledgement = await repository.dispatchCommand({
+        ...command,
+        dossierId: dossier.id,
+        actorId: principal.id,
+        type: action === "submit" ? "submission_requested" : "resubmission_requested",
+        submission: { documentIds, mode },
+      });
+      set.status = 202;
+      return acknowledgement;
+    })
+    .get("/dossiers/:dossierId/submissions", async ({ params, principal }) => {
+      const dossier = found(await repository.dossier(params.dossierId));
+      requireAccess(canReadDossier(principal, dossier));
+      return repository.submissions(dossier.id);
+    })
+    .get("/dossiers/:dossierId/submissions/:submissionId", async ({ params, principal }) => {
+      const dossier = found(await repository.dossier(params.dossierId));
+      requireAccess(canReadDossier(principal, dossier));
+      return found(
+        (await repository.submissions(dossier.id)).find((receipt) => receipt.id === params.submissionId),
+      );
+    })
+    .get("/dossiers/:dossierId/submissions/:submissionId/export", async ({ params, query, principal }) => {
+      const dossier = found(await repository.dossier(params.dossierId));
+      requireAccess(canReadDossier(principal, dossier));
+      const format = z.enum(["json", "zip"]).safeParse(query.format ?? "json");
+      if (!format.success) throw new AccessError(422, "invalid_export_format");
+      const receipt = found(
+        (await repository.submissions(dossier.id)).find((item) => item.id === params.submissionId),
+      );
+      return exportPackage(receipt.snapshot, format.data);
     })
     .get("/documents/:documentId", async ({ params, principal }) => {
       const document = found(await repository.document(params.documentId));

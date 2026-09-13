@@ -120,6 +120,12 @@ describe("durable action gates", () => {
     const result = await repository.commit(oldPayload, proposed);
     expect(result).toMatchObject({ status: "rejected", error: "prerequisite_needs_review" });
     expect((await repository.dossier(dossierId))!.agencyAcceptance).toBe("not_submitted");
+    expect((await repository.submissions(dossierId))[0]).toMatchObject({
+      status: "rejected",
+      error: "prerequisite_needs_review",
+      officialSubmission: false,
+    });
+    expect((await repository.submissions(dossierId))[0]).not.toHaveProperty("delivery");
     expect(await repository.commit(prepared, proposed)).toEqual(result);
   });
 
@@ -177,6 +183,10 @@ describe("durable action gates", () => {
       status: "rejected",
       error: "version_conflict",
     });
+    expect((await repository.submissions(dossierId))[0]).toMatchObject({
+      status: "rejected",
+      error: "version_conflict",
+    });
   });
 
   test("legacy queued commands are checked against current evidence at commit", async () => {
@@ -218,5 +228,160 @@ describe("durable action gates", () => {
       status: "rejected",
       error: "action_not_available",
     });
+  });
+});
+
+describe("durable submission receipts", () => {
+  test("completion preserves the queued snapshot, has no official delivery and survives restart", async () => {
+    const repository = connect();
+    const reference = await enqueue(repository);
+    const queued = (await repository.submissions(dossierId))[0]!;
+    expect(queued.status).toBe("queued");
+    const prepared = (await repository.prepare(reference))!;
+    const result = await repository.commit(prepared, transition(prepared));
+    expect(result.status).toBe("completed");
+    const receipt = (await connect().submissions(dossierId))[0]!;
+    expect(receipt).toMatchObject({
+      status: "completed",
+      mode: "platform_review",
+      officialSubmission: false,
+      reference: queued.reference,
+      snapshot: queued.snapshot,
+    });
+    expect(receipt).not.toHaveProperty("delivery");
+    expect((await repository.dossier(dossierId))!.lifecycle).toBe("awaiting_review");
+    expect(await connect().commit(prepared, transition(prepared))).toEqual(result);
+    expect(await repository.submissions(dossierId)).toEqual([receipt]);
+  });
+
+  test("no confirmation produces a rejected attempt, never a simulated delivery", async () => {
+    const repository = connect();
+    const ack = await repository.dispatchCommand({
+      dossierId,
+      nodeId,
+      actorId: "demo-member-alpha",
+      type: "submission_requested",
+      expectedVersion: (await repository.dossier(dossierId))!.version,
+      idempotencyKey: "unconfirmed",
+      submission: { mode: "simulated_agency" },
+    });
+    const prepared = (await repository.prepare(ack))!;
+    expect(await repository.commit(prepared, transition(prepared))).toMatchObject({
+      status: "rejected",
+      error: "explicit_confirmation_required",
+    });
+    const receipt = (await repository.submissions(dossierId))[0]!;
+    expect(receipt.status).toBe("rejected");
+    expect(receipt).not.toHaveProperty("delivery");
+  });
+
+  test("a replacement invalidates a selected document while a queued package stays immutable", async () => {
+    const repository = connect();
+    const document = (await repository.dossierDetail(dossierId))!.evidence[0]!;
+    const ack = await repository.dispatchCommand({
+      dossierId,
+      nodeId,
+      actorId: "demo-member-alpha",
+      type: "submission_requested",
+      expectedVersion: (await repository.dossier(dossierId))!.version,
+      idempotencyKey: "selected",
+      confirmed: true,
+      submission: { documentIds: [document.id] },
+    });
+    const prepared = (await repository.prepare(ack))!;
+    const original = (await repository.submissions(dossierId))[0]!.snapshot;
+    const seed = InMemoryDossierRepository.restore(
+      database.snapshot as ReturnType<InMemoryDossierRepository["snapshot"]>,
+    );
+    seed.addDocument({ ...document, id: "replacement", replacesId: document.id, version: 2 });
+    database.snapshot = seed.snapshot();
+    expect(await repository.commit(prepared, transition(prepared))).toMatchObject({
+      status: "rejected",
+      error: "invalid_document_selection",
+    });
+    expect((await repository.submissions(dossierId))[0]!.snapshot).toEqual(original);
+  });
+
+  test("resubmission creates a new version with changed evidence and a clearly simulated receipt", async () => {
+    const repository = connect();
+    const first = await enqueue(repository);
+    const prepared = (await repository.prepare(first))!;
+    await repository.commit(prepared, transition(prepared));
+    const original = (await repository.submissions(dossierId))[0]!;
+
+    const detail = (await repository.dossierDetail(dossierId))!;
+    const reviewNode = detail.nodes.find((node) => node.type === "human_review")!;
+    await repository.assignDossier({
+      dossierId,
+      expectedVersion: detail.dossier.version,
+      officerId: "synthetic-officer",
+    });
+    const review = await repository.dispatchCommand({
+      dossierId,
+      nodeId: reviewNode.id,
+      type: "decision_recorded",
+      actorId: "synthetic-officer",
+      idempotencyKey: "corrections",
+      expectedVersion: (await repository.dossier(dossierId))!.version,
+      decision: {
+        action: "request_modification",
+        reason: "Synthetic correction",
+        targetNodeIds: [detail.evidence[0]!.nodeId],
+        evidenceIds: [detail.evidence[0]!.id],
+      },
+    });
+    const reviewPrepared = (await repository.prepare(review))!;
+    expect(await repository.commit(reviewPrepared, transition(reviewPrepared))).toMatchObject({
+      status: "completed",
+    });
+
+    // Fixture represents a reviewed replacement; bytes and findings have already been verified.
+    const seed = InMemoryDossierRepository.restore(
+      database.snapshot as ReturnType<InMemoryDossierRepository["snapshot"]>,
+    );
+    const dossier = seed.dossier(dossierId)!;
+    const document = detail.evidence[0]!;
+    seed.addDocument({ ...document, id: "corrected-document", replacesId: document.id, version: 2 });
+    seed.addDossier({
+      ...dossier,
+      version: dossier.version + 1,
+      confirmedFacts: { ...dossier.confirmedFacts, correction: "verified" },
+    });
+    for (const finding of detail.findings)
+      seed.addFinding({
+        ...finding,
+        validity: "current",
+        evaluatedDossierVersion: dossier.version + 1,
+        evidenceIds: finding.evidenceIds.map((id) => (id === document.id ? "corrected-document" : id)),
+      });
+    database.snapshot = seed.snapshot();
+
+    const second = await repository.dispatchCommand({
+      dossierId,
+      nodeId,
+      actorId: "demo-member-alpha",
+      type: "resubmission_requested",
+      expectedVersion: dossier.version + 1,
+      idempotencyKey: "corrected",
+      confirmed: true,
+      submission: { mode: "simulated_agency" },
+    });
+    const secondPrepared = (await repository.prepare(second))!;
+    expect(await repository.commit(secondPrepared, transition(secondPrepared))).toMatchObject({
+      status: "completed",
+    });
+    const [receipt, previous] = await connect().submissions(dossierId);
+    expect(previous).toEqual(original);
+    expect(receipt).toMatchObject({
+      version: 2,
+      status: "completed",
+      mode: "simulated_agency",
+      officialSubmission: false,
+      delivery: { simulated: true, status: "received" },
+      changes: { documents: { added: ["corrected-document"], removed: [document.id] } },
+    });
+    expect(receipt!.delivery!.reference).toMatch(/^SIM-DGI-/);
+    expect(receipt!.reference).not.toBe(original.reference);
+    expect((await repository.dossier(dossierId))!.lifecycle).toBe("awaiting_review");
   });
 });
