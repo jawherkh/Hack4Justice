@@ -22,8 +22,10 @@ import { FileTextIcon } from '@hack4justice/ui/components/icons/file-text'
 import { LayoutPanelTopIcon } from '@hack4justice/ui/components/icons/layout-panel-top'
 import { LogoutIcon } from '@hack4justice/ui/components/icons/logout'
 import { SendIcon } from '@hack4justice/ui/components/icons/send'
+import { SparklesIcon } from '@hack4justice/ui/components/icons/sparkles'
 import { cn } from '@hack4justice/ui/lib/utils'
 import { toLocaleParam, useI18n, type MessageKey } from '#/i18n'
+import { CopilotSidebarThreads } from '#/components/copilot/sidebar-threads'
 import { signOut } from '#/lib/auth'
 import { listProjects, projectKeys, type ProjectDetail } from '#/lib/projects'
 import type { SessionData } from '#/lib/session'
@@ -44,12 +46,13 @@ type AnimatedIcon = React.ForwardRefExoticComponent<
   React.HTMLAttributes<HTMLDivElement> & { size?: number } & React.RefAttributes<IconHandle>
 >
 
-type Section = 'overview' | 'documents' | 'submission'
+type Section = 'overview' | 'documents' | 'submission' | 'copilot'
 
 const SECTIONS: { key: Section; label: MessageKey; icon: AnimatedIcon }[] = [
   { key: 'overview', label: 'projects.sidebar.overview', icon: LayoutPanelTopIcon },
   { key: 'documents', label: 'projects.sidebar.documents', icon: FileTextIcon },
   { key: 'submission', label: 'projects.sidebar.submission', icon: SendIcon },
+  { key: 'copilot', label: 'projects.sidebar.copilot', icon: SparklesIcon },
 ]
 
 /** Plays the icon animation while the whole row is hovered, not just the icon. */
@@ -93,7 +96,9 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
     ? 'documents'
     : matchRoute({ to: '/{-$locale}/projects/$id/submission', params: idParams })
       ? 'submission'
-      : 'overview'
+      : matchRoute({ to: '/{-$locale}/projects/$id/copilot', params: idParams, fuzzy: true })
+        ? 'copilot'
+        : 'overview'
 
   return (
     <Sidebar variant="floating" side={locale === 'ar' ? 'right' : 'left'} {...props}>
@@ -122,11 +127,14 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
                 <AnimatedMenuButton
                   icon={icon}
                   isActive={active === key}
+                  className={cn(key === 'copilot' && 'pe-8')}
                   render={
                     key === 'overview' ? (
                       <Link to="/{-$locale}/projects/$id" params={idParams} />
                     ) : key === 'documents' ? (
                       <Link to="/{-$locale}/projects/$id/documents" params={idParams} />
+                    ) : key === 'copilot' ? (
+                      <Link to="/{-$locale}/projects/$id/copilot" params={idParams} />
                     ) : (
                       <Link to="/{-$locale}/projects/$id/submission" params={idParams} />
                     )
@@ -134,6 +142,7 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
                 >
                   {t(label)}
                 </AnimatedMenuButton>
+                {key === 'copilot' ? <CopilotSidebarThreads projectId={project.id} /> : null}
               </SidebarMenuItem>
             ))}
           </SidebarMenu>

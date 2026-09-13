@@ -45,5 +45,9 @@
   "terms_not_accepted": "Vous devez accepter les conditions pour continuer",
   "company_name_required": "Le nom de l’entreprise est requis pour un compte entreprise",
   "invalid_tax_id": "Le format du matricule fiscal est invalide",
-  "invalid_phone": "Le format du numéro de téléphone est invalide"
+  "invalid_phone": "Le format du numéro de téléphone est invalide",
+  "copilot_not_configured": "Le copilote n'est pas configuré sur ce serveur",
+  "conversation_not_found": "Conversation introuvable",
+  "copilot_busy": "Le copilote répond encore dans cette conversation",
+  "copilot_run_failed": "Le copilote n'a pas pu terminer sa réponse"
 }

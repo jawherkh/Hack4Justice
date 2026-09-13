@@ -64,6 +64,20 @@
       "when": 1789280657438,
       "tag": "0008_user_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789281467838,
+      "tag": "0009_copilot",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789282948777,
+      "tag": "0010_copilot_message_parts",
+      "breakpoints": true
     }
   ]
 }

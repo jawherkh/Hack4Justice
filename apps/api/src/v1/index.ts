@@ -19,6 +19,8 @@ import { FileStore } from "../dossiers/files";
 import { PostgresJobStore } from "../jobs/store";
 import { createKnowledgeSearch } from "../knowledge/search";
 import { createAdminRoutes } from "../modules/admin/index";
+import { createCopilotModule } from "../modules/copilot/index";
+import { ProjectCopilotService } from "../copilot/service";
 import { createObligationRoutes } from "../obligations/routes";
 
 const repository = env.DATABASE_URL
@@ -38,6 +40,17 @@ const agentService = geminiApiKey
       jobs: new PostgresJobStore(env.DATABASE_URL),
     })
   : undefined;
+const copilotService = geminiApiKey
+  ? new ProjectCopilotService({
+      model: createGeminiAgentModel({
+        apiKey: geminiApiKey,
+        model: env.AGENT_MODEL,
+        baseURL: env.GEMINI_AGENT_BASE_URL,
+      }),
+      sandbox: { image: env.SANDBOX_IMAGE, workspaceBaseDir: env.SANDBOX_BASE_DIR },
+      knowledge: createKnowledgeSearch(env.GRAPHITI_URL),
+    })
+  : undefined;
 const resolvePrincipal = createDemoIdentity(env.DEMO_ACCESS_ENABLED, env.NODE_ENV);
 
 export const v1 = new Elysia({ prefix: "/api/v1" })
@@ -45,6 +58,7 @@ export const v1 = new Elysia({ prefix: "/api/v1" })
   .use(profileModule)
   .use(uploadsModule)
   .use(projectsModule)
+  .use(createCopilotModule(copilotService))
   .use(notificationsModule)
   .use(helloModule)
   .use(itemsModule)

@@ -151,6 +151,36 @@ explicit consumer-agency grant on that dependency. A summary grant never grants
 access to raw documents. Separate document grants are limited to a principal,
 company, document and expiry time.
 
+## Project copilot
+
+`/api/v1/projects/:id/copilot` is the chat assistant of the project workspace (web sidebar
+"Copilot"). It reuses the Gemini model (`GEMINI_API_KEY`, `AGENT_MODEL`) and the Docker
+sandbox (`SANDBOX_IMAGE`, `SANDBOX_BASE_DIR`) of the principal agent; without a Gemini key
+the list endpoint reports `enabled: false` and messages return 503 `copilot_not_configured`.
+
+| Method   | Path                                  | Notes                                                        |
+| -------- | ------------------------------------- | ------------------------------------------------------------ |
+| `GET`    | `/projects/:id/copilot`               | Conversations of the project, most recent first.             |
+| `POST`   | `/projects/:id/copilot`               | Start a conversation (`{ title? }`). 201.                    |
+| `GET`    | `/projects/:id/copilot/:cid`          | Conversation with its stored messages and tool calls.        |
+| `PATCH`  | `/projects/:id/copilot/:cid`          | Rename (`{ title }`).                                        |
+| `DELETE` | `/projects/:id/copilot/:cid`          | Delete the thread and its messages. 204.                     |
+| `POST`   | `/projects/:id/copilot/:cid/messages` | `{ message }`; streams SSE, then stores the assistant reply. |
+
+The stream sends `user_message`, `text_delta`, `tool_started`, `tool_completed`, then
+`result` (the stored assistant message) or `error`. Closing the connection aborts the model
+run; whatever was produced is still stored. One turn runs per conversation at a time (409
+`copilot_busy`).
+
+Each conversation owns a private sandbox workspace (`SANDBOX_BASE_DIR/<projectId>/<conversationId>`,
+mounted at `/work`). Every turn stages `input/project.json` (service, checklist, statuses) and
+`input/documents/<uploadId>.txt` (the OCR / extracted text of the project's uploads) before
+the agent runs. Besides the SDK shell and file tools, the agent has `get_project_overview`,
+`get_requirement_details`, `list_project_documents`, `read_document_text` and
+`search_legal_sources` (Graphiti, scoped to the project's agency). It never writes to the
+project. Message history for the model is stored on `copilot_conversation.history`; display
+messages live in `copilot_message` (migration `0009_copilot`).
+
 ## Local preview
 
 Identity integration is disabled by default: scoped endpoints return 503 until
