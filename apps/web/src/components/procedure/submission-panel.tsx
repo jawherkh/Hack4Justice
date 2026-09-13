@@ -1,0 +1,213 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import {
+  SERVICES,
+  SubmissionStatus,
+  isSatisfied,
+  type SubmissionStatus as SubmissionStatusType,
+} from '@hack4justice/shared'
+import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, Send } from 'lucide-react'
+import { Button } from '@hack4justice/ui/components/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@hack4justice/ui/components/card'
+import { Spinner } from '@hack4justice/ui/components/spinner'
+import { toast } from '@hack4justice/ui/components/toast'
+import { toLocaleParam, useI18n } from '#/i18n'
+import { ApiError } from '#/lib/api-error'
+import { projectKeys, setSubmissionStatus, type ProjectDetail } from '#/lib/projects'
+import { humanize, requirementLabel, submissionModeLabel } from './labels'
+import { ProcedureStatusBadge } from './status-badges'
+
+/** What the user records after acting on the official channel. The app itself never submits. */
+export function SubmissionPanel({ project }: { project: ProjectDetail }) {
+  const { t, locale } = useI18n()
+  const queryClient = useQueryClient()
+  const params = { locale: toLocaleParam(locale), id: project.id }
+  const service = project.serviceId ? SERVICES[project.serviceId] : undefined
+
+  const update = useMutation({
+    mutationFn: (status: SubmissionStatusType | null) => setSubmissionStatus(project.id, status),
+    onSuccess: (detail) => {
+      queryClient.setQueryData(projectKeys.detail(project.id), detail)
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all })
+      toast.add({ type: 'success', title: t('procedure.submission.updated') })
+    },
+    onError: (err) =>
+      toast.add({
+        type: 'error',
+        title: t('procedure.submission.error'),
+        description: err instanceof ApiError ? err.message : t('auth.error.generic'),
+      }),
+  })
+
+  if (!service) {
+    return (
+      <Card>
+        <CardContent className="text-sm text-muted-foreground">
+          {t('procedure.submission.onboardFirst')}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const missing = project.requirements.filter((r) => !isSatisfied(r.status, true))
+  const ready = missing.length === 0
+  const current = project.submissionStatus
+  const pending = update.isPending
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {t('procedure.submission.current')}
+            <ProcedureStatusBadge status={project.status} />
+          </CardTitle>
+          <CardDescription>{t('procedure.submission.description')}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <dl className="grid gap-2 text-sm sm:grid-cols-[10rem_1fr]">
+            <dt className="text-muted-foreground">{t('procedure.submission.channel')}</dt>
+            <dd className="flex flex-wrap gap-1.5">
+              <span className="font-medium">{t(submissionModeLabel(service.submissionMode))}</span>
+              {service.channels.length ? (
+                <span className="text-muted-foreground">· {service.channels.map(humanize).join(', ')}</span>
+              ) : null}
+            </dd>
+            <dt className="text-muted-foreground">{t('procedure.submission.outputs')}</dt>
+            <dd>{service.outputs.map(humanize).join(', ')}</dd>
+          </dl>
+
+          {current === null && !ready ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-dashed p-4">
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <AlertTriangle className="size-4 text-destructive" />
+                {t('procedure.submission.notReady')}
+              </p>
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                {t('procedure.submission.missing')}
+              </p>
+              <ul className="flex flex-wrap gap-1.5">
+                {missing.map((r) => (
+                  <li key={r.requirementId} className="rounded-md bg-muted px-2 py-0.5 text-xs">
+                    {t(requirementLabel(r.requirementId))}
+                  </li>
+                ))}
+              </ul>
+              <Button
+                variant="outline"
+                size="sm"
+                className="self-start"
+                render={<Link to="/{-$locale}/projects/$id" params={params} />}
+              >
+                <ArrowLeft data-icon="inline-start" className="rtl:rotate-180" />
+                {t('projects.sidebar.overview')}
+              </Button>
+            </div>
+          ) : null}
+
+          {current === null && ready ? (
+            <div className="flex flex-col gap-3 rounded-lg border p-4">
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <CheckCircle2 className="size-4 text-primary" />
+                {t('procedure.submission.ready')}
+              </p>
+              <Button
+                className="self-start"
+                disabled={pending}
+                onClick={() => update.mutate(SubmissionStatus.SUBMITTED)}
+              >
+                {pending ? <Spinner data-icon="inline-start" /> : <Send data-icon="inline-start" />}
+                {t('procedure.submission.mark.SUBMITTED')}
+              </Button>
+            </div>
+          ) : null}
+
+          {current === 'SUBMITTED' || current === 'UNDER_REVIEW' ? (
+            <div className="flex flex-wrap gap-2">
+              {current === 'SUBMITTED' ? (
+                <Button
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => update.mutate(SubmissionStatus.UNDER_REVIEW)}
+                >
+                  {t('procedure.submission.mark.UNDER_REVIEW')}
+                </Button>
+              ) : null}
+              <Button disabled={pending} onClick={() => update.mutate(SubmissionStatus.ACCEPTED)}>
+                {t('procedure.submission.mark.ACCEPTED')}
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={pending}
+                onClick={() => update.mutate(SubmissionStatus.REJECTED)}
+              >
+                {t('procedure.submission.mark.REJECTED')}
+              </Button>
+              <Button variant="ghost" disabled={pending} onClick={() => update.mutate(null)}>
+                {t('procedure.submission.reset')}
+              </Button>
+            </div>
+          ) : null}
+
+          {current === 'REJECTED' ? (
+            <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+              {service.rejectionEffects.length ? (
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    {t('procedure.submission.effects')}
+                  </p>
+                  <ul className="list-disc ps-4 text-sm">
+                    {service.rejectionEffects.map((effect) => (
+                      <li key={effect}>{effect}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <Button
+                variant="outline"
+                className="self-start"
+                disabled={pending}
+                onClick={() => update.mutate(null)}
+              >
+                <ArrowLeft data-icon="inline-start" className="rtl:rotate-180" />
+                {t('procedure.submission.reset')}
+              </Button>
+            </div>
+          ) : null}
+
+          {current === 'ACCEPTED' ? (
+            <div className="flex flex-col gap-2 rounded-lg border p-4">
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <CheckCircle2 className="size-4 text-primary" />
+                {t('procedure.status.ACCEPTED')}
+              </p>
+              <ul className="flex flex-wrap gap-1.5">
+                {service.outputs.map((output) => (
+                  <li key={output} className="rounded-md bg-muted px-2 py-0.5 text-xs">
+                    {humanize(output)}
+                  </li>
+                ))}
+              </ul>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="self-start"
+                disabled={pending}
+                onClick={() => update.mutate(null)}
+              >
+                {t('procedure.submission.reset')}
+              </Button>
+            </div>
+          ) : null}
+
+          {service.channels.some((c) => c.includes('online')) ? (
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <ExternalLink className="size-3.5" />
+              {service.channels.map(humanize).join(' · ')}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

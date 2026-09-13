@@ -25,9 +25,14 @@ export const upload = pgTable(
     pageCount: integer(),
     error: text(),
     extractedAt: timestamp({ withTimezone: true }),
+    /** Project this file belongs to, when uploaded from a project workspace. */
+    projectId: uuid(),
     ...timestamps,
   },
-  (table) => [index("upload_user_id_idx").on(table.userId)],
+  (table) => [
+    index("upload_user_id_idx").on(table.userId),
+    index("upload_project_id_idx").on(table.projectId),
+  ],
 );
 
 export type Upload = typeof upload.$inferSelect;

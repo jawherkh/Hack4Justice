@@ -17,7 +17,7 @@ export async function getUpload(id: string) {
   return unwrap(await api.api.v1.uploads({ id }).get(), 'Could not load upload')
 }
 
-export async function uploadPdf(input: { file: File; languages: OcrLanguages }) {
+export async function uploadPdf(input: { file: File; languages: OcrLanguages; projectId?: string }) {
   return unwrap(await api.api.v1.uploads.post(input), 'Upload failed')
 }
 

@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 
 import { authModule } from "../modules/auth/index";
 import { uploadsModule } from "../modules/uploads/index";
+import { projectsModule } from "../modules/projects/index";
 import { helloModule } from "../modules/hello/index";
 import { itemsModule } from "../modules/items/index";
 import { createDemoRepository } from "../access/fixtures";
@@ -13,6 +14,8 @@ import { PrincipalAgentService } from "../agent/service";
 import { env } from "../env";
 import { PersistentRepository } from "../dossiers/persistent";
 import { FileStore } from "../dossiers/files";
+import { PostgresJobStore } from "../jobs/store";
+import { createKnowledgeSearch } from "../knowledge/search";
 import { createAdminRoutes } from "../modules/admin/index";
 
 const repository = env.DATABASE_URL
@@ -28,6 +31,8 @@ const agentService = geminiApiKey
         baseURL: env.GEMINI_AGENT_BASE_URL,
       }),
       sandbox: { image: env.SANDBOX_IMAGE, workspaceBaseDir: env.SANDBOX_BASE_DIR },
+      knowledge: createKnowledgeSearch(env.GRAPHITI_URL),
+      jobs: new PostgresJobStore(env.DATABASE_URL),
     })
   : undefined;
 const resolvePrincipal = createDemoIdentity(env.DEMO_ACCESS_ENABLED, env.NODE_ENV);
@@ -35,6 +40,7 @@ const resolvePrincipal = createDemoIdentity(env.DEMO_ACCESS_ENABLED, env.NODE_EN
 export const v1 = new Elysia({ prefix: "/api/v1" })
   .use(authModule)
   .use(uploadsModule)
+  .use(projectsModule)
   .use(helloModule)
   .use(itemsModule)
   .use(createAccessRoutes(repository, resolvePrincipal))
