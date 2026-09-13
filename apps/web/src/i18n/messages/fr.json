@@ -478,5 +478,8 @@
   "uploads.queue.done": "Importé",
   "uploads.queue.failed": "Échec",
   "uploads.queue.clear": "Effacer",
-  "procedure.explorer.download": "Télécharger"
+  "procedure.explorer.download": "Télécharger",
+  "uploads.preview": "Aperçu",
+  "uploads.preview.openTab": "Ouvrir dans un nouvel onglet",
+  "uploads.preview.loadError": "Impossible de charger le fichier."
 }

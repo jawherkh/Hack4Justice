@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { REQUIREMENTS, RequirementStatus } from '@hack4justice/shared'
-import { Download, Paperclip, Upload, X } from 'lucide-react'
+import { Download, Eye, Paperclip, Upload, X } from 'lucide-react'
 import { Button } from '@hack4justice/ui/components/button'
 import { Checkbox } from '@hack4justice/ui/components/checkbox'
 import { Field, FieldDescription, FieldLabel } from '@hack4justice/ui/components/field'
@@ -24,6 +24,7 @@ import { Spinner } from '@hack4justice/ui/components/spinner'
 import { Textarea } from '@hack4justice/ui/components/textarea'
 import { toast } from '@hack4justice/ui/components/toast'
 import { cn } from '@hack4justice/ui/lib/utils'
+import { FilePreviewDialog } from '#/components/uploads/file-preview-dialog'
 import { UploadDropzone } from '#/components/uploads/upload-dropzone'
 import { useFileDrop } from '#/components/uploads/use-file-drop'
 import { UploadStatusBadge } from '#/components/uploads/upload-status-badge'
@@ -53,6 +54,7 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
   const queryClient = useQueryClient()
   const def = requirement ? REQUIREMENTS[requirement.requirementId] : undefined
   const [details, setDetails] = React.useState('')
+  const [previewId, setPreviewId] = React.useState<string | null>(null)
   const [note, setNote] = React.useState('')
 
   // Reset the local form each time another requirement is opened.
@@ -159,10 +161,23 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
                 {requirement.upload ? (
                   <div className="flex items-center gap-3 rounded-lg border px-3 py-2">
                     <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewId(requirement.upload!.id)}
+                      className="min-w-0 flex-1 cursor-pointer truncate text-start text-sm font-medium hover:underline"
+                    >
                       {requirement.upload.filename}
-                    </span>
+                    </button>
                     <UploadStatusBadge status={requirement.upload.status} />
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={t('uploads.preview')}
+                      title={t('uploads.preview')}
+                      onClick={() => setPreviewId(requirement.upload!.id)}
+                    >
+                      <Eye />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon-xs"
@@ -310,6 +325,7 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
           </div>
         </SheetFooter>
       </SheetContent>
+      <FilePreviewDialog uploadId={previewId} onOpenChange={(open) => !open && setPreviewId(null)} />
     </Sheet>
   )
 }

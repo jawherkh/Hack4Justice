@@ -478,5 +478,8 @@
   "uploads.queue.done": "Uploaded",
   "uploads.queue.failed": "Failed",
   "uploads.queue.clear": "Clear",
-  "procedure.explorer.download": "Download"
+  "procedure.explorer.download": "Download",
+  "uploads.preview": "Preview",
+  "uploads.preview.openTab": "Open in a new tab",
+  "uploads.preview.loadError": "Could not load the file."
 }

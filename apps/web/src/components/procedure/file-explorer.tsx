@@ -5,6 +5,7 @@ import { REQUIREMENTS } from '@hack4justice/shared'
 import {
   Download,
   ExternalLink,
+  Eye,
   FileText,
   Folder,
   FolderOpen,
@@ -35,6 +36,7 @@ import {
 import { Skeleton } from '@hack4justice/ui/components/skeleton'
 import { toast } from '@hack4justice/ui/components/toast'
 import { cn } from '@hack4justice/ui/lib/utils'
+import { FilePreviewDialog } from '#/components/uploads/file-preview-dialog'
 import { MultiUploadDropzone } from '#/components/uploads/multi-upload-dropzone'
 import { useFileDrop } from '#/components/uploads/use-file-drop'
 import { useUploadQueue } from '#/components/uploads/use-upload-queue'
@@ -55,6 +57,7 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
   const queryClient = useQueryClient()
   const [folder, setFolder] = React.useState<string>(ALL)
   const [languages, setLanguages] = React.useState<OcrLanguages>('fra+eng')
+  const [previewId, setPreviewId] = React.useState<string | null>(null)
 
   const uploads = useQuery({
     queryKey: projectKeys.uploads(project.id),
@@ -206,13 +209,13 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
                     <FileText className="size-4" />
                   </span>
                   <div className="flex min-w-0 flex-1 flex-col">
-                    <Link
-                      to="/{-$locale}/uploads/$id"
-                      params={{ locale: toLocaleParam(locale), id: file.id }}
-                      className="truncate text-sm font-medium hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => setPreviewId(file.id)}
+                      className="cursor-pointer truncate text-start text-sm font-medium hover:underline"
                     >
                       {file.filename}
-                    </Link>
+                    </button>
                     <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                       <span>{formatBytes(file.size, locale)}</span>
                       <span>·</span>
@@ -233,6 +236,15 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
                   <Button
                     variant="ghost"
                     size="icon-sm"
+                    aria-label={t('uploads.preview')}
+                    title={t('uploads.preview')}
+                    onClick={() => setPreviewId(file.id)}
+                  >
+                    <Eye />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
                     aria-label={t('procedure.explorer.download')}
                     title={t('procedure.explorer.download')}
                     disabled={download.isPending}
@@ -249,6 +261,10 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
                       <MoreHorizontal />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setPreviewId(file.id)}>
+                        <Eye />
+                        {t('uploads.preview')}
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         render={
                           <Link
@@ -304,6 +320,8 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
           </ul>
         )}
       </section>
+
+      <FilePreviewDialog uploadId={previewId} onOpenChange={(open) => !open && setPreviewId(null)} />
     </div>
   )
 }

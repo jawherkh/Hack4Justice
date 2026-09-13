@@ -478,5 +478,8 @@
   "uploads.queue.done": "تم الاستيراد",
   "uploads.queue.failed": "فشل",
   "uploads.queue.clear": "مسح",
-  "procedure.explorer.download": "تنزيل"
+  "procedure.explorer.download": "تنزيل",
+  "uploads.preview": "معاينة",
+  "uploads.preview.openTab": "فتح في علامة تبويب جديدة",
+  "uploads.preview.loadError": "تعذّر تحميل الملف."
 }
