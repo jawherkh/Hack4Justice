@@ -337,20 +337,29 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
           if (derived !== "READY_FOR_SUBMISSION")
             throw new AppError({ status: 409, code: "project_not_ready" });
         }
+        // The latest submission, and whether a reviewer has already ruled on it.
+        const [latest] = await db
+          .select({ id: submission.id, status: submission.status, reviewedAt: submission.reviewedAt })
+          .from(submission)
+          .where(eq(submission.projectId, row.id))
+          .orderBy(desc(submission.submittedAt))
+          .limit(1);
+        // This endpoint records what the user saw on the agency's channel. It must not
+        // rewrite a decision a reviewer has already made: a refusal the applicant can mark
+        // as accepted is not a review, and the officer's dashboard would show an outcome
+        // nobody decided. Going back to preparation stays open, which is how a refusal is
+        // corrected and submitted again.
+        if (status && latest?.reviewedAt && latest.status !== status) {
+          throw new AppError({ status: 409, code: "submission_already_reviewed" });
+        }
         const [updated] = await db
           .update(project)
           .set({ submissionStatus: status })
           .where(eq(project.id, row.id))
           .returning();
-        if (status) {
+        if (status && latest && !latest.reviewedAt) {
           // Keep the latest submission record in step with the declared status.
-          const [latest] = await db
-            .select({ id: submission.id })
-            .from(submission)
-            .where(eq(submission.projectId, row.id))
-            .orderBy(desc(submission.submittedAt))
-            .limit(1);
-          if (latest) await db.update(submission).set({ status }).where(eq(submission.id, latest.id));
+          await db.update(submission).set({ status }).where(eq(submission.id, latest.id));
         }
         return { row, updated };
       });

@@ -13,6 +13,7 @@ export default tseslint.config(
       "**/.nitro/**",
       "**/.turbo/**",
       "**/routeTree.gen.ts",
+      "**/*.local.*",
       "packages/db/drizzle/**",
       // Vendored shadcn components and the generated showcase: not ours to lint.
       "packages/ui/src/components/**",
