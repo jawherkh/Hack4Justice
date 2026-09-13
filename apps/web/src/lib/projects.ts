@@ -102,3 +102,32 @@ export type ProjectSubmission = ProjectDetail['submissions'][number]
 export async function submitProject(id: string, input: { receipt?: string; note?: string }) {
   return unwrap(await api.api.v1.projects({ id }).submissions.post(input), 'Could not record the submission')
 }
+
+/** Downloads the cover sheet or the full dossier of a submission through the API (cookie auth). */
+export async function exportSubmission(
+  projectId: string,
+  submissionId: string,
+  format: 'pdf' | 'zip',
+  labels: Record<string, string>,
+) {
+  const baseUrl = (import.meta.env['VITE_API_URL'] as string | undefined) ?? 'http://localhost:3001'
+  const response = await fetch(`${baseUrl}/api/v1/projects/${projectId}/submissions/${submissionId}/export`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ format, labels }),
+  })
+  if (!response.ok) throw new Error(`Export failed (${response.status})`)
+  const disposition = response.headers.get('content-disposition') ?? ''
+  const match = /filename\*=UTF-8''([^;]+)/.exec(disposition)
+  const filename = match?.[1] ? decodeURIComponent(match[1]) : `submission.${format}`
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}

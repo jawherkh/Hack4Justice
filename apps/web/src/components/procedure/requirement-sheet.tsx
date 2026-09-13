@@ -1,6 +1,12 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { REQUIREMENTS, RequirementStatus } from '@hack4justice/shared'
+import {
+  REQUIREMENTS,
+  RequirementStatus,
+  fieldsFor,
+  validateFields,
+  type FieldError,
+} from '@hack4justice/shared'
 import { Download, Eye, Paperclip, Upload, X } from 'lucide-react'
 import { Button } from '@hack4justice/ui/components/button'
 import { Checkbox } from '@hack4justice/ui/components/checkbox'
@@ -40,6 +46,7 @@ import {
   type RequirementPatch,
 } from '#/lib/projects'
 import { REQUIREMENT_TYPE_ICON, requirementHint, requirementLabel, requirementTypeLabel } from './labels'
+import { RequirementFields } from './requirement-fields'
 import { RequirementStatusBadge } from './status-badges'
 
 interface RequirementSheetProps {
@@ -53,13 +60,15 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
   const { t, locale } = useI18n()
   const queryClient = useQueryClient()
   const def = requirement ? REQUIREMENTS[requirement.requirementId] : undefined
-  const [details, setDetails] = React.useState('')
+  const [values, setValues] = React.useState<Record<string, string>>({})
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, FieldError>>({})
   const [previewId, setPreviewId] = React.useState<string | null>(null)
   const [note, setNote] = React.useState('')
 
   // Reset the local form each time another requirement is opened.
   React.useEffect(() => {
-    setDetails(requirement?.value?.['details'] ?? '')
+    setValues(requirement?.value ?? {})
+    setFieldErrors({})
     setNote(requirement?.note ?? '')
   }, [requirement?.id, requirement?.value, requirement?.note])
 
@@ -227,17 +236,25 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
             </div>
           ) : null}
 
-          {def.type === 'data' ? (
-            <Field>
-              <FieldLabel htmlFor="requirement-details">{t('procedure.requirement.details')}</FieldLabel>
-              <Textarea
-                id="requirement-details"
-                rows={5}
-                value={details}
-                onChange={(event) => setDetails(event.target.value)}
-                placeholder={t('procedure.requirement.detailsPlaceholder')}
+          {def.type === 'data' || fieldsFor(def.id).length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                {t('procedure.requirement.fields')}
+              </p>
+              <RequirementFields
+                requirementId={def.id}
+                value={values}
+                errors={fieldErrors}
+                onChange={(key, value) => {
+                  setValues((prev) => ({ ...prev, [key]: value }))
+                  setFieldErrors((prev) => {
+                    const next = { ...prev }
+                    delete next[key]
+                    return next
+                  })
+                }}
               />
-            </Field>
+            </div>
           ) : null}
 
           {def.type === 'authentication' || def.type === 'action' ? (
@@ -263,11 +280,15 @@ export function RequirementSheet({ projectId, requirement, onOpenChange }: Requi
             />
           </Field>
 
-          {def.type === 'data' || note !== (requirement.note ?? '') ? (
+          {def.type === 'data' || fieldsFor(def.id).length > 0 || note !== (requirement.note ?? '') ? (
             <Button
               className="self-start"
               disabled={update.isPending}
-              onClick={() => update.mutate(def.type === 'data' ? { value: { details }, note } : { note })}
+              onClick={() => {
+                const checked = validateFields(def.id, values)
+                if (Object.keys(checked.errors).length > 0) return setFieldErrors(checked.errors)
+                update.mutate({ value: checked.value, note })
+              }}
             >
               {update.isPending ? <Spinner data-icon="inline-start" /> : null}
               {t('procedure.requirement.save')}
