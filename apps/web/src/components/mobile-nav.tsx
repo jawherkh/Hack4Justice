@@ -29,20 +29,25 @@ export function MobileNav({ session }: { session: SessionData }) {
           <SheetTitle>Hack4Justice</SheetTitle>
         </SheetHeader>
         <nav className="flex flex-col gap-1">
-          <Link
-            to="/{-$locale}"
-            params={params}
-            activeOptions={{ exact: true }}
-            className={linkClass}
-            onClick={close}
-          >
-            {t('nav.home')}
-          </Link>
+          {session ? null : (
+            <Link
+              to="/{-$locale}"
+              params={params}
+              activeOptions={{ exact: true }}
+              className={linkClass}
+              onClick={close}
+            >
+              {t('nav.home')}
+            </Link>
+          )}
           <Link to="/{-$locale}/about" params={params} className={linkClass} onClick={close}>
             {t('nav.about')}
           </Link>
           {session ? (
             <>
+              <Link to="/{-$locale}/projects" params={params} className={linkClass} onClick={close}>
+                {t('nav.projects')}
+              </Link>
               <Link to="/{-$locale}/uploads" params={params} className={linkClass} onClick={close}>
                 {t('nav.uploads')}
               </Link>

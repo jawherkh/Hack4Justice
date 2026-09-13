@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 import { SignupForm } from '#/components/auth/signup-form'
-import { requireGuest, safeRedirect, homeHref } from '#/lib/guards'
+import { requireGuest, safeRedirect, projectsHref } from '#/lib/guards'
 
 const searchSchema = z.object({ redirect: z.string().optional() })
 
@@ -17,7 +17,7 @@ function Register() {
   return (
     <main className="flex flex-1 items-center justify-center p-6 md:p-10">
       <div className="w-full max-w-sm">
-        <SignupForm redirectTo={safeRedirect(redirect, homeHref(locale))} />
+        <SignupForm redirectTo={safeRedirect(redirect, projectsHref(locale))} />
       </div>
     </main>
   )

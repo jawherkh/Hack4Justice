@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 
 import { authModule } from "../modules/auth/index";
 import { uploadsModule } from "../modules/uploads/index";
+import { projectsModule } from "../modules/projects/index";
 import { helloModule } from "../modules/hello/index";
 import { itemsModule } from "../modules/items/index";
 import { createDemoRepository } from "../access/fixtures";
@@ -18,6 +19,7 @@ const repository = env.DATABASE_URL
 export const v1 = new Elysia({ prefix: "/api/v1" })
   .use(authModule)
   .use(uploadsModule)
+  .use(projectsModule)
   .use(helloModule)
   .use(itemsModule)
   .use(createAccessRoutes(repository, createDemoIdentity(env.DEMO_ACCESS_ENABLED, env.NODE_ENV)));
