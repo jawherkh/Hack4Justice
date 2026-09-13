@@ -28,7 +28,7 @@ import {
   type ProjectDestination,
   type SubmissionStatus,
 } from "@hack4justice/shared";
-import { and, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, or, type SQL } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { Elysia, t } from "elysia";
 
@@ -36,6 +36,7 @@ import { authGuard } from "../../auth";
 import { db } from "../../db";
 import { i18n } from "../../i18n/plugin";
 import { notify } from "../../notifications/inbox";
+import { assemblePackage, changedSince, type PackageRequirement } from "./package";
 
 const idParam = t.Object({ id: t.String({ format: "uuid" }) });
 const destinationSchema = t.UnionEnum(PROJECT_DESTINATIONS);
@@ -352,9 +353,18 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
     "/:id/submissions",
     async ({ params, user }) => {
       const row = await findOwned(params.id, user.id);
-      return listSubmissions(row.id);
+      const rows = await listSubmissions(row.id);
+      // Newest first, so each entry is compared with the one that came before it in time.
+      return rows.map((entry, index) => {
+        const previous = rows[index + 1];
+        return { ...entry, changes: previous ? changedSince(previous.snapshot, entry.snapshot) : [] };
+      });
     },
-    { auth: true, params: idParam, detail: { summary: "Submission history of a project" } },
+    {
+      auth: true,
+      params: idParam,
+      detail: { summary: "Submission history of a project, each entry with what changed since the previous one" },
+    },
   )
 
   .post(
@@ -362,7 +372,14 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
     async ({ params, body, user, set }) => {
       const row = await findOwned(params.id, user.id);
       if (!row.serviceId) throw new AppError({ status: 409, code: "project_not_ready" });
-      if (row.submissionStatus !== null) throw new AppError({ status: 409, code: "submission_in_progress" });
+      if (row.submissionStatus !== null) {
+        // A repeat of the same act answers with the record it already produced, so a
+        // double click or a retried request cannot give one procedure two references.
+        // A refused submission is different: it is reopened first, then submitted again.
+        const [recorded] = await listSubmissions(row.id);
+        if (row.submissionStatus === "SUBMITTED" && recorded) return recorded;
+        throw new AppError({ status: 409, code: "submission_in_progress" });
+      }
       const requirements = await listRequirements(row.id);
       if (deriveProcedureStatus(row.serviceId, requirements, null) !== "READY_FOR_SUBMISSION") {
         throw new AppError({ status: 409, code: "project_not_ready" });
@@ -387,6 +404,14 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
         })),
       };
       const created = await db.transaction(async (tx) => {
+        // Claim the project first. Two requests that both read an unsubmitted project
+        // would otherwise each insert, leaving one procedure with two official references.
+        const claimed = await tx
+          .update(project)
+          .set({ submissionStatus: "SUBMITTED" })
+          .where(and(eq(project.id, row.id), isNull(project.submissionStatus)))
+          .returning({ id: project.id });
+        if (claimed.length === 0) return null;
         const [inserted] = await tx
           .insert(submission)
           .values({
@@ -398,9 +423,15 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
             snapshot,
           })
           .returning();
-        await tx.update(project).set({ submissionStatus: "SUBMITTED" }).where(eq(project.id, row.id));
         return inserted!;
       });
+      if (!created) {
+        // Already recorded. Answering with the existing submission keeps a retried request
+        // from producing a second reference for the same act.
+        const [existing] = await listSubmissions(row.id);
+        if (!existing) throw new AppError({ status: 409, code: "submission_in_progress" });
+        return existing;
+      }
       await notify({
         userId: user.id,
         type: NotificationType.SUBMISSION_UPDATED,
@@ -422,6 +453,35 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
         summary: "Record an official submission: snapshots the checklist and moves the project to SUBMITTED",
       },
     },
+  )
+
+  .get(
+    "/:id/package",
+    async ({ params, user }) => await buildPackage(await findOwned(params.id, user.id)),
+    {
+      auth: true,
+      params: idParam,
+      detail: {
+        summary: "Everything a reviewer needs in one object: files, confirmed values, what is missing, and the catalogue entry behind each requirement",
+      },
+    },
+  )
+
+  .get(
+    "/:id/package/export",
+    async ({ params, user }) => {
+      const row = await findOwned(params.id, user.id);
+      const assembled = await buildPackage(row);
+      // Returned as a Response so the body keeps its JSON type: a string return would be
+      // served as text/plain and saved as an unreadable download.
+      return new Response(JSON.stringify(assembled, null, 2), {
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "content-disposition": `attachment; filename="${exportFilename(row)}"`,
+        },
+      });
+    },
+    { auth: true, params: idParam, detail: { summary: "Download the assembled package as a file" } },
   )
 
   .get(
@@ -450,6 +510,62 @@ export const projectsModule = new Elysia({ prefix: "/projects", tags: ["projects
     },
     { auth: true, params: idParam, detail: { summary: "Delete a project (files are kept, unfiled)" } },
   );
+
+/** Reads the project's current state and lays it out for a reviewer. Changes nothing. */
+async function buildPackage(row: Project) {
+  if (!row.serviceId) throw new AppError({ status: 409, code: "project_not_ready" });
+  const requirements = await listRequirements(row.id);
+  const uploadIds = requirements.flatMap((r) => (r.uploadId ? [r.uploadId] : []));
+  const files =
+    uploadIds.length > 0
+      ? await db
+          .select({
+            id: upload.id,
+            filename: upload.filename,
+            contentType: upload.contentType,
+            size: upload.size,
+            createdAt: upload.createdAt,
+          })
+          .from(upload)
+          .where(inArray(upload.id, uploadIds))
+      : [];
+  const byId = new Map(files.map((file) => [file.id, file]));
+  const items: PackageRequirement[] = requirements.map((requirement) => {
+    const file = requirement.uploadId ? byId.get(requirement.uploadId) : undefined;
+    return {
+      requirementId: requirement.requirementId,
+      status: requirement.status,
+      value: requirement.value ?? null,
+      note: requirement.note,
+      document: file
+        ? {
+            id: file.id,
+            filename: file.filename,
+            contentType: file.contentType,
+            size: file.size,
+            uploadedAt: file.createdAt.toISOString(),
+          }
+        : null,
+    };
+  });
+  return assemblePackage({
+    project: {
+      id: row.id,
+      name: row.name,
+      destination: row.destination,
+      serviceId: row.serviceId,
+    },
+    status: deriveProcedureStatus(row.serviceId, requirements, row.submissionStatus),
+    requirements: items,
+    submissions: await listSubmissions(row.id),
+  });
+}
+
+/** A filename safe to put in a header, and recognisable in a downloads folder. */
+function exportFilename(row: Project): string {
+  const name = row.name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+  return `${name || "package"}-${row.id.slice(0, 8)}.json`;
+}
 
 /** Project owned by `userId`, or 404. Never reveals whether another user's id exists. */
 async function findOwned(id: string, userId: string): Promise<Project> {
