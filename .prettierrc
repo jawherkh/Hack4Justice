@@ -1,11 +1,19 @@
 {
   "printWidth": 110,
-  "plugins": ["prettier-plugin-tailwindcss"],
+  "plugins": [
+    "prettier-plugin-tailwindcss"
+  ],
   "tailwindStylesheet": "./packages/ui/src/styles/globals.css",
   "overrides": [
     {
-      "files": ["apps/web/**/*.{ts,tsx,js,jsx}"],
-      "options": { "semi": false, "singleQuote": true }
+      "files": [
+        "apps/web/**/*.{ts,tsx,js,jsx}",
+        "apps/admin/**/*.{ts,tsx,js,jsx}"
+      ],
+      "options": {
+        "semi": false,
+        "singleQuote": true
+      }
     }
   ]
 }

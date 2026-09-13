@@ -86,7 +86,20 @@ export class PopplerReader implements PdfReader {
         image: async (page: number) => {
           if (!Number.isInteger(page) || page < 1 || page > pageCount) throw new PdfError("unreadable_pdf");
           const prefix = join(directory, `page-${page}`);
-          await command("pdftoppm", ["-f", String(page), "-l", String(page), "-r", "150", "-scale-to", "2200", "-png", "-singlefile", path, prefix]);
+          await command("pdftoppm", [
+            "-f",
+            String(page),
+            "-l",
+            String(page),
+            "-r",
+            "150",
+            "-scale-to",
+            "2200",
+            "-png",
+            "-singlefile",
+            path,
+            prefix,
+          ]);
           return readFile(`${prefix}.png`);
         },
       };

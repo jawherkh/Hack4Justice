@@ -1,0 +1,10 @@
+{
+  "extends": "@hack4justice/typescript-config/react.json",
+  "include": ["**/*.ts", "**/*.tsx"],
+  "compilerOptions": {
+    "types": ["vite/client"],
+    "paths": {
+      "#/*": ["./src/*"]
+    }
+  }
+}

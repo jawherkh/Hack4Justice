@@ -28,9 +28,11 @@ export interface DocumentTextExtractor {
 export function usableNative(text: string): boolean {
   const visible = text.replace(/\s/g, "");
   const lettersAndNumbers = visible.match(/[\p{L}\p{N}]/gu)?.length ?? 0;
-  return visible.length >= MIN_NATIVE_VISIBLE_CHARACTERS &&
+  return (
+    visible.length >= MIN_NATIVE_VISIBLE_CHARACTERS &&
     lettersAndNumbers / visible.length > 0.6 &&
-    !text.includes("\ufffd");
+    !text.includes("\ufffd")
+  );
 }
 
 function normalize(text: string): string {
@@ -81,12 +83,15 @@ export function createDocumentTextExtractor(dependencies: {
       }
 
       if (contentType.startsWith("image/")) {
-        const result = await dependencies.ocr.extractPage({
-          image: input.bytes,
-          mimeType: contentType,
-          page: 1,
-          language: input.languages,
-        }, signal);
+        const result = await dependencies.ocr.extractPage(
+          {
+            image: input.bytes,
+            mimeType: contentType,
+            page: 1,
+            language: input.languages,
+          },
+          signal,
+        );
         if (!result.text) throw new Error("no_text_extracted");
         return { text: result.text, pageCount: 1, method: "ocr" };
       }
@@ -123,7 +128,7 @@ export function createDocumentTextExtractor(dependencies: {
         return {
           text,
           pageCount,
-          method: methods.size > 1 ? "mixed" : methods.values().next().value ?? "ocr",
+          method: methods.size > 1 ? "mixed" : (methods.values().next().value ?? "ocr"),
         };
       } catch (error) {
         if (error instanceof PdfError) throw error;

@@ -5,3 +5,4 @@ export * from "./uploads";
 export * from "./projects";
 export * from "./notifications";
 export * from "./submissions";
+export * from "./admin";

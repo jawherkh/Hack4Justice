@@ -8,7 +8,9 @@ import { ingestPdfFolder } from "./folder";
 const directories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  await Promise.all(
+    directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
+  );
 });
 
 describe("legal PDF folder ingestion", () => {
@@ -22,7 +24,11 @@ describe("legal PDF folder ingestion", () => {
     await writeFile(join(root, "notes.jpg"), "skip me");
 
     const extractedTypes: string[] = [];
-    const requests: { url: string; agency: string | null; documents: { title: string; text: string; section?: string }[] }[] = [];
+    const requests: {
+      url: string;
+      agency: string | null;
+      documents: { title: string; text: string; section?: string }[];
+    }[] = [];
     const result = await ingestPdfFolder({
       folder: root,
       agency: "RNE",
@@ -35,9 +41,18 @@ describe("legal PDF folder ingestion", () => {
         },
       },
       request: async (input, init) => {
-        const body = JSON.parse(String(init?.body)) as { documents: { title: string; text: string; section?: string }[] };
-        requests.push({ url: String(input), agency: new Headers(init?.headers).get("X-Agency-Code"), documents: body.documents });
-        return new Response(JSON.stringify({ documents: body.documents.map((document) => ({ document_id: document.title })) }), { status: 200 });
+        const body = JSON.parse(String(init?.body)) as {
+          documents: { title: string; text: string; section?: string }[];
+        };
+        requests.push({
+          url: String(input),
+          agency: new Headers(init?.headers).get("X-Agency-Code"),
+          documents: body.documents,
+        });
+        return new Response(
+          JSON.stringify({ documents: body.documents.map((document) => ({ document_id: document.title })) }),
+          { status: 200 },
+        );
       },
     });
 
@@ -58,10 +73,18 @@ describe("legal PDF folder ingestion", () => {
       folder: root,
       agency: "DGI",
       graphitiEndpoint: "http://graphiti.test/api/v1/knowledge/ingest/bulk",
-      extractor: { async extract() { return { text: "tax source", pageCount: 1, method: "native" as const }; } },
-      request: async () => new Response(JSON.stringify({
-        documents: [{ status: "partial", skipped_chunks: [{}, {}] }],
-      }), { status: 200 }),
+      extractor: {
+        async extract() {
+          return { text: "tax source", pageCount: 1, method: "native" as const };
+        },
+      },
+      request: async () =>
+        new Response(
+          JSON.stringify({
+            documents: [{ status: "partial", skipped_chunks: [{}, {}] }],
+          }),
+          { status: 200 },
+        ),
     });
 
     expect(result).toEqual({ files: 1, batches: 1, partialDocuments: 1, skippedChunks: 2 });
@@ -76,7 +99,11 @@ describe("legal PDF folder ingestion", () => {
         folder: root,
         agency: "APII",
         graphitiEndpoint: "http://graphiti.test/api/v1/knowledge/ingest/bulk",
-        extractor: { async extract() { return { text: "text", pageCount: 1, method: "native" as const }; } },
+        extractor: {
+          async extract() {
+            return { text: "text", pageCount: 1, method: "native" as const };
+          },
+        },
         request: async (input, init) => fetch(input, init),
       }),
     ).rejects.toThrow("agency must be DGI or RNE");

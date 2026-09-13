@@ -3,11 +3,13 @@ import { node } from "@elysiajs/node";
 import { openapi } from "@elysiajs/openapi";
 import { Elysia } from "elysia";
 
+import { adminAuth } from "./admin-auth";
 import { auth } from "./auth";
 import { env } from "./env";
 import { errorHandler } from "./errors";
 import { logger } from "./logger";
 import { requestLogger } from "./logging";
+import { backofficeModule } from "./modules/backoffice/index";
 import { v1 } from "./v1/index";
 
 const PORT = env.PORT;
@@ -19,9 +21,14 @@ const app = new Elysia({ adapter: node() })
   .use(requestLogger)
   .use(
     cors({
-      origin: env.WEB_ORIGIN,
+      origin: [env.WEB_ORIGIN, env.ADMIN_ORIGIN],
       credentials: true,
-      allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", ...(env.DEMO_ACCESS_ENABLED ? ["x-demo-user"] : [])],
+      allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "Idempotency-Key",
+        ...(env.DEMO_ACCESS_ENABLED ? ["x-demo-user"] : []),
+      ],
       exposeHeaders: ["x-agent-session-id", "content-disposition"],
     }),
   )
@@ -46,6 +53,22 @@ const app = new Elysia({ adapter: node() })
     },
     { detail: { hide: true } },
   )
+  // Staff auth: same relay as above, separate Better Auth instance.
+  .all(
+    "/api/admin/auth/*",
+    async ({ request, set }) => {
+      const response = await adminAuth.handler(request);
+      set.status = response.status;
+      response.headers.forEach((value, key) => {
+        if (key !== "set-cookie") set.headers[key] = value;
+      });
+      const cookies = response.headers.getSetCookie();
+      if (cookies.length > 0) set.headers["set-cookie"] = cookies;
+      return response.arrayBuffer();
+    },
+    { detail: { hide: true } },
+  )
+  .use(backofficeModule)
   .use(v1);
 
 app.listen({

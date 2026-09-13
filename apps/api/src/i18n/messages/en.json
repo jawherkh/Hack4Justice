@@ -37,5 +37,8 @@
   "project_not_found": "Project not found",
   "requirement_not_found": "Requirement not found",
   "project_not_ready": "The checklist is not complete yet",
-  "submission_in_progress": "A submission is already recorded; update its status or go back to preparation first"
+  "submission_in_progress": "A submission is already recorded; update its status or go back to preparation first",
+  "email_taken": "An account with this email already exists",
+  "cannot_demote_self": "You cannot lower your own role",
+  "cannot_delete_self": "You cannot delete your own account"
 }

@@ -12,7 +12,9 @@ const requestBody = z.strictObject({
   sessionId: z.string().trim().min(1).max(200).optional(),
   conversationId: z.string().trim().min(1).max(200).optional(),
   selectedNodeId: z.string().trim().min(1).max(200).optional(),
-  confirmedAction: z.enum(["submission_requested", "resubmission_requested", "cancellation_requested"]).optional(),
+  confirmedAction: z
+    .enum(["submission_requested", "resubmission_requested", "cancellation_requested"])
+    .optional(),
 });
 
 const exportFormat = z.enum(["markdown", "pdf"]);
@@ -32,7 +34,9 @@ function errorPayload(error: unknown): { code: string; message: string } {
 
 function sseEvent(event: unknown): Uint8Array {
   const record = event as { id: string; type: string };
-  return new TextEncoder().encode(`id: ${record.id}\nevent: ${record.type}\ndata: ${JSON.stringify(event)}\n\n`);
+  return new TextEncoder().encode(
+    `id: ${record.id}\nevent: ${record.type}\ndata: ${JSON.stringify(event)}\n\n`,
+  );
 }
 
 export function createAgentRoutes(
@@ -52,7 +56,10 @@ export function createAgentRoutes(
       }
       const detail = found(await repository.dossierDetail(params.dossierId));
       requireAccess(canReadDossier(principal, detail.dossier));
-      if (parsed.data.selectedNodeId && !detail.nodes.some((node) => node.id === parsed.data.selectedNodeId)) {
+      if (
+        parsed.data.selectedNodeId &&
+        !detail.nodes.some((node) => node.id === parsed.data.selectedNodeId)
+      ) {
         throw new AccessError(404, "not_found");
       }
       // conversationId is retained as a compatibility alias for clients that call the
@@ -69,29 +76,44 @@ export function createAgentRoutes(
           const send = (event: Parameters<typeof sseEvent>[0]) => {
             if (!closed) controller.enqueue(sseEvent(event));
           };
-          void service.runTurn({
-            dossierId: detail.dossier.id,
-            principal,
-            message: parsed.data.message,
-            sessionId: session.id,
-            selectedNodeId: parsed.data.selectedNodeId,
-            confirmedAction: parsed.data.confirmedAction,
-            onEvent: async (event) => send(event),
-          }).then((result) => {
-            if (!closed) {
-              send({ id: `${session.id}:result`, type: "result", sessionId: result.sessionId, runId: result.runId,
-                outputFormat: result.outputFormat, finalOutput: result.finalOutput ?? null,
-                lastResponseId: result.lastResponseId ?? null, interrupted: result.interrupted });
-              closed = true;
-              controller.close();
-            }
-          }).catch((error) => {
-            if (!closed) {
-              send({ id: `${session.id}:error`, type: "error", sessionId: session.id, error: errorPayload(error) });
-              closed = true;
-              controller.close();
-            }
-          });
+          void service
+            .runTurn({
+              dossierId: detail.dossier.id,
+              principal,
+              message: parsed.data.message,
+              sessionId: session.id,
+              selectedNodeId: parsed.data.selectedNodeId,
+              confirmedAction: parsed.data.confirmedAction,
+              onEvent: async (event) => send(event),
+            })
+            .then((result) => {
+              if (!closed) {
+                send({
+                  id: `${session.id}:result`,
+                  type: "result",
+                  sessionId: result.sessionId,
+                  runId: result.runId,
+                  outputFormat: result.outputFormat,
+                  finalOutput: result.finalOutput ?? null,
+                  lastResponseId: result.lastResponseId ?? null,
+                  interrupted: result.interrupted,
+                });
+                closed = true;
+                controller.close();
+              }
+            })
+            .catch((error) => {
+              if (!closed) {
+                send({
+                  id: `${session.id}:error`,
+                  type: "error",
+                  sessionId: session.id,
+                  error: errorPayload(error),
+                });
+                closed = true;
+                controller.close();
+              }
+            });
         },
         cancel() {
           closed = true;
@@ -102,38 +124,51 @@ export function createAgentRoutes(
       set.headers["x-agent-session-id"] = session.id;
       set.headers["cache-control"] = "no-store";
       set.headers.connection = "keep-alive";
-      return new Response(stream, { headers: { "content-type": "text/event-stream", "cache-control": "no-store" } });
+      return new Response(stream, {
+        headers: { "content-type": "text/event-stream", "cache-control": "no-store" },
+      });
     })
     .get("/dossiers/:dossierId/agent/sessions/:sessionId/events", async ({ params, query, principal }) => {
       const detail = found(await repository.dossierDetail(params.dossierId));
       requireAccess(canReadDossier(principal, detail.dossier));
       const session = await repository.agentSession(params.sessionId, detail.dossier.id, principal.id);
       if (!session) throw new AccessError(404, "not_found");
-      const after = z.coerce.number().int().nonnegative().safeParse(query.after ?? 0);
+      const after = z.coerce
+        .number()
+        .int()
+        .nonnegative()
+        .safeParse(query.after ?? 0);
       if (!after.success) throw new AccessError(422, "invalid_event_cursor");
       return { sessionId: session.id, events: await repository.agentEvents(session.id, after.data) };
     })
-    .get("/dossiers/:dossierId/agent/sessions/:sessionId/runs/:runId/export", async ({ params, query, principal }) => {
-      const format = exportFormat.safeParse(query.format);
-      if (!format.success) throw new AccessError(422, "invalid_export_format");
-      const detail = found(await repository.dossierDetail(params.dossierId));
-      requireAccess(canReadDossier(principal, detail.dossier));
-      const session = await repository.agentSession(params.sessionId, detail.dossier.id, principal.id);
-      if (!session) throw new AccessError(404, "not_found");
-      const run = await repository.agentRun(session.id, params.runId);
-      if (!run || run.dossierId !== detail.dossier.id || run.actorId !== principal.id) {
-        throw new AccessError(404, "not_found");
-      }
-      if (run.status !== "completed" || run.interrupted || !run.finalOutput?.trim()) {
-        throw new AccessError(409, "agent_output_not_available");
-      }
-      const extension = format.data === "markdown" ? "md" : "pdf";
-      const bytes = format.data === "markdown"
-        ? new TextEncoder().encode(run.finalOutput)
-        : await renderMarkdownPdf(run.finalOutput);
-      return download(bytes, `agent-response-${run.id}.${extension}`,
-        format.data === "markdown" ? "text/markdown; charset=utf-8" : "application/pdf");
-    })
+    .get(
+      "/dossiers/:dossierId/agent/sessions/:sessionId/runs/:runId/export",
+      async ({ params, query, principal }) => {
+        const format = exportFormat.safeParse(query.format);
+        if (!format.success) throw new AccessError(422, "invalid_export_format");
+        const detail = found(await repository.dossierDetail(params.dossierId));
+        requireAccess(canReadDossier(principal, detail.dossier));
+        const session = await repository.agentSession(params.sessionId, detail.dossier.id, principal.id);
+        if (!session) throw new AccessError(404, "not_found");
+        const run = await repository.agentRun(session.id, params.runId);
+        if (!run || run.dossierId !== detail.dossier.id || run.actorId !== principal.id) {
+          throw new AccessError(404, "not_found");
+        }
+        if (run.status !== "completed" || run.interrupted || !run.finalOutput?.trim()) {
+          throw new AccessError(409, "agent_output_not_available");
+        }
+        const extension = format.data === "markdown" ? "md" : "pdf";
+        const bytes =
+          format.data === "markdown"
+            ? new TextEncoder().encode(run.finalOutput)
+            : await renderMarkdownPdf(run.finalOutput);
+        return download(
+          bytes,
+          `agent-response-${run.id}.${extension}`,
+          format.data === "markdown" ? "text/markdown; charset=utf-8" : "application/pdf",
+        );
+      },
+    )
     .get("/agent/artifacts/:artifactId", async ({ params, principal }) => {
       const artifact = found(await repository.artifact(params.artifactId));
       const dossier = found(await repository.dossierDetail(artifact.dossierId));
@@ -146,12 +181,19 @@ export function createAgentRoutes(
     });
 }
 
-function download(bytes: Uint8Array, filename: string, contentType: string, headers: Record<string, string> = {}) {
-  return new Response(new Uint8Array(bytes), { headers: {
-    "content-type": contentType,
-    "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
-    "cache-control": "no-store",
-    "x-content-type-options": "nosniff",
-    ...headers,
-  } });
+function download(
+  bytes: Uint8Array,
+  filename: string,
+  contentType: string,
+  headers: Record<string, string> = {},
+) {
+  return new Response(new Uint8Array(bytes), {
+    headers: {
+      "content-type": contentType,
+      "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+      ...headers,
+    },
+  });
 }

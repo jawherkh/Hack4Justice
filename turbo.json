@@ -15,7 +15,9 @@
     "DEEPSEEK_OCR_ENDPOINT",
     "DEEPSEEK_OCR_MODEL",
     "GRAPHITI_URL",
-    "LOG_LEVEL"
+    "LOG_LEVEL",
+    "ADMIN_ORIGIN",
+    "ADMIN_AUTH_SECRET"
   ],
   "tasks": {
     "build": {
