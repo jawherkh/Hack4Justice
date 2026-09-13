@@ -9,6 +9,9 @@ import { createAgentActivities } from "../agent/activity";
 import { createGeminiAgentModel } from "../agent/model";
 import { COMMAND_SIGNAL, DEFAULT_TASK_QUEUE, WORKFLOW_TYPE } from "./contracts";
 import { createDocumentActivities } from "../jobs/worker-activities";
+import { withDurableTurns } from "../jobs/agent-turn";
+import type { AgentActivities } from "./contracts";
+import { PostgresJobStore } from "../jobs/store";
 
 // Match the API's root .env loading while allowing deployment-provided variables to win.
 config({ path: fileURLToPath(new URL("../../../../.env", import.meta.url)), quiet: true });
@@ -47,12 +50,15 @@ const documents = createDocumentActivities(url, {
     },
   },
 });
+const turnStore = new PostgresJobStore(url);
 const worker = await Worker.create({ connection: nativeConnection, namespace, taskQueue,
   workflowsPath: fileURLToPath(new URL("./workflows.ts", import.meta.url)),
   activities: {
     prepare: repository.prepare.bind(repository),
     commit: repository.commit.bind(repository),
-    ...agentActivities,
+    // A turn is answered once: a retry returns what the first attempt produced rather than
+    // calling the model again.
+    ...(agentActivities ? withDurableTurns(agentActivities as AgentActivities, turnStore) : undefined),
     ...documents.activities,
   },
   maxConcurrentActivityTaskExecutions: 5,
@@ -75,5 +81,5 @@ try { await worker.run(); }
 finally {
   stopped = true;
   await delivery;
-  await Promise.all([connection.close(), nativeConnection.close(), repository.close(), documents.close()]);
+  await Promise.all([connection.close(), nativeConnection.close(), repository.close(), documents.close(), turnStore.close()]);
 }
