@@ -182,7 +182,7 @@ def test_ingestion_retries_transient_episode_failures_with_exponential_backoff()
     asyncio.run(run())
 
 
-def test_ingestion_does_not_retry_permanent_episode_failures():
+def test_ingestion_skips_failed_chunks_and_continues_with_later_chunks():
     async def run():
         fake = FakeGraphiti()
         attempts = 0
@@ -190,7 +190,9 @@ def test_ingestion_does_not_retry_permanent_episode_failures():
         async def permanent_failure(**kwargs):
             nonlocal attempts
             attempts += 1
-            raise RuntimeError("permission denied")
+            if attempts == 1:
+                raise RuntimeError("permission denied")
+            return await FakeGraphiti.add_episode(fake, **kwargs)
 
         fake.add_episode = permanent_failure
         service = GraphitiKnowledgeService(
@@ -198,25 +200,27 @@ def test_ingestion_does_not_retry_permanent_episode_failures():
                 gemini_api_key="test-key",
                 ingest_max_retries=3,
                 ingest_retry_base_seconds=0,
+                max_text_chars=40,
+                chunk_overlap_chars=0,
             ),
             client_factory=lambda: fake,
         )
         document = LegalDocument(
             document_id="permanent-source",
             title="Permanent failure source",
-            text="A business must file a declaration.",
+            text="First sentence fails. Second sentence succeeds.",
             source_uri="https://example.gov.tn/permanent-source",
             retrieved_at=datetime.now(timezone.utc),
         )
 
-        try:
-            await service.ingest_document(AgencyScope.from_header("DGI"), document)
-        except RuntimeError as error:
-            assert str(error) == "permission denied"
-        else:
-            raise AssertionError("expected the permanent episode failure")
+        response = await service.ingest_document(AgencyScope.from_header("DGI"), document)
 
-        assert attempts == 1
+        assert attempts == 2
+        assert response.status == "partial"
+        assert len(response.episodes) == 1
+        assert len(response.skipped_chunks) == 1
+        assert response.skipped_chunks[0].chunk_index == 0
+        assert response.skipped_chunks[0].error == "RuntimeError: permission denied"
 
     asyncio.run(run())
 

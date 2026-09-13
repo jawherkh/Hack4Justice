@@ -19,6 +19,7 @@ from .models import (
     SearchEpisode,
     SearchNode,
     SearchResponse,
+    SkippedChunk,
 )
 from .ontology import EDGE_TYPE_MAP, EDGE_TYPES, ENTITY_TYPES, EXTRACTION_INSTRUCTIONS
 from .settings import GraphitiSettings
@@ -164,6 +165,13 @@ def _exception_chain(error: BaseException) -> list[BaseException]:
         chain.append(current)
         current = current.__cause__ or current.__context__
     return chain
+
+
+def _error_summary(error: BaseException, max_length: int = 500) -> str:
+    summary = " -> ".join(
+        f"{type(item).__name__}: {item}" for item in _exception_chain(error)
+    )
+    return (summary or type(error).__name__)[:max_length]
 
 
 def _status_code(error: BaseException) -> int | None:
@@ -327,28 +335,49 @@ class GraphitiKnowledgeService:
             overlap_chars=self.settings.chunk_overlap_chars,
         )
         episodes: list[IngestedEpisode] = []
+        skipped_chunks: list[SkippedChunk] = []
 
         # Graphiti recommends sequential episode writes because each write uses
         # the recent graph context to resolve entities and relationships.
         async with self._write_lock:
             for index, chunk in enumerate(chunks):
                 body = self._episode_body(document, chunk, index, len(chunks))
-                result = await self._add_episode_with_retry(
-                    name=f"{document.title} [{index + 1}/{len(chunks)}]",
-                    episode_body=body,
-                    source_description=(
-                        f"{document.source_kind} legal source {document.source_uri}; "
-                        f"document_id={document.document_id}"
-                    ),
-                    reference_time=document.retrieved_at,
-                    source=self._episode_type_text(),
-                    group_id=scope.group_id,
-                    update_communities=self.settings.update_communities,
-                    entity_types=ENTITY_TYPES,
-                    edge_types=EDGE_TYPES,
-                    edge_type_map=EDGE_TYPE_MAP,
-                    custom_extraction_instructions=EXTRACTION_INSTRUCTIONS,
-                )
+                try:
+                    result = await self._add_episode_with_retry(
+                        name=f"{document.title} [{index + 1}/{len(chunks)}]",
+                        episode_body=body,
+                        source_description=(
+                            f"{document.source_kind} legal source {document.source_uri}; "
+                            f"document_id={document.document_id}"
+                        ),
+                        reference_time=document.retrieved_at,
+                        source=self._episode_type_text(),
+                        group_id=scope.group_id,
+                        update_communities=self.settings.update_communities,
+                        entity_types=ENTITY_TYPES,
+                        edge_types=EDGE_TYPES,
+                        edge_type_map=EDGE_TYPE_MAP,
+                        custom_extraction_instructions=EXTRACTION_INSTRUCTIONS,
+                    )
+                except Exception as error:
+                    skipped_chunks.append(
+                        SkippedChunk(
+                            chunk_index=index,
+                            chunk_count=len(chunks),
+                            start_index=chunk.start_index,
+                            end_index=chunk.end_index,
+                            token_count=chunk.token_count,
+                            error=_error_summary(error),
+                        )
+                    )
+                    logger.error(
+                        "Skipping failed Graphiti chunk %d/%d for document %s: %s",
+                        index + 1,
+                        len(chunks),
+                        document.document_id,
+                        _error_summary(error),
+                    )
+                    continue
                 episodes.append(
                     IngestedEpisode(
                         episode_uuid=_get(_get(result, "episode"), "uuid", ""),
@@ -366,7 +395,9 @@ class GraphitiKnowledgeService:
             group_id=scope.group_id,
             document_id=document.document_id,
             source_kind=document.source_kind,
+            status="partial" if skipped_chunks else "processed",
             episodes=episodes,
+            skipped_chunks=skipped_chunks,
         )
 
     async def _add_episode_with_retry(self, **kwargs: Any) -> Any:
