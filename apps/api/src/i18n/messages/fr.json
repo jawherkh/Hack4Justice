@@ -49,5 +49,6 @@
   "copilot_not_configured": "Le copilote n'est pas configuré sur ce serveur",
   "conversation_not_found": "Conversation introuvable",
   "copilot_busy": "Le copilote répond encore dans cette conversation",
+  "file_not_found": "Fichier introuvable",
   "copilot_run_failed": "Le copilote n'a pas pu terminer sa réponse"
 }

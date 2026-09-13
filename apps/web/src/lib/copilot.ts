@@ -7,11 +7,16 @@ export type CopilotConversation = Awaited<ReturnType<typeof listConversations>>[
 export type CopilotConversationDetail = Awaited<ReturnType<typeof getConversation>>
 export type CopilotMessage = CopilotConversationDetail['messages'][number]
 export type CopilotToolCall = CopilotMessage['toolCalls'][number]
+export type CopilotFiles = Awaited<ReturnType<typeof listConversationFiles>>
+export type CopilotDocument = CopilotFiles['documents'][number]
+export type CopilotWorkspaceFile = CopilotFiles['workspace'][number]
 
 export const copilotKeys = {
   all: (projectId: string) => ['projects', projectId, 'copilot'] as const,
   conversation: (projectId: string, conversationId: string) =>
     ['projects', projectId, 'copilot', conversationId] as const,
+  files: (projectId: string, conversationId: string) =>
+    ['projects', projectId, 'copilot', conversationId, 'files'] as const,
 }
 
 export async function listConversations(projectId: string) {
@@ -44,6 +49,68 @@ export async function deleteConversation(projectId: string, conversationId: stri
     await api.api.v1.projects({ id: projectId }).copilot({ conversationId }).delete(),
     'Could not delete the conversation',
   )
+}
+
+/** Project documents and the files the copilot wrote in this conversation's workspace. */
+export async function listConversationFiles(projectId: string, conversationId: string) {
+  return unwrap(
+    await api.api.v1.projects({ id: projectId }).copilot({ conversationId }).files.get(),
+    'Could not load files',
+  )
+}
+
+/** Downloads one workspace file; the caller decides how to show it from the content type. */
+export async function fetchWorkspaceFile(
+  projectId: string,
+  conversationId: string,
+  path: string,
+): Promise<{ blob: Blob; contentType: string }> {
+  const url = new URL(`${baseUrl}/api/v1/projects/${projectId}/copilot/${conversationId}/files/content`)
+  url.searchParams.set('path', path)
+  const response = await fetch(url, { credentials: 'include' })
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as {
+      error?: { status: number; code: string; message: string }
+    } | null
+    throw new ApiError(
+      body?.error?.status ?? response.status,
+      body?.error?.code ?? 'unknown_error',
+      body?.error?.message ?? `Request failed (${response.status})`,
+    )
+  }
+  return { blob: await response.blob(), contentType: response.headers.get('content-type') ?? '' }
+}
+
+/**
+ * A file the copilot pointed at in its reply. The model links uploaded documents by their
+ * staged sandbox path and its own drafts by their workspace path (see the API instructions).
+ */
+export type CopilotFileRef = { kind: 'document'; uploadId: string } | { kind: 'workspace'; path: string }
+
+const DOCUMENT_LINK = /^(?:\/work\/)?input\/documents\/([0-9a-f-]{36})(?:\.txt)?$/i
+/** Any other relative path inside the workspace (no scheme, no leading slash except `/work/`). */
+const WORKSPACE_LINK = /^(?:\/work\/|\.\/)?(?!input\/)([^\s:?#][^\s:?#]*)$/
+
+/** Parses a Markdown link target into a file reference, or null for ordinary links. */
+export function parseFileRef(href: string | undefined): CopilotFileRef | null {
+  if (!href) return null
+  let target: string
+  try {
+    target = decodeURIComponent(href.trim())
+  } catch {
+    target = href.trim()
+  }
+  const document = DOCUMENT_LINK.exec(target)
+  if (document?.[1]) return { kind: 'document', uploadId: document[1].toLowerCase() }
+  const workspace = WORKSPACE_LINK.exec(target)
+  if (workspace?.[1] && !workspace[1].startsWith('/') && !workspace[1].includes('..')) {
+    return { kind: 'workspace', path: workspace[1] }
+  }
+  return null
+}
+
+export function fileRefKey(ref: CopilotFileRef): string {
+  return ref.kind === 'document' ? `document:${ref.uploadId}` : `workspace:${ref.path}`
 }
 
 /** Server-sent events emitted while the copilot answers one message. */

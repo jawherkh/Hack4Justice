@@ -22,6 +22,7 @@ import {
   type CopilotStreamEvent,
   type ProjectCopilotService,
 } from "../../copilot/service";
+import { SandboxLimitError, SandboxPathError } from "../../sandbox/workspace";
 
 const idParam = t.Object({ id: t.String({ format: "uuid" }) });
 const conversationParams = t.Object({
@@ -29,6 +30,8 @@ const conversationParams = t.Object({
   conversationId: t.String({ format: "uuid" }),
 });
 const titleSchema = t.String({ minLength: 1, maxLength: 120 });
+const workspacePathSchema = t.String({ minLength: 1, maxLength: 512 });
+const MAX_WORKSPACE_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_TITLE_CHARS = 80;
 const MAX_CONVERSATIONS = 100;
 
@@ -58,6 +61,37 @@ function errorPayload(error: unknown): { code: string; message: string } {
     return { code, message: error.message };
   }
   return { code: "copilot_run_failed", message: String(error) };
+}
+
+const CONTENT_TYPES: Record<string, string> = {
+  txt: "text/plain; charset=utf-8",
+  md: "text/markdown; charset=utf-8",
+  markdown: "text/markdown; charset=utf-8",
+  json: "application/json; charset=utf-8",
+  csv: "text/csv; charset=utf-8",
+  html: "text/plain; charset=utf-8",
+  htm: "text/plain; charset=utf-8",
+  xml: "text/plain; charset=utf-8",
+  yaml: "text/plain; charset=utf-8",
+  yml: "text/plain; charset=utf-8",
+  log: "text/plain; charset=utf-8",
+  sh: "text/plain; charset=utf-8",
+  py: "text/plain; charset=utf-8",
+  js: "text/plain; charset=utf-8",
+  ts: "text/plain; charset=utf-8",
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "text/plain; charset=utf-8",
+};
+
+/** Content type by extension; HTML-like types are served as plain text so nothing the model wrote runs. */
+function contentTypeFor(path: string): string {
+  const extension = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+  return (path.includes(".") && CONTENT_TYPES[extension]) || "application/octet-stream";
 }
 
 /** First line of the first message, trimmed, so a thread has a name before the model answers. */
@@ -168,6 +202,71 @@ export function createCopilotModule(service: ProjectCopilotService | undefined) 
         auth: true,
         params: conversationParams,
         detail: { summary: "Delete a conversation and its messages" },
+      },
+    )
+
+    .get(
+      "/:conversationId/files",
+      async ({ params, user }) => {
+        const row = await findOwned(params.id, user.id);
+        const conversation = await findConversation(params.conversationId, row.id);
+        const context = await loadContext(row);
+        const documents = context.uploads.map((u) => ({
+          id: u.id,
+          filename: u.filename,
+          status: u.status,
+          pageCount: u.pageCount,
+          size: u.size,
+          link: `input/documents/${u.id}.txt`,
+          attachedToRequirements: context.requirements
+            .filter((r) => r.uploadId === u.id)
+            .map((r) => r.requirementId),
+        }));
+        const files = service ? await service.listWorkspaceFiles(row.id, conversation.id) : [];
+        // Spelled out so the client's inferred type does not reach into the service module.
+        const workspace = files.map((file) => ({ path: file.path, name: file.name }));
+        return { documents, workspace };
+      },
+      {
+        auth: true,
+        params: conversationParams,
+        detail: { summary: "Files the copilot can reference: project documents and workspace output" },
+      },
+    )
+
+    .get(
+      "/:conversationId/files/content",
+      async ({ params, query, user, set }) => {
+        if (!service) throw new AppError({ status: 503, code: "copilot_not_configured" });
+        const row = await findOwned(params.id, user.id);
+        const conversation = await findConversation(params.conversationId, row.id);
+        let bytes: Uint8Array;
+        try {
+          bytes = await service.readWorkspaceFile(row.id, conversation.id, query.path);
+        } catch (error) {
+          if (error instanceof SandboxPathError) throw new AppError({ status: 404, code: "file_not_found" });
+          if (error instanceof SandboxLimitError) throw new AppError({ status: 413, code: "file_too_large" });
+          throw error;
+        }
+        if (bytes.byteLength > MAX_WORKSPACE_FILE_BYTES)
+          throw new AppError({ status: 413, code: "file_too_large" });
+        set.headers["cache-control"] = "no-store";
+        // A fresh copy is typed over ArrayBuffer, which is what Response accepts.
+        return new Response(bytes.slice(), {
+          headers: {
+            "content-type": contentTypeFor(query.path),
+            "content-length": String(bytes.byteLength),
+            "content-disposition": "inline",
+            "x-content-type-options": "nosniff",
+            "cache-control": "no-store",
+          },
+        });
+      },
+      {
+        auth: true,
+        params: conversationParams,
+        query: t.Object({ path: workspacePathSchema }),
+        detail: { summary: "Raw content of a file in the conversation's sandbox workspace" },
       },
     )
 

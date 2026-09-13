@@ -40,6 +40,7 @@ import {
   MarkerType,
   Position,
   useNodesState,
+  useReactFlow,
   type Edge,
   type Node,
   type NodeProps,
@@ -89,6 +90,9 @@ const STEP_GAP = 60
 const REQUIREMENT_COLUMN = 340
 const REQUIREMENT_ROW = 76
 
+export const stepNodeId = (step: ProcedureStep) => `step-${step}`
+export const requirementNodeId = (requirementId: string) => `req-${requirementId}`
+
 /** Which step each requirement hangs under; the other steps only aggregate. */
 function requirementsByStep(serviceId: string): Partial<Record<ProcedureStep, string[]>> {
   const service = SERVICES[serviceId]
@@ -111,7 +115,7 @@ function buildGraph(project: ProjectDetail): { nodes: (StepNode | RequirementNod
 
   let y = 0
   steps.forEach((progress, index) => {
-    const id = `step-${progress.step}`
+    const id = stepNodeId(progress.step)
     const requirementIds = attached[progress.step] ?? []
     nodes.push({
       id,
@@ -129,8 +133,8 @@ function buildGraph(project: ProjectDetail): { nodes: (StepNode | RequirementNod
     if (index > 0) {
       const previous = steps[index - 1]!
       edges.push({
-        id: `step-${previous.step}->${id}`,
-        source: `step-${previous.step}`,
+        id: `${stepNodeId(previous.step)}->${id}`,
+        source: stepNodeId(previous.step),
         target: id,
         type: 'smoothstep',
         animated: progress.state === 'current',
@@ -141,9 +145,9 @@ function buildGraph(project: ProjectDetail): { nodes: (StepNode | RequirementNod
     requirementIds.forEach((requirementId, row) => {
       const requirement = byId.get(requirementId)
       const status = requirement?.status ?? RequirementStatus.MISSING
-      const requirementNodeId = `req-${requirementId}`
+      const reqNodeId = requirementNodeId(requirementId)
       nodes.push({
-        id: requirementNodeId,
+        id: reqNodeId,
         type: 'requirement',
         position: { x: REQUIREMENT_COLUMN, y: y + row * REQUIREMENT_ROW },
         data: {
@@ -154,10 +158,10 @@ function buildGraph(project: ProjectDetail): { nodes: (StepNode | RequirementNod
         },
       })
       edges.push({
-        id: `${id}->${requirementNodeId}`,
+        id: `${id}->${reqNodeId}`,
         source: id,
         sourceHandle: 'side',
-        target: requirementNodeId,
+        target: reqNodeId,
         type: 'temporary',
       })
     })
@@ -166,7 +170,7 @@ function buildGraph(project: ProjectDetail): { nodes: (StepNode | RequirementNod
   return { nodes, edges }
 }
 
-function StepNodeView({ data }: NodeProps<StepNode>) {
+function StepNodeView({ data, selected }: NodeProps<StepNode>) {
   const { t } = useI18n()
   const Icon = STEP_ICON[data.state]
   const percent =
@@ -174,10 +178,13 @@ function StepNodeView({ data }: NodeProps<StepNode>) {
   return (
     <FlowNode
       handles={{ target: false, source: false }}
+      role="button"
+      tabIndex={0}
       className={cn(
-        'w-72',
+        'w-72 cursor-pointer transition-[box-shadow,opacity] hover:shadow-md',
         data.state === 'current' && 'ring-2 ring-primary/50',
-        data.state === 'upcoming' && 'opacity-70',
+        data.state === 'upcoming' && 'opacity-70 hover:opacity-100',
+        selected && 'shadow-md ring-2 ring-primary',
       )}
     >
       {data.index > 0 ? <Handle type="target" position={Position.Top} /> : null}
@@ -221,14 +228,20 @@ function StepNodeView({ data }: NodeProps<StepNode>) {
   )
 }
 
-function RequirementNodeView({ data }: NodeProps<RequirementNode>) {
+function RequirementNodeView({ data, selected }: NodeProps<RequirementNode>) {
   const { t } = useI18n()
   const definition = REQUIREMENTS[data.requirementId]
   const Icon = definition ? REQUIREMENT_TYPE_ICON[definition.type] : CircleIcon
   return (
     <FlowNode
       handles={{ target: true, source: false }}
-      className={cn('w-64', data.satisfied ? 'border-primary/40' : 'border-destructive/40')}
+      role="button"
+      tabIndex={0}
+      className={cn(
+        'w-64 cursor-pointer transition-shadow hover:shadow-md',
+        data.satisfied ? 'border-primary/40' : 'border-destructive/40',
+        selected && 'shadow-md ring-2 ring-primary',
+      )}
     >
       <NodeContent className="flex items-center gap-2 p-2.5">
         <Icon className="size-4 shrink-0 text-muted-foreground" />
@@ -248,30 +261,79 @@ function RequirementNodeView({ data }: NodeProps<RequirementNode>) {
  * React Flow only moves nodes it is allowed to update. Keep the computed graph in node
  * state and, when it is recomputed, preserve positions the user has already dragged.
  */
-function useDraggableGraph(graph: { nodes: Node[]; edges: Edge[] }) {
+function useDraggableGraph(graph: { nodes: Node[]; edges: Edge[] }, selectedNodeId: string | undefined) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(graph.nodes)
   React.useEffect(() => {
     setNodes((current) => {
       const dragged = new Map(current.filter((n) => n.dragging || n.measured).map((n) => [n.id, n.position]))
-      return graph.nodes.map((node) => ({ ...node, position: dragged.get(node.id) ?? node.position }))
+      return graph.nodes.map((node) => ({
+        ...node,
+        position: dragged.get(node.id) ?? node.position,
+        selected: node.id === selectedNodeId,
+      }))
     })
-  }, [graph.nodes, setNodes])
+  }, [graph.nodes, selectedNodeId, setNodes])
   return { nodes, edges: graph.edges, onNodesChange }
+}
+
+/** Re-fits the graph whenever its container is resized (the side panel is dragged or maximised). */
+function FitOnResize({ container }: { container: React.RefObject<HTMLDivElement | null> }) {
+  const { fitView } = useReactFlow()
+  React.useEffect(() => {
+    const element = container.current
+    if (!element) return
+    let frame = 0
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => void fitView({ padding: 0.1, maxZoom: 1, duration: 200 }))
+    })
+    observer.observe(element)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [container, fitView])
+  return null
 }
 
 const nodeTypes = { step: StepNodeView, requirement: RequirementNodeView }
 const edgeTypes = { temporary: FlowEdge.Temporary }
 
+interface ProcedureFlowProps {
+  projectId: string
+  className?: string
+  /** Node to highlight (see `stepNodeId` / `requirementNodeId`). */
+  selectedNodeId?: string
+  onSelectStep?: (step: ProcedureStep) => void
+  onSelectRequirement?: (requirementId: string) => void
+}
+
 /** React Flow map of the procedure the project is preparing: steps, gates and requirements. */
-export function ProcedureFlow({ projectId, className }: { projectId: string; className?: string }) {
+export function ProcedureFlow({
+  projectId,
+  className,
+  selectedNodeId,
+  onSelectStep,
+  onSelectRequirement,
+}: ProcedureFlowProps) {
   const { t, locale } = useI18n()
+  const container = React.useRef<HTMLDivElement | null>(null)
   const project = useQuery({ queryKey: projectKeys.detail(projectId), queryFn: () => getProject(projectId) })
   const graph = React.useMemo(
     () => (project.data ? buildGraph(project.data) : { nodes: [], edges: [] }),
     [project.data],
   )
 
-  const flow = useDraggableGraph(graph)
+  const flow = useDraggableGraph(graph, selectedNodeId)
+
+  const onNodeClick = React.useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      if (node.type === 'step') onSelectStep?.((node as StepNode).data.step)
+      else if (node.type === 'requirement')
+        onSelectRequirement?.((node as RequirementNode).data.requirementId)
+    },
+    [onSelectRequirement, onSelectStep],
+  )
 
   if (project.isPending) return <Skeleton className="min-h-0 flex-1 rounded-lg" />
   if (!project.data?.serviceId) {
@@ -297,19 +359,25 @@ export function ProcedureFlow({ projectId, className }: { projectId: string; cla
   }
 
   return (
-    <div className={cn('relative min-h-0 flex-1 overflow-hidden rounded-lg border', className)}>
+    <div
+      ref={container}
+      className={cn('relative min-h-0 flex-1 overflow-hidden rounded-lg border', className)}
+    >
       <Canvas
         nodes={flow.nodes}
         edges={flow.edges}
         onNodesChange={flow.onNodesChange}
+        onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         nodesDraggable
         nodesConnectable={false}
+        elementsSelectable
         panOnDrag
         fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
         proOptions={{ hideAttribution: true }}
       >
+        <FitOnResize container={container} />
         <Controls showInteractive={false} />
         <Panel position="top-left" className="flex flex-col gap-0.5 px-3 py-1.5">
           <span className="text-xs font-medium">{t(serviceName(project.data.serviceId))}</span>
