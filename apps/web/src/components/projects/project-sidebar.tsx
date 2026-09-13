@@ -12,9 +12,6 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarRail,
 } from '@hack4justice/ui/components/sidebar'
 import { ArrowLeftIcon } from '@hack4justice/ui/components/icons/arrow-left'
@@ -27,7 +24,7 @@ import { cn } from '@hack4justice/ui/lib/utils'
 import { toLocaleParam, useI18n, type MessageKey } from '#/i18n'
 import { CopilotSidebarThreads } from '#/components/copilot/sidebar-threads'
 import { signOut } from '#/lib/auth'
-import { listProjects, projectKeys, type ProjectDetail } from '#/lib/projects'
+import { listProjects, projectKeys, type ProjectDetail, type ProjectSummary } from '#/lib/projects'
 import type { SessionData } from '#/lib/session'
 import { DESTINATION_META } from './destination'
 
@@ -77,6 +74,41 @@ function AnimatedMenuButton({
       <Icon ref={ref} size={16} className={cn('flex shrink-0', iconClassName)} />
       {children}
     </SidebarMenuButton>
+  )
+}
+
+/** One of the user's projects as a small card: agency, name and description, for quick switching. */
+function ProjectBox({ project, active }: { project: ProjectSummary; active: boolean }) {
+  const { t, locale } = useI18n()
+  const meta = DESTINATION_META[project.destination]
+  return (
+    <Link
+      to="/{-$locale}/projects/$id"
+      params={{ locale: toLocaleParam(locale), id: project.id }}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'flex items-start gap-2.5 rounded-lg border bg-sidebar p-2 text-start transition-colors outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+        active ? 'border-primary/60 bg-sidebar-accent' : 'border-sidebar-border',
+      )}
+    >
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-white p-1">
+        <img src={meta.logo} alt="" draggable={false} className="size-full object-contain" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex items-center gap-1.5">
+          <span className="truncate text-sm leading-tight font-medium">{project.name}</span>
+          <span className="shrink-0 rounded-sm bg-muted px-1 py-px text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+            {t(meta.label)}
+          </span>
+        </span>
+        <span className="truncate text-[11px] text-muted-foreground">{t(meta.full)}</span>
+        {project.description ? (
+          <span className="line-clamp-2 text-xs leading-snug text-muted-foreground">
+            {project.description}
+          </span>
+        ) : null}
+      </span>
+    </Link>
   )
 }
 
@@ -160,18 +192,13 @@ export function ProjectSidebar({ project, session, ...props }: ProjectSidebarPro
                 {t('projects.sidebar.allProjects')}
               </AnimatedMenuButton>
               {projects.data?.length ? (
-                <SidebarMenuSub className="ml-0 border-l-0 px-1.5">
+                <ul className="flex flex-col gap-1.5 px-1 pt-1.5 group-data-[collapsible=icon]:hidden">
                   {projects.data.map((item) => (
-                    <SidebarMenuSubItem key={item.id}>
-                      <SidebarMenuSubButton
-                        isActive={item.id === project.id}
-                        render={<Link to="/{-$locale}/projects/$id" params={{ ...params, id: item.id }} />}
-                      >
-                        <span className="truncate">{item.name}</span>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
+                    <li key={item.id}>
+                      <ProjectBox project={item} active={item.id === project.id} />
+                    </li>
                   ))}
-                </SidebarMenuSub>
+                </ul>
               ) : null}
             </SidebarMenuItem>
           </SidebarMenu>

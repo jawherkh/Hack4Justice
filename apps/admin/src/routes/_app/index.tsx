@@ -148,7 +148,7 @@ function Dashboard() {
                 />
                 <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={28} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <ChartLegend content={<ChartLegendContent />} />
+                <ChartLegend content={<ChartLegendContent className="flex-wrap gap-x-4 gap-y-2" />} />
                 <Area
                   isAnimationActive={false}
                   dataKey="signups"
@@ -263,7 +263,7 @@ function Dashboard() {
                   <XAxis dataKey="destination" tickLine={false} axisLine={false} />
                   <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={28} />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <ChartLegend content={<ChartLegendContent />} />
+                  <ChartLegend content={<ChartLegendContent className="flex-wrap gap-x-4 gap-y-2" />} />
                   {(Object.keys(submissionConfig) as (keyof typeof submissionConfig)[]).map((key) => (
                     <Bar
                       isAnimationActive={false}
@@ -402,26 +402,35 @@ function Donut({ config, data }: { config: ChartConfig; data: { key: string; val
   const total = data.reduce((sum, d) => sum + d.value, 0)
   if (total === 0) return <p className="text-sm text-muted-foreground">No data yet.</p>
   return (
-    <ChartContainer config={config} className="mx-auto h-56 w-full">
-      <PieChart>
-        <ChartTooltip content={<ChartTooltipContent nameKey="key" hideLabel />} />
-        <Pie
-          isAnimationActive={false}
-          data={data}
-          dataKey="value"
-          nameKey="key"
-          innerRadius={55}
-          outerRadius={85}
-          strokeWidth={2}
-          paddingAngle={2}
-        >
-          {data.map((d) => (
-            <Cell key={d.key} fill={`var(--color-${d.key})`} />
-          ))}
-        </Pie>
-        <ChartLegend content={<ChartLegendContent nameKey="key" />} />
-      </PieChart>
-    </ChartContainer>
+    <div className="flex min-w-0 flex-col gap-3">
+      <ChartContainer config={config} className="mx-auto aspect-auto h-48 w-full">
+        <PieChart margin={{ top: 12, right: 12, bottom: 12, left: 12 }}>
+          <ChartTooltip content={<ChartTooltipContent nameKey="key" hideLabel />} />
+          <Pie
+            isAnimationActive={false}
+            data={data}
+            dataKey="value"
+            nameKey="key"
+            innerRadius="55%"
+            outerRadius="85%"
+            strokeWidth={2}
+            paddingAngle={2}
+          >
+            {data.map((d) => (
+              <Cell key={d.key} fill={`var(--color-${d.key})`} />
+            ))}
+          </Pie>
+        </PieChart>
+      </ChartContainer>
+      <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs">
+        {[...data].sort((a, b) => a.key.localeCompare(b.key)).map((d) => (
+          <li key={d.key} className="flex items-center gap-1.5">
+            <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: config[d.key]?.color }} />
+            {config[d.key]?.label}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
