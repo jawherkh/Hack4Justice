@@ -13,7 +13,9 @@ export interface PrerequisiteObservation {
   status: "fulfilled" | "unfulfilled" | "unknown" | "disputed";
   ruleVersionId: string;
   sourceRef: string;
+  effectiveAt?: string;
   expiresAt: string;
+  verificationState?: "verified" | "pending" | "rejected" | "synthetic";
   actions: ("submission_requested" | "resubmission_requested")[];
 }
 

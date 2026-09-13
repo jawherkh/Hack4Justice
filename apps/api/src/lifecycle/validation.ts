@@ -38,7 +38,9 @@ export const prerequisiteBody = z.strictObject({
   status: z.enum(["fulfilled", "unfulfilled", "unknown", "disputed"]),
   ruleVersionId: id,
   sourceRef: id,
+  effectiveAt: z.iso.datetime({ offset: true }).optional(),
   expiresAt: z.iso.datetime({ offset: true }),
+  verificationState: z.enum(["verified", "pending", "rejected", "synthetic"]).optional(),
   actions: z
     .array(z.enum(["submission_requested", "resubmission_requested"]))
     .min(1)

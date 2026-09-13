@@ -1,5 +1,30 @@
 import type { PreparedCommand, Transition } from "./contracts";
 
+function observationStatus(
+  observation: PreparedCommand["state"]["context"]["prerequisites"][string],
+  now: string,
+): "unknown" | "satisfied" | "unsatisfied" {
+  const trusted =
+    !observation.verificationState ||
+    observation.verificationState === "verified" ||
+    observation.verificationState === "synthetic";
+  const effective = !observation.effectiveAt || Date.parse(observation.effectiveAt) <= Date.parse(now);
+  if (!trusted || !effective || Date.parse(observation.expiresAt) <= Date.parse(now)) return "unknown";
+  if (observation.status === "fulfilled") return "satisfied";
+  if (observation.status === "unfulfilled") return "unsatisfied";
+  return "unknown";
+}
+
+function aggregatePrerequisiteStatus(
+  observations: PreparedCommand["state"]["context"]["prerequisites"],
+  now: string,
+) {
+  const statuses = Object.values(observations).map((observation) => observationStatus(observation, now));
+  if (statuses.some((status) => status === "unknown")) return "unknown" as const;
+  if (statuses.some((status) => status === "unsatisfied")) return "unsatisfied" as const;
+  return statuses.length ? ("satisfied" as const) : ("not_applicable" as const);
+}
+
 // Pure transition logic is shared with replay tests. No I/O belongs here.
 export function transition({ command, state, now }: PreparedCommand): Transition {
   if (command.expectedVersion !== state.version) return { error: "version_conflict" };
@@ -29,13 +54,14 @@ export function transition({ command, state, now }: PreparedCommand): Transition
       if (!command.confirmed) return { error: "explicit_confirmation_required" };
       for (const observation of Object.values(state.context.prerequisites)) {
         if (!observation.actions.includes(command.type)) continue;
-        if (observation.status !== "fulfilled" || Date.parse(observation.expiresAt) <= Date.parse(now)) {
+        const status = observationStatus(observation, now);
+        if (status !== "satisfied") {
           return {
-            error:
-              observation.status === "unfulfilled" ? "prerequisite_blocked" : "prerequisite_needs_review",
+            error: status === "unsatisfied" ? "prerequisite_blocked" : "prerequisite_needs_review",
           };
         }
       }
+      next.prerequisiteStatus = aggregatePrerequisiteStatus(state.context.prerequisites, now);
       next.lifecycle = "awaiting_review";
       next.agencyAcceptance = "pending";
       next.context.correctionNodeIds = [];
@@ -63,16 +89,7 @@ export function transition({ command, state, now }: PreparedCommand): Transition
       const previous = state.context.prerequisites[observation.obligationId];
       if (previous && previous.version >= observation.version) return { error: "stale_observation" };
       next.context.prerequisites[observation.obligationId] = observation;
-      const observations = Object.values(next.context.prerequisites);
-      next.prerequisiteStatus = observations.some(
-        (o) =>
-          (o.status !== "fulfilled" && o.status !== "unfulfilled") ||
-          Date.parse(o.expiresAt) <= Date.parse(now),
-      )
-        ? "unknown"
-        : observations.some((o) => o.status === "unfulfilled")
-          ? "unsatisfied"
-          : "satisfied";
+      next.prerequisiteStatus = aggregatePrerequisiteStatus(next.context.prerequisites, now);
       break;
     }
     case "cancellation_requested":

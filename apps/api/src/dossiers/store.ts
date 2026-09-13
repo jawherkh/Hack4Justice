@@ -1,5 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { LifecycleContext, PrerequisiteObservation } from "../lifecycle/contracts";
+import {
+  obligationFreshness,
+  type ObligationChangeEvent,
+  type ObligationObservationInput,
+  type ObligationRecord,
+  type ObligationWriteResult,
+  type OfficerReassessmentInput,
+} from "../obligations/contracts";
 
 import {
   AccessError,
@@ -189,7 +197,7 @@ export interface DependencyRecord extends DependencyScope {
   readonly id: string;
   readonly status: "unknown" | "satisfied" | "unsatisfied";
   readonly observedAt: string;
-  readonly simulated: true;
+  readonly simulated: boolean;
 }
 
 export interface DossierDetail {
@@ -407,9 +415,13 @@ export interface AccessRepository {
   document(id: string): DocumentRecord | undefined;
   node(id: string): NodeRecord | undefined;
   dependency(id: string): DependencyRecord | undefined;
+  obligation(id: string): ObligationRecord | undefined;
+  obligationEvents(id: string, afterVersion: number): readonly ObligationChangeEvent[];
   grants(): readonly DocumentGrant[];
   procedures(): readonly ProcedureVersionRecord[];
   procedure(id: string): ProcedureVersionRecord | undefined;
+  recordObligationObservation(input: ObligationObservationInput): ObligationWriteResult;
+  reassessObligation(input: OfficerReassessmentInput): ObligationWriteResult;
   createDossier(input: CreateDossierInput): DossierDetail;
   uploadDocument(input: UploadDocumentInput): {
     readonly document: DocumentRecord;
@@ -491,6 +503,8 @@ export interface RepositorySnapshot {
   readonly decisions: DecisionRecord[];
   readonly sources: SourceRecord[];
   readonly dependencies: DependencyRecord[];
+  readonly obligations?: ObligationRecord[];
+  readonly obligationEvents?: ObligationChangeEvent[];
   readonly procedures: ProcedureVersionRecord[];
   readonly commands: [string, { fingerprint: string; acknowledgement: LifecycleCommandAcknowledgement }][];
   readonly grants: readonly DocumentGrant[];
@@ -511,6 +525,8 @@ export class InMemoryDossierRepository implements AgentRepository {
   private readonly decisionRows = new Map<string, DecisionRecord>();
   private readonly sourceRows = new Map<string, SourceRecord>();
   private readonly dependencyRows = new Map<string, DependencyRecord>();
+  private readonly obligationRows = new Map<string, ObligationRecord>();
+  private readonly obligationEventRows = new Map<string, ObligationChangeEvent>();
   private readonly procedureRows = new Map<string, ProcedureVersionRecord>();
   private readonly commandRows = new Map<
     string,
@@ -541,6 +557,8 @@ export class InMemoryDossierRepository implements AgentRepository {
       decisions: [...this.decisionRows.values()],
       sources: [...this.sourceRows.values()],
       dependencies: [...this.dependencyRows.values()],
+      obligations: [...this.obligationRows.values()],
+      obligationEvents: [...this.obligationEventRows.values()],
       procedures: [...this.procedureRows.values()],
       commands: [...this.commandRows.entries()],
       grants: this.documentGrants,
@@ -566,6 +584,8 @@ export class InMemoryDossierRepository implements AgentRepository {
     for (const row of copy.decisions) repository.decisionRows.set(row.id, row);
     for (const row of copy.sources) repository.sourceRows.set(row.id, row);
     for (const row of copy.dependencies) repository.dependencyRows.set(row.id, row);
+    for (const row of copy.obligations ?? []) repository.obligationRows.set(row.id, row);
+    for (const row of copy.obligationEvents ?? []) repository.obligationEventRows.set(row.id, row);
     for (const row of copy.procedures) repository.procedureRows.set(row.id, row);
     for (const [key, row] of copy.commands) repository.commandRows.set(key, row);
     for (const [key, row] of copy.uploadReceipts ?? []) repository.uploadReceiptRows.set(key, row);
@@ -624,13 +644,330 @@ export class InMemoryDossierRepository implements AgentRepository {
 
   public dependency(id: string): DependencyRecord | undefined {
     const value = this.dependencyRows.get(id);
-    return value ? clone(value) : undefined;
+    return value ? this.currentDependency(value) : undefined;
   }
 
   public dependencies(companyId: string, agency: Agency): readonly DependencyRecord[] {
     return [...this.dependencyRows.values()]
-      .filter((dependency) => dependency.companyId === companyId && dependency.agency === agency)
+      .filter(
+        (dependency) =>
+          dependency.companyId === companyId &&
+          (dependency.agency === agency || dependency.consumerAgencies.includes(agency)),
+      )
+      .map((dependency) => this.currentDependency(dependency));
+  }
+
+  private currentDependency(dependency: DependencyRecord): DependencyRecord {
+    const obligation = this.obligationRows.get(dependency.id);
+    if (!obligation) return clone(dependency);
+    const trustedAndFresh =
+      (obligation.verificationState === "verified" || obligation.verificationState === "synthetic") &&
+      obligationFreshness(obligation) === "fresh";
+    return clone({
+      ...dependency,
+      status:
+        trustedAndFresh && obligation.status === "fulfilled"
+          ? "satisfied"
+          : trustedAndFresh && obligation.status === "unfulfilled"
+            ? "unsatisfied"
+            : "unknown",
+    });
+  }
+
+  public obligation(id: string): ObligationRecord | undefined {
+    const value = this.obligationRows.get(id);
+    return value ? clone(value) : undefined;
+  }
+
+  public obligationEvents(id: string, afterVersion: number): readonly ObligationChangeEvent[] {
+    return [...this.obligationEventRows.values()]
+      .filter((event) => event.obligationId === id && event.version > afterVersion)
+      .sort((a, b) => a.version - b.version)
       .map(clone);
+  }
+
+  public recordObligationObservation(input: ObligationObservationInput): ObligationWriteResult {
+    const previous = this.obligationRows.get(input.id);
+    if (
+      previous &&
+      input.authority.kind !== "officer_reassessment" &&
+      previous.sourceVersion >= input.sourceVersion
+    ) {
+      return { applied: false, reason: "stale_or_duplicate", record: clone(previous) };
+    }
+    if (previous && (previous.companyId !== input.companyId || previous.agency !== input.agency)) {
+      throw new AccessError(409, "obligation_scope_conflict");
+    }
+    if (
+      previous &&
+      commandFingerprint({
+        ruleVersionId: previous.ruleVersionId,
+        consumerAgencies: [...previous.consumerAgencies].sort(),
+        relationships: [...previous.relationships].sort((a, b) =>
+          `${a.dossierId}:${a.nodeId}:${a.action}`.localeCompare(`${b.dossierId}:${b.nodeId}:${b.action}`),
+        ),
+      }) !==
+        commandFingerprint({
+          ruleVersionId: input.ruleVersionId,
+          consumerAgencies: [...input.consumerAgencies].sort(),
+          relationships: [...input.relationships].sort((a, b) =>
+            `${a.dossierId}:${a.nodeId}:${a.action}`.localeCompare(`${b.dossierId}:${b.nodeId}:${b.action}`),
+          ),
+        })
+    ) {
+      throw new AccessError(409, "obligation_relationship_conflict");
+    }
+
+    const dates = [input.effectiveAt, input.observedAt, input.expiresAt, input.recordedAt].map(Date.parse);
+    if (
+      dates.some((date) => !Number.isFinite(date)) ||
+      Date.parse(input.expiresAt) <= Date.parse(input.effectiveAt) ||
+      Date.parse(input.recordedAt) < Date.parse(input.observedAt)
+    ) {
+      throw new AccessError(422, "invalid_obligation_freshness");
+    }
+    if (input.authority.agency !== input.agency) {
+      throw new AccessError(422, "obligation_authority_mismatch");
+    }
+
+    const rule = requireValue(this.procedureRows.get(input.ruleVersionId), "rule_version_not_found");
+    const synthetic = input.authority.kind === "synthetic";
+    if (
+      synthetic
+        ? rule.status !== "synthetic" ||
+          input.verificationState !== "synthetic" ||
+          input.evidence.kind !== "synthetic_fixture"
+        : rule.status !== "approved" ||
+          input.verificationState === "synthetic" ||
+          input.evidence.kind === "synthetic_fixture"
+    ) {
+      throw new AccessError(422, "obligation_rule_or_source_not_authoritative");
+    }
+    if (
+      (input.authority.kind === "authorized_agency" && input.evidence.kind !== "official_record") ||
+      (input.authority.kind === "officer_reassessment" &&
+        (input.evidence.kind !== "officer_attestation" ||
+          input.verificationState !== "verified" ||
+          !input.authority.officerId))
+    ) {
+      throw new AccessError(422, "obligation_evidence_not_authoritative");
+    }
+
+    const permittedAgencies = new Set([input.agency, ...input.consumerAgencies]);
+    if (new Set(input.consumerAgencies).size !== input.consumerAgencies.length) {
+      throw new AccessError(422, "invalid_obligation_relationship");
+    }
+    const relationshipKeys = new Set<string>();
+    for (const relationship of input.relationships) {
+      const dossier = requireValue(this.dossierRows.get(relationship.dossierId));
+      const node = requireValue(this.nodeRows.get(relationship.nodeId));
+      const key = `${relationship.dossierId}:${relationship.nodeId}:${relationship.action}`;
+      if (
+        relationshipKeys.has(key) ||
+        !permittedAgencies.has(relationship.agency) ||
+        dossier.companyId !== input.companyId ||
+        dossier.agency !== relationship.agency ||
+        dossier.procedureVersionId !== rule.id ||
+        node.dossierId !== dossier.id ||
+        node.agency !== dossier.agency ||
+        !node.allowedActions.includes(relationship.action)
+      ) {
+        throw new AccessError(422, "invalid_obligation_relationship");
+      }
+      relationshipKeys.add(key);
+    }
+
+    const version = (previous?.version ?? 0) + 1;
+    const eventId = `obligation:${input.id}:v${version}`;
+    const record: ObligationRecord = {
+      ...clone(input),
+      version,
+      ruleVersionStatus: rule.status as "approved" | "synthetic",
+      lastEventId: eventId,
+      simulated: synthetic,
+    };
+    const event: ObligationChangeEvent = {
+      id: eventId,
+      type: "obligation_status_changed",
+      obligationId: record.id,
+      companyId: record.companyId,
+      version: record.version,
+      sourceVersion: record.sourceVersion,
+      status: record.status,
+      verificationState: record.verificationState,
+      authority: record.authority,
+      evidence: record.evidence,
+      effectiveAt: record.effectiveAt,
+      observedAt: record.observedAt,
+      expiresAt: record.expiresAt,
+      occurredAt: record.recordedAt,
+      ruleVersionId: record.ruleVersionId,
+      ruleVersionStatus: record.ruleVersionStatus,
+      consumerAgencies: record.consumerAgencies,
+      relationships: record.relationships,
+      ...(record.correction ? { correction: record.correction } : {}),
+    };
+    this.obligationRows.set(record.id, clone(record));
+    this.obligationEventRows.set(event.id, clone(event));
+    const trustedAndFresh =
+      (record.verificationState === "verified" || record.verificationState === "synthetic") &&
+      obligationFreshness(record, Date.parse(record.recordedAt)) === "fresh";
+    this.dependencyRows.set(record.id, {
+      id: record.id,
+      companyId: record.companyId,
+      agency: record.agency,
+      consumerAgencies: record.consumerAgencies,
+      status:
+        trustedAndFresh && record.status === "fulfilled"
+          ? "satisfied"
+          : trustedAndFresh && record.status === "unfulfilled"
+            ? "unsatisfied"
+            : "unknown",
+      observedAt: record.observedAt,
+      simulated: record.simulated,
+    });
+    this.applyObligationToDossiers(record);
+    return { applied: true, record: clone(record), event: clone(event) };
+  }
+
+  public reassessObligation(input: OfficerReassessmentInput): ObligationWriteResult {
+    const previous = requireValue(this.obligationRows.get(input.obligationId));
+    assertVersion(previous.version, input.expectedVersion);
+    return this.recordObligationObservation({
+      id: previous.id,
+      companyId: previous.companyId,
+      agency: previous.agency,
+      consumerAgencies: previous.consumerAgencies,
+      sourceVersion: previous.sourceVersion,
+      status: input.status,
+      authority: {
+        agency: previous.agency,
+        kind: "officer_reassessment",
+        sourceId: `officer:${input.officerId}`,
+        officerId: input.officerId,
+      },
+      evidence: { kind: "officer_attestation", reference: input.evidenceReference },
+      effectiveAt: input.effectiveAt,
+      observedAt: input.recordedAt,
+      expiresAt: input.expiresAt,
+      recordedAt: input.recordedAt,
+      verificationState: "verified",
+      ruleVersionId: previous.ruleVersionId,
+      relationships: previous.relationships,
+      correction: {
+        kind: input.kind,
+        reason: input.reason,
+        officerId: input.officerId,
+        previousEventId: previous.lastEventId,
+      },
+    });
+  }
+
+  private applyObligationToDossiers(record: ObligationRecord): void {
+    const trusted = record.verificationState === "verified" || record.verificationState === "synthetic";
+    const current = obligationFreshness(record, Date.parse(record.recordedAt));
+    const projectedStatus = trusted && current === "fresh" ? record.status : "unknown";
+    const prerequisiteStatus: PrerequisiteStatus =
+      projectedStatus === "fulfilled"
+        ? "satisfied"
+        : projectedStatus === "unfulfilled"
+          ? "unsatisfied"
+          : "unknown";
+    const byDossier = new Map<string, typeof record.relationships>();
+    for (const relationship of record.relationships) {
+      byDossier.set(relationship.dossierId, [...(byDossier.get(relationship.dossierId) ?? []), relationship]);
+    }
+
+    for (const [dossierId, relationships] of byDossier) {
+      const dossier = requireValue(this.dossierRows.get(dossierId));
+      const context: LifecycleContext = clone(
+        dossier.lifecycleContext ?? { prerequisites: {}, correctionNodeIds: [] },
+      );
+      const actions = [
+        ...new Set(
+          relationships.flatMap((relationship) =>
+            relationship.action === "submit"
+              ? ["submission_requested" as const]
+              : relationship.action === "resubmit"
+                ? ["resubmission_requested" as const]
+                : [],
+          ),
+        ),
+      ];
+      if (actions.length) {
+        const observation: PrerequisiteObservation = {
+          obligationId: record.id,
+          version: record.version,
+          status: record.status,
+          ruleVersionId: record.ruleVersionId,
+          sourceRef: record.evidence.reference,
+          effectiveAt: record.effectiveAt,
+          expiresAt: record.expiresAt,
+          verificationState: record.verificationState,
+          actions,
+        };
+        context.prerequisites[record.id] = observation;
+      }
+      const statuses = Object.values(context.prerequisites).map((observation) => {
+        const trusted =
+          !observation.verificationState ||
+          observation.verificationState === "verified" ||
+          observation.verificationState === "synthetic";
+        const effective =
+          !observation.effectiveAt || Date.parse(observation.effectiveAt) <= Date.parse(record.recordedAt);
+        if (!trusted || !effective || Date.parse(observation.expiresAt) <= Date.parse(record.recordedAt)) {
+          return "unknown";
+        }
+        return observation.status === "fulfilled"
+          ? "satisfied"
+          : observation.status === "unfulfilled"
+            ? "unsatisfied"
+            : "unknown";
+      });
+      const aggregate: PrerequisiteStatus = statuses.includes("unknown")
+        ? "unknown"
+        : statuses.includes("unsatisfied")
+          ? "unsatisfied"
+          : statuses.length
+            ? "satisfied"
+            : dossier.prerequisiteStatus;
+      this.dossierRows.set(dossier.id, {
+        ...dossier,
+        version: dossier.version + 1,
+        prerequisiteStatus: aggregate,
+        lifecycleContext: context,
+        updatedAt: record.recordedAt,
+      });
+
+      for (const nodeId of new Set(relationships.map((relationship) => relationship.nodeId))) {
+        const node = requireValue(this.nodeRows.get(nodeId));
+        const nodeRelationships = relationships.filter((relationship) => relationship.nodeId === nodeId);
+        const blockers = [
+          ...node.blockers.filter((blocker) => blocker.obligationId !== record.id),
+          ...nodeRelationships.map((relationship) => ({
+            obligationId: record.id,
+            action: relationship.action,
+            status: prerequisiteStatus,
+            reason: `Authoritative status: ${projectedStatus}`,
+          })),
+        ];
+        const nodePrerequisiteStatus: PrerequisiteStatus = blockers.some(
+          (blocker) => blocker.status === "unknown",
+        )
+          ? "unknown"
+          : blockers.some((blocker) => blocker.status === "unsatisfied")
+            ? "unsatisfied"
+            : blockers.length
+              ? "satisfied"
+              : node.prerequisiteStatus;
+        this.nodeRows.set(node.id, {
+          ...node,
+          version: node.version + 1,
+          prerequisiteStatus: nodePrerequisiteStatus,
+          blockers,
+        });
+      }
+    }
   }
 
   public grants(): readonly DocumentGrant[] {
@@ -984,6 +1321,11 @@ export class InMemoryDossierRepository implements AgentRepository {
 
   public addDependency(dependency: DependencyRecord): void {
     this.dependencyRows.set(dependency.id, clone(dependency));
+  }
+
+  public addObligationFixture(record: ObligationRecord, event: ObligationChangeEvent): void {
+    this.obligationRows.set(record.id, clone(record));
+    this.obligationEventRows.set(event.id, clone(event));
   }
 
   public agentSession(id: string, dossierId: string, principalId: string): AgentSessionRecord | undefined {
@@ -1391,6 +1733,62 @@ export function createDemoDossierRepository(
       });
     }
   }
+
+  const obligation: ObligationRecord = {
+    id: "obligation-alpha-dgi-registration",
+    companyId: "company-alpha",
+    agency: "DGI",
+    consumerAgencies: ["RNE"],
+    version: 1,
+    sourceVersion: 1,
+    status: "fulfilled",
+    authority: {
+      agency: "DGI",
+      kind: "synthetic",
+      sourceId: "synthetic-dgi-obligation-adapter",
+    },
+    evidence: {
+      kind: "synthetic_fixture",
+      reference: "synthetic://dgi/company-alpha/registration",
+    },
+    effectiveAt: "2026-09-01T00:00:00.000Z",
+    observedAt: "2026-09-12T12:00:00.000Z",
+    expiresAt: "2099-12-31T23:59:59.000Z",
+    recordedAt: "2026-09-12T12:00:00.000Z",
+    verificationState: "synthetic",
+    ruleVersionId: "procedure-rne-v1",
+    ruleVersionStatus: "synthetic",
+    relationships: [
+      {
+        dossierId: "dossier-alpha-rne",
+        nodeId: "node-alpha-rne-submission",
+        agency: "RNE",
+        action: "submit",
+      },
+    ],
+    lastEventId: "obligation:obligation-alpha-dgi-registration:v1",
+    simulated: true,
+  };
+  repository.addObligationFixture(obligation, {
+    id: obligation.lastEventId,
+    type: "obligation_status_changed",
+    obligationId: obligation.id,
+    companyId: obligation.companyId,
+    version: obligation.version,
+    sourceVersion: obligation.sourceVersion,
+    status: obligation.status,
+    verificationState: obligation.verificationState,
+    authority: obligation.authority,
+    evidence: obligation.evidence,
+    effectiveAt: obligation.effectiveAt,
+    observedAt: obligation.observedAt,
+    expiresAt: obligation.expiresAt,
+    occurredAt: obligation.recordedAt,
+    ruleVersionId: obligation.ruleVersionId,
+    ruleVersionStatus: obligation.ruleVersionStatus,
+    consumerAgencies: obligation.consumerAgencies,
+    relationships: obligation.relationships,
+  });
 
   return repository;
 }
