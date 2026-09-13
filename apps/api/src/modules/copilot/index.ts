@@ -18,6 +18,7 @@ import { i18n } from "../../i18n/plugin";
 import { logger } from "../../logger";
 import {
   CopilotBusyError,
+  documentSandboxPath,
   type CopilotProjectContext,
   type CopilotStreamEvent,
   type ProjectCopilotService,
@@ -217,7 +218,7 @@ export function createCopilotModule(service: ProjectCopilotService | undefined) 
           status: u.status,
           pageCount: u.pageCount,
           size: u.size,
-          link: `input/documents/${u.id}.txt`,
+          link: documentSandboxPath(u.id),
           attachedToRequirements: context.requirements
             .filter((r) => r.uploadId === u.id)
             .map((r) => r.requirementId),

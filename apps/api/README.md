@@ -175,15 +175,20 @@ run; whatever was produced is still stored. One turn runs per conversation at a 
 `copilot_busy`).
 
 Each conversation owns a private sandbox workspace (`SANDBOX_BASE_DIR/<projectId>/<conversationId>`,
-mounted at `/work`). Every turn stages `input/project.json` (service, checklist, statuses) and
-`input/documents/<uploadId>.txt` (the OCR / extracted text of the project's uploads) before
-the agent runs. Besides the SDK shell and file tools, the agent has `get_project_overview`,
+mounted at `/work`). Every turn refreshes `input/project.json` (service, checklist, statuses)
+and stages `input/documents/<uploadId>.md`, the OCR / extracted text of each upload as Markdown
+(one `## Page N` section per page). A document is written only when it is new or was
+re-extracted since it was last staged (tracked in `input/.staged.json`), so the agent may edit
+those files and find its edits again on the next turn. Everything under `input/` is private to
+the agent: it is neither listed by the files endpoint nor served by `files/content`. The user
+only sees the original uploads and the files the agent creates outside `input/` (typically
+`output/...`). Besides the SDK shell and file tools, the agent has `get_project_overview`,
 `get_requirement_details`, `list_project_documents`, `read_document_text` and
 `search_legal_sources` (Graphiti, scoped to the project's agency). It never writes to the
 project. The model is told to reference uploaded documents as Markdown links to their staged
-path (`input/documents/<uploadId>.txt`) and its own drafts by workspace path
-(`output/...`); the web app turns those links into buttons that open the file in a side panel
-(PDF viewer for uploads, inline text for drafts).
+path (`input/documents/<uploadId>.md`, which the web app resolves to the original upload) and
+its own drafts by workspace path (`output/...`); the web app turns those links into buttons that
+open the file in a side panel (PDF viewer for uploads, inline text for drafts).
 
 Message history for the model is stored on `copilot_conversation.history`; display
 messages live in `copilot_message` (migration `0009_copilot`).
@@ -377,9 +382,12 @@ The live isolation checks run against a local container daemon only when
 Requires the local stack: `docker compose up -d db minio minio-init` and Poppler
 (`brew install poppler` on macOS, or the `poppler-utils` package on Debian/Ubuntu).
 Files go to S3-compatible storage (MinIO locally, `@hack4justice/storage`).
-Text-based PDF pages are extracted with `pdftotext`; image-only pages are rendered
-with `pdftoppm` and sent to the configured OpenAI-compatible DeepSeek Flash OCR
-endpoint. OCR language hints are passed through to the model prompt.
+Without Poppler every upload fails right away with "PDF tools (Poppler) are not
+installed on the server". Text-based PDF pages are extracted with `pdftotext`;
+image-only pages are rendered with `pdftoppm` and sent to the configured
+OpenAI-compatible DeepSeek Flash OCR endpoint, which is asked to transcribe the
+page as Markdown. The stored `text` is one Markdown document with a `## Page N`
+section per page. OCR language hints are passed through to the model prompt.
 
 Set `DEEPSEEK_API_KEY`, `DEEPSEEK_OCR_ENDPOINT`, and `DEEPSEEK_OCR_MODEL` in the
 root `.env` before uploading scanned documents. The default endpoint is

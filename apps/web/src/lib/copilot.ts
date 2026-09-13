@@ -83,11 +83,12 @@ export async function fetchWorkspaceFile(
 
 /**
  * A file the copilot pointed at in its reply. The model links uploaded documents by their
- * staged sandbox path and its own drafts by their workspace path (see the API instructions).
+ * staged sandbox path (the private OCR Markdown, which the app resolves to the original upload)
+ * and its own drafts by their workspace path (see the API instructions).
  */
 export type CopilotFileRef = { kind: 'document'; uploadId: string } | { kind: 'workspace'; path: string }
 
-const DOCUMENT_LINK = /^(?:\/work\/)?input\/documents\/([0-9a-f-]{36})(?:\.txt)?$/i
+const DOCUMENT_LINK = /^(?:\/work\/)?input\/documents\/([0-9a-f-]{36})(?:\.(?:md|txt))?$/i
 /** Any other relative path inside the workspace (no scheme, no leading slash except `/work/`). */
 const WORKSPACE_LINK = /^(?:\/work\/|\.\/)?(?!input\/)([^\s:?#][^\s:?#]*)$/
 

@@ -49,8 +49,8 @@ describe("PDF extraction pipeline", () => {
 
     expect(result.method).toBe("native");
     expect(result.pageCount).toBe(2);
-    expect(result.text).toContain("--- PAGE 1 ---");
-    expect(result.text).toContain("--- PAGE 2 ---");
+    expect(result.text).toContain("## Page 1");
+    expect(result.text).toContain("## Page 2");
     expect(result.text).toContain("registered business files its annual declaration");
     expect(result.text).toMatch(/supporting\s+payment information/);
     expect(ocrCalls).toEqual([]);
@@ -90,7 +90,7 @@ describe("PDF extraction pipeline", () => {
     expect(result.method).toBe("ocr");
     expect(result.pageCount).toBe(2);
     expect(result.text).toBe(
-      "--- PAGE 1 ---\nقانون المالية لسنة 2026\n\n--- PAGE 2 ---\nLoi de finances pour l'année 2026",
+      "## Page 1\n\nقانون المالية لسنة 2026\n\n## Page 2\n\nLoi de finances pour l'année 2026",
     );
     expect(renderedPages).toEqual([
       { page: 1, signature: [137, 80, 78, 71, 13, 10, 26, 10], language: "fra+ara" },

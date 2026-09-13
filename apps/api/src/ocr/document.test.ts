@@ -108,7 +108,7 @@ describe("document text extraction", () => {
     });
 
     expect(result.method).toBe("mixed");
-    expect(result.text).toContain("--- PAGE 1 ---");
-    expect(result.text).toContain("--- PAGE 2 ---");
+    expect(result.text).toContain("## Page 1");
+    expect(result.text).toContain("## Page 2");
   });
 });

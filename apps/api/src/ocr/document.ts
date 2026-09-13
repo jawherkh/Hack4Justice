@@ -16,6 +16,7 @@ export interface DocumentTextInput {
 }
 
 export interface DocumentTextResult {
+  /** Markdown: native pages keep their layout, OCR pages come back as Markdown from the model. */
   text: string;
   pageCount: number | null;
   method: "native" | "ocr" | "mixed";
@@ -43,8 +44,9 @@ function normalize(text: string): string {
     .trim();
 }
 
+/** One page as a Markdown section, so the whole document reads as a single Markdown file. */
 function pageText(page: number, text: string): string {
-  return `--- PAGE ${page} ---\n${normalize(text)}`;
+  return `## Page ${page}\n\n${normalize(text)}`;
 }
 
 function htmlToText(html: string): string {
