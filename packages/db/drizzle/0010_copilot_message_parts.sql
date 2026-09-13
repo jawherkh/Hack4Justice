@@ -1,0 +1,1 @@
+ALTER TABLE "copilot_message" ADD COLUMN "parts" jsonb DEFAULT '[]'::jsonb NOT NULL;

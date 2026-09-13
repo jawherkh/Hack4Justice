@@ -40,7 +40,9 @@ function ProjectWorkspace() {
     ? t('projects.sidebar.documents')
     : matchRoute({ to: '/{-$locale}/projects/$id/submission', params: idParams })
       ? t('projects.sidebar.submission')
-      : null
+      : matchRoute({ to: '/{-$locale}/projects/$id/copilot', params: idParams, fuzzy: true })
+        ? t('projects.sidebar.copilot')
+        : null
 
   return (
     <SidebarProvider style={{ '--sidebar-width': '19rem' } as React.CSSProperties}>

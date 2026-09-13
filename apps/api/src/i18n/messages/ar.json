@@ -45,5 +45,9 @@
   "terms_not_accepted": "يجب قبول الشروط للمتابعة",
   "company_name_required": "اسم الشركة مطلوب لحساب المؤسسة",
   "invalid_tax_id": "صيغة المعرف الجبائي غير صالحة",
-  "invalid_phone": "صيغة رقم الهاتف غير صالحة"
+  "invalid_phone": "صيغة رقم الهاتف غير صالحة",
+  "copilot_not_configured": "المساعد غير مهيأ على هذا الخادم",
+  "conversation_not_found": "المحادثة غير موجودة",
+  "copilot_busy": "المساعد ما زال يجيب في هذه المحادثة",
+  "copilot_run_failed": "تعذر على المساعد إكمال إجابته"
 }

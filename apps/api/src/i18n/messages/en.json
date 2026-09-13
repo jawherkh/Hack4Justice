@@ -45,5 +45,9 @@
   "terms_not_accepted": "You must accept the terms to continue",
   "company_name_required": "Company name is required for a business account",
   "invalid_tax_id": "Tax identifier format is invalid",
-  "invalid_phone": "Phone number format is invalid"
+  "invalid_phone": "Phone number format is invalid",
+  "copilot_not_configured": "The copilot is not configured on this server",
+  "conversation_not_found": "Conversation not found",
+  "copilot_busy": "The copilot is still answering in this conversation",
+  "copilot_run_failed": "The copilot could not complete its answer"
 }

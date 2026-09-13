@@ -25,8 +25,11 @@ import { Route as Char123LocaleChar125ProjectsIdRouteImport } from './routes/{-$
 import { Route as Char123LocaleChar125UploadsIndexRouteImport } from './routes/{-$locale}/uploads/index'
 import { Route as Char123LocaleChar125UploadsIdRouteImport } from './routes/{-$locale}/uploads/$id'
 import { Route as Char123LocaleChar125ProjectsIdIndexRouteImport } from './routes/{-$locale}/projects/$id/index'
+import { Route as Char123LocaleChar125ProjectsIdCopilotRouteImport } from './routes/{-$locale}/projects/$id/copilot'
 import { Route as Char123LocaleChar125ProjectsIdDocumentsRouteImport } from './routes/{-$locale}/projects/$id/documents'
 import { Route as Char123LocaleChar125ProjectsIdSubmissionRouteImport } from './routes/{-$locale}/projects/$id/submission'
+import { Route as Char123LocaleChar125ProjectsIdCopilotIndexRouteImport } from './routes/{-$locale}/projects/$id/copilot/index'
+import { Route as Char123LocaleChar125ProjectsIdCopilotConversationIdRouteImport } from './routes/{-$locale}/projects/$id/copilot/$conversationId'
 
 const Char123LocaleChar125RouteRoute =
   Char123LocaleChar125RouteRouteImport.update({
@@ -124,6 +127,12 @@ const Char123LocaleChar125ProjectsIdIndexRoute =
     path: '/',
     getParentRoute: () => Char123LocaleChar125ProjectsIdRoute,
   } as any)
+const Char123LocaleChar125ProjectsIdCopilotRoute =
+  Char123LocaleChar125ProjectsIdCopilotRouteImport.update({
+    id: '/copilot',
+    path: '/copilot',
+    getParentRoute: () => Char123LocaleChar125ProjectsIdRoute,
+  } as any)
 const Char123LocaleChar125ProjectsIdDocumentsRoute =
   Char123LocaleChar125ProjectsIdDocumentsRouteImport.update({
     id: '/documents',
@@ -135,6 +144,18 @@ const Char123LocaleChar125ProjectsIdSubmissionRoute =
     id: '/submission',
     path: '/submission',
     getParentRoute: () => Char123LocaleChar125ProjectsIdRoute,
+  } as any)
+const Char123LocaleChar125ProjectsIdCopilotIndexRoute =
+  Char123LocaleChar125ProjectsIdCopilotIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => Char123LocaleChar125ProjectsIdCopilotRoute,
+  } as any)
+const Char123LocaleChar125ProjectsIdCopilotConversationIdRoute =
+  Char123LocaleChar125ProjectsIdCopilotConversationIdRouteImport.update({
+    id: '/$conversationId',
+    path: '/$conversationId',
+    getParentRoute: () => Char123LocaleChar125ProjectsIdCopilotRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -153,9 +174,12 @@ export interface FileRoutesByFullPath {
   '/{-$locale}/uploads/$id': typeof Char123LocaleChar125UploadsIdRoute
   '/{-$locale}/projects/': typeof Char123LocaleChar125ProjectsIndexRoute
   '/{-$locale}/uploads/': typeof Char123LocaleChar125UploadsIndexRoute
+  '/{-$locale}/projects/$id/copilot': typeof Char123LocaleChar125ProjectsIdCopilotRouteWithChildren
   '/{-$locale}/projects/$id/documents': typeof Char123LocaleChar125ProjectsIdDocumentsRoute
   '/{-$locale}/projects/$id/submission': typeof Char123LocaleChar125ProjectsIdSubmissionRoute
   '/{-$locale}/projects/$id/': typeof Char123LocaleChar125ProjectsIdIndexRoute
+  '/{-$locale}/projects/$id/copilot/$conversationId': typeof Char123LocaleChar125ProjectsIdCopilotConversationIdRoute
+  '/{-$locale}/projects/$id/copilot/': typeof Char123LocaleChar125ProjectsIdCopilotIndexRoute
 }
 export interface FileRoutesByTo {
   '/{-$locale}/about': typeof Char123LocaleChar125AboutRoute
@@ -174,6 +198,8 @@ export interface FileRoutesByTo {
   '/{-$locale}/projects/$id/documents': typeof Char123LocaleChar125ProjectsIdDocumentsRoute
   '/{-$locale}/projects/$id/submission': typeof Char123LocaleChar125ProjectsIdSubmissionRoute
   '/{-$locale}/projects/$id': typeof Char123LocaleChar125ProjectsIdIndexRoute
+  '/{-$locale}/projects/$id/copilot/$conversationId': typeof Char123LocaleChar125ProjectsIdCopilotConversationIdRoute
+  '/{-$locale}/projects/$id/copilot': typeof Char123LocaleChar125ProjectsIdCopilotIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -192,9 +218,12 @@ export interface FileRoutesById {
   '/{-$locale}/uploads/$id': typeof Char123LocaleChar125UploadsIdRoute
   '/{-$locale}/projects/': typeof Char123LocaleChar125ProjectsIndexRoute
   '/{-$locale}/uploads/': typeof Char123LocaleChar125UploadsIndexRoute
+  '/{-$locale}/projects/$id/copilot': typeof Char123LocaleChar125ProjectsIdCopilotRouteWithChildren
   '/{-$locale}/projects/$id/documents': typeof Char123LocaleChar125ProjectsIdDocumentsRoute
   '/{-$locale}/projects/$id/submission': typeof Char123LocaleChar125ProjectsIdSubmissionRoute
   '/{-$locale}/projects/$id/': typeof Char123LocaleChar125ProjectsIdIndexRoute
+  '/{-$locale}/projects/$id/copilot/$conversationId': typeof Char123LocaleChar125ProjectsIdCopilotConversationIdRoute
+  '/{-$locale}/projects/$id/copilot/': typeof Char123LocaleChar125ProjectsIdCopilotIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -214,9 +243,12 @@ export interface FileRouteTypes {
     | '/{-$locale}/uploads/$id'
     | '/{-$locale}/projects/'
     | '/{-$locale}/uploads/'
+    | '/{-$locale}/projects/$id/copilot'
     | '/{-$locale}/projects/$id/documents'
     | '/{-$locale}/projects/$id/submission'
     | '/{-$locale}/projects/$id/'
+    | '/{-$locale}/projects/$id/copilot/$conversationId'
+    | '/{-$locale}/projects/$id/copilot/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/{-$locale}/about'
@@ -235,6 +267,8 @@ export interface FileRouteTypes {
     | '/{-$locale}/projects/$id/documents'
     | '/{-$locale}/projects/$id/submission'
     | '/{-$locale}/projects/$id'
+    | '/{-$locale}/projects/$id/copilot/$conversationId'
+    | '/{-$locale}/projects/$id/copilot'
   id:
     | '__root__'
     | '/{-$locale}'
@@ -252,9 +286,12 @@ export interface FileRouteTypes {
     | '/{-$locale}/uploads/$id'
     | '/{-$locale}/projects/'
     | '/{-$locale}/uploads/'
+    | '/{-$locale}/projects/$id/copilot'
     | '/{-$locale}/projects/$id/documents'
     | '/{-$locale}/projects/$id/submission'
     | '/{-$locale}/projects/$id/'
+    | '/{-$locale}/projects/$id/copilot/$conversationId'
+    | '/{-$locale}/projects/$id/copilot/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -375,6 +412,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char123LocaleChar125ProjectsIdIndexRouteImport
       parentRoute: typeof Char123LocaleChar125ProjectsIdRoute
     }
+    '/{-$locale}/projects/$id/copilot': {
+      id: '/{-$locale}/projects/$id/copilot'
+      path: '/copilot'
+      fullPath: '/{-$locale}/projects/$id/copilot'
+      preLoaderRoute: typeof Char123LocaleChar125ProjectsIdCopilotRouteImport
+      parentRoute: typeof Char123LocaleChar125ProjectsIdRoute
+    }
     '/{-$locale}/projects/$id/documents': {
       id: '/{-$locale}/projects/$id/documents'
       path: '/documents'
@@ -389,10 +433,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char123LocaleChar125ProjectsIdSubmissionRouteImport
       parentRoute: typeof Char123LocaleChar125ProjectsIdRoute
     }
+    '/{-$locale}/projects/$id/copilot/': {
+      id: '/{-$locale}/projects/$id/copilot/'
+      path: '/'
+      fullPath: '/{-$locale}/projects/$id/copilot/'
+      preLoaderRoute: typeof Char123LocaleChar125ProjectsIdCopilotIndexRouteImport
+      parentRoute: typeof Char123LocaleChar125ProjectsIdCopilotRoute
+    }
+    '/{-$locale}/projects/$id/copilot/$conversationId': {
+      id: '/{-$locale}/projects/$id/copilot/$conversationId'
+      path: '/$conversationId'
+      fullPath: '/{-$locale}/projects/$id/copilot/$conversationId'
+      preLoaderRoute: typeof Char123LocaleChar125ProjectsIdCopilotConversationIdRouteImport
+      parentRoute: typeof Char123LocaleChar125ProjectsIdCopilotRoute
+    }
   }
 }
 
+interface Char123LocaleChar125ProjectsIdCopilotRouteChildren {
+  Char123LocaleChar125ProjectsIdCopilotConversationIdRoute: typeof Char123LocaleChar125ProjectsIdCopilotConversationIdRoute
+  Char123LocaleChar125ProjectsIdCopilotIndexRoute: typeof Char123LocaleChar125ProjectsIdCopilotIndexRoute
+}
+
+const Char123LocaleChar125ProjectsIdCopilotRouteChildren: Char123LocaleChar125ProjectsIdCopilotRouteChildren =
+  {
+    Char123LocaleChar125ProjectsIdCopilotConversationIdRoute:
+      Char123LocaleChar125ProjectsIdCopilotConversationIdRoute,
+    Char123LocaleChar125ProjectsIdCopilotIndexRoute:
+      Char123LocaleChar125ProjectsIdCopilotIndexRoute,
+  }
+
+const Char123LocaleChar125ProjectsIdCopilotRouteWithChildren =
+  Char123LocaleChar125ProjectsIdCopilotRoute._addFileChildren(
+    Char123LocaleChar125ProjectsIdCopilotRouteChildren,
+  )
+
 interface Char123LocaleChar125ProjectsIdRouteChildren {
+  Char123LocaleChar125ProjectsIdCopilotRoute: typeof Char123LocaleChar125ProjectsIdCopilotRouteWithChildren
   Char123LocaleChar125ProjectsIdDocumentsRoute: typeof Char123LocaleChar125ProjectsIdDocumentsRoute
   Char123LocaleChar125ProjectsIdSubmissionRoute: typeof Char123LocaleChar125ProjectsIdSubmissionRoute
   Char123LocaleChar125ProjectsIdIndexRoute: typeof Char123LocaleChar125ProjectsIdIndexRoute
@@ -400,6 +477,8 @@ interface Char123LocaleChar125ProjectsIdRouteChildren {
 
 const Char123LocaleChar125ProjectsIdRouteChildren: Char123LocaleChar125ProjectsIdRouteChildren =
   {
+    Char123LocaleChar125ProjectsIdCopilotRoute:
+      Char123LocaleChar125ProjectsIdCopilotRouteWithChildren,
     Char123LocaleChar125ProjectsIdDocumentsRoute:
       Char123LocaleChar125ProjectsIdDocumentsRoute,
     Char123LocaleChar125ProjectsIdSubmissionRoute:

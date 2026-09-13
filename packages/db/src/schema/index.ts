@@ -7,3 +7,4 @@ export * from "./notifications";
 export * from "./submissions";
 export * from "./admin";
 export * from "./profile";
+export * from "./copilot";
