@@ -247,14 +247,13 @@ function DestinationOption({
 }) {
   const { t } = useI18n()
   const meta = DESTINATION_META[value]
-  const Icon = meta.icon
   const id = `project-destination-${value}`
   return (
     <label
       htmlFor={id}
       data-selected={selected || undefined}
       className={cn(
-        'group/option relative flex cursor-pointer items-start gap-3 rounded-lg border bg-background p-3 text-start transition-all',
+        'group/option relative flex cursor-pointer flex-col items-center gap-3 rounded-lg border bg-background px-3 pt-5 pb-4 text-center transition-all',
         'hover:bg-muted/50 has-focus-visible:ring-3 has-focus-visible:ring-ring/50',
         selected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-input',
       )}
@@ -268,15 +267,13 @@ function DestinationOption({
         onChange={onSelect}
         className="sr-only"
       />
-      <span
+      <img
+        src={meta.logo}
+        alt=""
         aria-hidden
-        className={cn(
-          'flex size-9 shrink-0 items-center justify-center rounded-md [&_svg]:size-4',
-          meta.tile,
-        )}
-      >
-        <Icon />
-      </span>
+        draggable={false}
+        className="h-12 w-auto max-w-28 object-contain"
+      />
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="text-sm font-semibold tracking-wide">{t(meta.label)}</span>
         <span className="text-xs leading-snug text-muted-foreground">{t(meta.full)}</span>

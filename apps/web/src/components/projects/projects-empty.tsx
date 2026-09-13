@@ -17,16 +17,11 @@ import { DESTINATION_META } from './destination'
 export function ProjectsWelcome({ onCreate }: { onCreate: () => void }) {
   const t = useTranslation()
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-dashed bg-linear-to-b from-muted/60 to-background px-6 py-14 text-center motion-safe:animate-in motion-safe:fade-in-0">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,color-mix(in_oklch,var(--primary)_10%,transparent),transparent_60%)]"
-      />
+    <section className="relative overflow-hidden rounded-2xl border border-dashed bg-background px-6 py-14 text-center motion-safe:animate-in motion-safe:fade-in-0">
       <div className="relative mx-auto flex max-w-md flex-col items-center gap-5">
         <div className="flex items-end gap-3">
           {PROJECT_DESTINATIONS.map((value, index) => {
             const meta = DESTINATION_META[value]
-            const Icon = meta.icon
             return (
               <div
                 key={value}
@@ -35,14 +30,12 @@ export function ProjectsWelcome({ onCreate }: { onCreate: () => void }) {
                   index === 0 ? '-rotate-3 hover:rotate-0' : 'rotate-3 hover:rotate-0',
                 )}
               >
-                <span
-                  className={cn(
-                    'flex size-9 items-center justify-center rounded-lg [&_svg]:size-4',
-                    meta.tile,
-                  )}
-                >
-                  <Icon />
-                </span>
+                <img
+                  src={meta.logo}
+                  alt={t(meta.full)}
+                  draggable={false}
+                  className="h-9 w-auto max-w-full object-contain"
+                />
                 <span className="text-xs font-semibold tracking-wide">{t(meta.label)}</span>
                 <span className="h-1.5 w-16 rounded-full bg-muted" />
                 <span className="h-1.5 w-10 rounded-full bg-muted" />

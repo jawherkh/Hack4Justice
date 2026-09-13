@@ -1,8 +1,9 @@
 import type { ProjectDestination } from '@hack4justice/shared'
 import { cn } from '@hack4justice/ui/lib/utils'
+import { useTranslation } from '#/i18n'
 import { DESTINATION_META } from './destination'
 
-/** Square icon tile tinted per agency. */
+/** Square white tile showing the agency's official logo. */
 export function DestinationTile({
   destination,
   size = 'md',
@@ -12,20 +13,19 @@ export function DestinationTile({
   size?: 'sm' | 'md' | 'lg'
   className?: string
 }) {
-  const { icon: Icon, tile } = DESTINATION_META[destination]
+  const t = useTranslation()
+  const meta = DESTINATION_META[destination]
   return (
     <div
-      aria-hidden
       className={cn(
-        'flex shrink-0 items-center justify-center rounded-lg',
-        size === 'sm' && 'size-8 [&_svg]:size-4',
-        size === 'md' && 'size-10 [&_svg]:size-5',
-        size === 'lg' && 'size-12 rounded-xl [&_svg]:size-6',
-        tile,
+        'flex shrink-0 items-center justify-center rounded-lg bg-white ring-1 ring-foreground/10',
+        size === 'sm' && 'size-8 p-1',
+        size === 'md' && 'size-10 p-1.5',
+        size === 'lg' && 'size-14 rounded-xl p-2',
         className,
       )}
     >
-      <Icon />
+      <img src={meta.logo} alt={t(meta.full)} className="size-full object-contain" draggable={false} />
     </div>
   )
 }
