@@ -59,9 +59,42 @@ synthetic review; it does not send a government submission or create a receipt.
 Uploads and confirmed-fact changes enqueue evidence-change references in the
 same transaction as the stored evidence. Their immediate responses contain the
 stored version; the worker may advance it again, so refresh before the next
-command. No original file bytes enter workflow history. OCR, model calls, graph
-queries and sandbox execution must be separate activities; the worker currently
-registers only command preparation and projection persistence activities.
+command. No original file bytes enter workflow history. The worker registers
+the principal agent turn as a retryable Temporal activity; its session history,
+progress events, sandbox workspace and artifact receipts are persisted so a
+retry can resume by session ID.
+
+## Principal agent
+
+Set `GEMINI_API_KEY` to enable `POST /api/v1/dossiers/:dossierId/agent`. The
+endpoint accepts `{ "message": "...", "sessionId": "..." }` and returns
+server-sent events for agent/tool progress followed by a result event. The
+session ID is also returned in `x-agent-session-id`; use
+`GET /api/v1/dossiers/:dossierId/agent/sessions/:sessionId/events?after=0` to
+replay persisted events after a disconnect. Generated drafts can be downloaded
+from `/api/v1/agent/artifacts/:artifactId` after the agent publishes them.
+
+The SDK `SandboxAgent` is connected to the project `ProjectDockerSandboxClient`,
+and the server-authorized document tools use its live session for Docker-backed
+work. Gemini is accessed through Chat Completions, so the native SDK
+`shell()`/`filesystem()` capabilities are not attached: Agents SDK 0.18
+serializes those capabilities as Responses-only tool types. Containers remain
+non-root, network-disabled, resource-limited and restricted to one private
+dossier/session workspace.
+
+The agent model is Gemini. The OpenAI Agents SDK uses its Chat Completions-compatible
+adapter only as the transport, configured with Gemini's OpenAI-compatible endpoint;
+`GEMINI_API_KEY` (or the existing `GOOGLE_API_KEY` alias) and `AGENT_MODEL`
+select the provider credentials and model.
+
+PostgreSQL stores durable dossier state, agent sessions, event history, helper tasks,
+artifact metadata and artifact provenance. Docker cannot execute against PostgreSQL
+tables as a filesystem, so the live sandbox remains a private filesystem workspace under
+`SANDBOX_BASE_DIR` (`.local-data/agent-sandboxes` by default for local development).
+For deployment, mount that directory on a persistent or shared volume when workers may
+resume on another process. Original and published bytes use `DOCUMENT_STORAGE_DIR` (or
+an object-storage-backed FileStore when that adapter is introduced); they are not mixed
+with the live sandbox workspace.
 
 Trusted service callers can enqueue `prerequisite_changed` through the repository
 with an obligation ID, observation version, source/rule references, expiry and
