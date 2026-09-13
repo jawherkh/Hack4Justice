@@ -14,6 +14,7 @@
     "check-types": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "ingest:legal-folder": "tsx scripts/ingest-legal-folder.ts",
     "test:storage": "tsx scripts/test-storage.ts",
     "db:init": "tsx scripts/init-storage.ts",
     "test:watch": "vitest"
