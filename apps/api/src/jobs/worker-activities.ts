@@ -1,6 +1,6 @@
 import { ApplicationFailure, CancelledFailure, Context } from "@temporalio/activity";
 
-import { createTikaClient } from "../ocr/tika";
+import { createDeepSeekOcrClient, createDocumentTextExtractor, PopplerReader } from "../ocr";
 import { extractDocumentText, runSandboxCommand, type DocumentSource, type ExtractTextInput, type SandboxCommandInput } from "./activities";
 import type { JobContext, JobReceipt } from "./contracts";
 import { PostgresJobStore } from "./store";
@@ -82,8 +82,10 @@ export function forHistory(receipt: JobReceipt): JobReceipt {
 export interface DocumentActivitySettings {
   /** Reads stored documents inside the worker, so bytes never cross the activity boundary. */
   documents: DocumentSource;
-  /** Where Tika is reachable. */
-  tikaUrl: string;
+  /** OpenAI-compatible DeepSeek OCR endpoint. */
+  deepSeekOcrEndpoint: string;
+  deepSeekOcrApiKey?: string;
+  deepSeekOcrModel: string;
   /** Root for per-run sandbox workspaces. */
   workspaceBaseDir: string;
   /** Image the sandbox runs. */
@@ -92,16 +94,18 @@ export interface DocumentActivitySettings {
 
 export function createDocumentActivities(databaseUrl: string, settings: DocumentActivitySettings) {
   const store = new PostgresJobStore(databaseUrl);
-  const tika = createTikaClient(settings.tikaUrl);
+  const extractor = createDocumentTextExtractor({
+    pdf: new PopplerReader(),
+    ocr: createDeepSeekOcrClient({
+      endpoint: settings.deepSeekOcrEndpoint,
+      apiKey: settings.deepSeekOcrApiKey,
+      model: settings.deepSeekOcrModel,
+    }),
+  });
 
-  const extractor = {
+  const durableExtractor = {
     async extract(input: { bytes: Uint8Array; filename: string; languages?: string; contentType?: string }) {
-      const result = await tika.extract(input.bytes as Uint8Array<ArrayBuffer>, {
-        contentType: input.contentType ?? "application/pdf",
-        ocrLanguages: input.languages,
-        // Cancelling the activity stops the extraction request rather than leaving it running.
-        signal: activityContext().signal,
-      });
+      const result = await extractor.extract(input, activityContext().signal);
       return { text: result.text, pageCount: result.pageCount };
     },
   };
@@ -110,7 +114,7 @@ export function createDocumentActivities(databaseUrl: string, settings: Document
     close: () => store.close(),
     activities: {
       async extractDocumentText(input: ExtractTextInput) {
-        const { receipt } = await extractDocumentText(store, extractor, settings.documents, input, activityContext());
+        const { receipt } = await extractDocumentText(store, durableExtractor, settings.documents, input, activityContext());
         return settle(receipt);
       },
       async runSandboxCommand(input: SandboxCommandInput) {

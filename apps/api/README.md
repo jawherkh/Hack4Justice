@@ -319,9 +319,17 @@ The live isolation checks run against a local container daemon only when
 `SANDBOX_DOCKER_TESTS=1` is set; the rest of the suite runs without one.
 ## Uploads (PDF upload + text extraction)
 
-Requires the local stack: `docker compose up -d db minio minio-init tika`.
-Files go to S3-compatible storage (MinIO locally, `@hack4justice/storage`) and
-text is extracted by Apache Tika with Tesseract OCR for scanned pages.
+Requires the local stack: `docker compose up -d db minio minio-init` and Poppler
+(`brew install poppler` on macOS, or the `poppler-utils` package on Debian/Ubuntu).
+Files go to S3-compatible storage (MinIO locally, `@hack4justice/storage`).
+Text-based PDF pages are extracted with `pdftotext`; image-only pages are rendered
+with `pdftoppm` and sent to the configured OpenAI-compatible DeepSeek Flash OCR
+endpoint. OCR language hints are passed through to the model prompt.
+
+Set `DEEPSEEK_API_KEY`, `DEEPSEEK_OCR_ENDPOINT`, and `DEEPSEEK_OCR_MODEL` in the
+root `.env` before uploading scanned documents. The default endpoint is
+`https://api.deepseek.com/chat/completions` and the default model is
+`deepseek-flash`.
 
 All routes need a Better Auth session cookie.
 
@@ -340,6 +348,23 @@ curl -b cookies.txt -F file=@dossier.pdf -F languages=fra+ara http://localhost:3
 Extraction runs in the background of the API process (not a durable queue:
 a crash mid-extraction leaves the row `PROCESSING`; re-run it via `/extract`). (`/api/v1/documents/*` belongs to the access
 module and refers to dossier evidence, a different concept.)
+
+### Ingest a legal PDF folder into Graphiti
+
+For the initial legal corpus, recursively ingest a folder of PDFs plus native
+HTML/Markdown/text sources into one agency-scoped Graphiti bulk stream. Only
+`DGI` and `RNE` are accepted for this bootstrap command:
+
+```bash
+pnpm --filter @hack4justice/api ingest:legal-folder -- \
+  --folder ./legal-sources/rne \
+  --agency RNE \
+  --languages fra+ara
+```
+
+Each PDF is checksum-addressed, preserves its relative path as provenance, and
+is sent in batches of at most 100 documents to
+`$GRAPHITI_URL/api/v1/knowledge/ingest/bulk`.
 
 ## Errors and localisation
 
