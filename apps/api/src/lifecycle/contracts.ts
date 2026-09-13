@@ -6,6 +6,7 @@ import type {
   LifecycleCommandInput,
 } from "../dossiers/store";
 import type { Principal } from "../access/policy";
+import type { ActionGateEvaluation } from "../requirements/evaluator";
 
 export interface PrerequisiteObservation {
   obligationId: string;
@@ -43,6 +44,8 @@ export interface PreparedCommand {
   command: LifecycleCommandInput;
   state: LifecycleState;
   now: string;
+  gate?: ActionGateEvaluation;
+  validationError?: string;
 }
 export type Transition = { state: LifecycleState } | { error: string };
 export interface CommandResult {

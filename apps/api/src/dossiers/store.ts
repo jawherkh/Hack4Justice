@@ -17,6 +17,13 @@ import {
   type DocumentGrant,
   type ResourceScope,
 } from "../access/policy";
+import {
+  evaluateActionGate,
+  gateError,
+  resolveActionNode,
+  submissionAction,
+  type ActionGateEvaluation,
+} from "../requirements/evaluator";
 
 export type DossierLifecycle =
   "draft" | "active" | "awaiting_review" | "correction_requested" | "closed" | "cancelled";
@@ -419,6 +426,7 @@ export interface AccessRepository {
   dependency(id: string): DependencyRecord | undefined;
   obligation(id: string): ObligationRecord | undefined;
   obligationEvents(id: string, afterVersion: number): readonly ObligationChangeEvent[];
+  actionGate(dossierId: string, action: NodeAction, nodeId?: string): ActionGateEvaluation;
   grants(): readonly DocumentGrant[];
   procedures(): readonly ProcedureVersionRecord[];
   procedure(id: string): ProcedureVersionRecord | undefined;
@@ -712,6 +720,13 @@ export class InMemoryDossierRepository implements AgentRepository {
       .filter((event) => event.obligationId === id && event.version > afterVersion)
       .sort((a, b) => a.version - b.version)
       .map(clone);
+  }
+
+  public actionGate(dossierId: string, action: NodeAction, nodeId?: string): ActionGateEvaluation {
+    const detail = requireValue(this.dossierDetail(dossierId));
+    const target = resolveActionNode(detail, action, nodeId);
+    if (!target) throw new AccessError(422, "action_not_available");
+    return evaluateActionGate(detail, [...this.obligationRows.values()], target, action);
   }
 
   private procedureNodeDefinition(
@@ -1403,6 +1418,12 @@ export class InMemoryDossierRepository implements AgentRepository {
       throw new AccessError(409, "dossier_closed");
     if (input.nodeId && !dossier.nodeIds.includes(input.nodeId)) throw new AccessError(404, "not_found");
 
+    const action = submissionAction(input.type);
+    if (action) {
+      const error = gateError(this.actionGate(dossier.id, action, input.nodeId));
+      if (error) throw new AccessError(409, error);
+    }
+
     const acknowledgement: LifecycleCommandAcknowledgement = {
       commandId: `command-${dossier.id}-${++this.sequence}`,
       dossierId: dossier.id,
@@ -1753,6 +1774,7 @@ export function createDemoDossierRepository(
         procedureNodes.map((definition, index) => [definition.key, nodeIds[index]]),
       );
       const prerequisiteStatus: PrerequisiteStatus = agency === "DGI" ? "satisfied" : "unknown";
+      const seededRequirementReview = agency === "DGI" ? "ready" : "needs_review";
 
       for (const [index, definition] of procedureNodes.entries()) {
         const nodeId = nodeIds[index];
@@ -1780,7 +1802,7 @@ export function createDemoDossierRepository(
           sourceIds: [source.id],
           allowedActions: [...definition.allowedActions],
           blockers: [],
-          readiness: "unknown",
+          readiness: definition.type === "document_evidence" ? seededRequirementReview : "unknown",
           agencyAcceptance: "not_submitted",
           prerequisiteStatus,
         };
@@ -1805,7 +1827,7 @@ export function createDemoDossierRepository(
         sizeBytes: new TextEncoder().encode("Synthetic confidential document content").byteLength,
         uploadedBy: `demo-member-${company}`,
         uploadedAt: "2026-09-12T12:00:00.000Z",
-        reviewStatus: "unreviewed",
+        reviewStatus: agency === "DGI" ? "confirmed" : "unreviewed",
         immutable: true,
       };
       repository.addDocument(document);
@@ -1819,8 +1841,11 @@ export function createDemoDossierRepository(
         requirementId: requirementIds[0],
         evidenceIds: [documentId],
         evaluatedDossierVersion: 1,
-        outcome: "needs_review",
-        message: "Synthetic document awaits confirmation.",
+        outcome: agency === "DGI" ? "pass" : "needs_review",
+        message:
+          agency === "DGI"
+            ? "Synthetic document was confirmed for the demonstration."
+            : "Synthetic document awaits confirmation.",
         sourceIds: [source.id],
         validity: "current",
       };
@@ -1838,7 +1863,7 @@ export function createDemoDossierRepository(
         version: 1,
         procedureVersionId: procedureId,
         lifecycle: "active",
-        readiness: "needs_review",
+        readiness: seededRequirementReview,
         agencyAcceptance: "not_submitted",
         prerequisiteStatus,
         nodeIds,

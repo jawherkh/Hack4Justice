@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { AsyncAccessRepository } from "../dossiers/persistent";
 import { MAX_UPLOAD_BYTES } from "../dossiers/files";
 import { lifecycleCommandBody } from "../lifecycle/validation";
+import { evaluateRequirements } from "../requirements/evaluator";
 import { type ResolvePrincipal } from "./identity";
 import {
   AccessError,
@@ -51,6 +52,21 @@ const multipartBody = z.object({
   replacesDocumentId: z.string().min(1).optional(),
 });
 
+const nodeAction = z.enum([
+  "view",
+  "edit_facts",
+  "upload_evidence",
+  "correct_evidence",
+  "request_review",
+  "prepare_document",
+  "run_validation",
+  "record_decision",
+  "execute_external",
+  "submit",
+  "resubmit",
+  "cancel",
+]);
+
 function found<T>(value: T | undefined): T {
   if (!value) throw new AccessError(404, "not_found");
   return value;
@@ -92,6 +108,19 @@ export function createAccessRoutes(repository: AsyncAccessRepository, resolvePri
       const detail = found(await repository.dossierDetail(params.dossierId));
       requireAccess(canReadDossier(principal, detail.dossier));
       return detail;
+    })
+    .get("/dossiers/:dossierId/requirements", async ({ params, principal }) => {
+      const detail = found(await repository.dossierDetail(params.dossierId));
+      requireAccess(canReadDossier(principal, detail.dossier));
+      return evaluateRequirements(detail);
+    })
+    .get("/dossiers/:dossierId/actions/:action/gate", async ({ params, query, principal }) => {
+      const detail = found(await repository.dossierDetail(params.dossierId));
+      requireAccess(canReadDossier(principal, detail.dossier));
+      const parsed = nodeAction.safeParse(params.action);
+      if (!parsed.success) throw new AccessError(422, "invalid_action");
+      const nodeId = typeof query.nodeId === "string" && query.nodeId ? query.nodeId : undefined;
+      return repository.actionGate(detail.dossier.id, parsed.data, nodeId);
     })
     .get("/documents/:documentId", async ({ params, principal }) => {
       const document = found(await repository.document(params.documentId));
