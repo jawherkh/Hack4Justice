@@ -1,10 +1,14 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { REQUIREMENTS, SERVICES, deriveSteps, type ProcedureStep } from '@hack4justice/shared'
-import { ArrowRight, Check, ChevronRight, Paperclip } from 'lucide-react'
+import { ArrowRight, Check, ChevronRight, Paperclip, Upload } from 'lucide-react'
+import { toast } from '@hack4justice/ui/components/toast'
+import { useFileDrop, type FileDropError } from '#/components/uploads/use-file-drop'
+import { ApiError } from '#/lib/api-error'
 import { Button } from '@hack4justice/ui/components/button'
 import { cn } from '@hack4justice/ui/lib/utils'
 import { toLocaleParam, useI18n } from '#/i18n'
-import type { ProjectDetail, ProjectRequirementView } from '#/lib/projects'
+import { projectKeys, uploadAndAttach, type ProjectDetail, type ProjectRequirementView } from '#/lib/projects'
 import {
   REQUIREMENT_TYPE_ICON,
   requirementHint,
@@ -85,38 +89,14 @@ export function StepsTimeline({ project, onSelectRequirement }: StepsTimelinePro
                     const requirement = byId.get(id)
                     const def = REQUIREMENTS[id]
                     if (!requirement || !def) return null
-                    const Icon = REQUIREMENT_TYPE_ICON[def.type]
                     return (
-                      <li key={id}>
-                        <button
-                          type="button"
-                          onClick={() => onSelectRequirement(requirement)}
-                          className="group/node flex w-full items-center gap-3 rounded-lg border bg-card px-3 py-2.5 text-start transition-colors outline-none hover:border-foreground/20 focus-visible:ring-3 focus-visible:ring-ring/50"
-                        >
-                          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                            <Icon className="size-4" />
-                          </span>
-                          <span className="flex min-w-0 flex-1 flex-col">
-                            <span className="truncate text-sm font-medium">{t(requirementLabel(id))}</span>
-                            {requirement.upload ? (
-                              <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                                <Paperclip className="size-3" />
-                                {requirement.upload.filename}
-                              </span>
-                            ) : requirement.note ? (
-                              <span className="truncate text-xs text-muted-foreground">
-                                {requirement.note}
-                              </span>
-                            ) : (
-                              <span className="line-clamp-1 text-xs text-muted-foreground">
-                                {t(requirementHint(id))}
-                              </span>
-                            )}
-                          </span>
-                          <RequirementStatusBadge status={requirement.status} />
-                          <ChevronRight className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover/node:opacity-100 rtl:rotate-180" />
-                        </button>
-                      </li>
+                      <RequirementNode
+                        key={id}
+                        projectId={project.id}
+                        requirement={requirement}
+                        droppable={def.type === 'document'}
+                        onSelect={() => onSelectRequirement(requirement)}
+                      />
                     )
                   })}
                 </ol>
@@ -144,5 +124,85 @@ export function StepsTimeline({ project, onSelectRequirement }: StepsTimelinePro
         )
       })}
     </ol>
+  )
+}
+
+interface RequirementNodeProps {
+  projectId: string
+  requirement: ProjectRequirementView
+  /** Document requirements accept a dropped PDF: it is uploaded into the project and attached. */
+  droppable: boolean
+  onSelect: () => void
+}
+
+function RequirementNode({ projectId, requirement, droppable, onSelect }: RequirementNodeProps) {
+  const { t } = useI18n()
+  const queryClient = useQueryClient()
+  const id = requirement.requirementId
+  const def = REQUIREMENTS[id]!
+  const Icon = REQUIREMENT_TYPE_ICON[def.type]
+
+  const attach = useMutation({
+    mutationFn: (file: File) => uploadAndAttach(projectId, id, file),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) })
+      void queryClient.invalidateQueries({ queryKey: projectKeys.uploads(projectId) })
+      toast.add({ type: 'success', title: t('procedure.requirement.saved') })
+    },
+    onError: (err) =>
+      toast.add({
+        type: 'error',
+        title: t('procedure.requirement.error'),
+        description: err instanceof ApiError ? err.message : t('auth.error.generic'),
+      }),
+  })
+  const dropError = (error: FileDropError) =>
+    toast.add({
+      type: 'error',
+      title: t(error === 'notPdf' ? 'uploads.drop.notPdf' : 'uploads.drop.tooLarge'),
+    })
+  const { dragging, handlers } = useFileDrop({
+    onFile: (file) => attach.mutate(file),
+    onError: dropError,
+    disabled: !droppable || attach.isPending,
+  })
+
+  return (
+    <li {...handlers}>
+      <button
+        type="button"
+        onClick={onSelect}
+        disabled={attach.isPending}
+        className={cn(
+          'group/node flex w-full cursor-pointer items-center gap-3 rounded-lg border bg-card px-3 py-2.5 text-start transition-colors outline-none hover:border-foreground/20 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-progress',
+          dragging && 'border-dashed border-primary bg-primary/5',
+        )}
+      >
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+          {dragging ? <Upload className="size-4 text-primary" /> : <Icon className="size-4" />}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-sm font-medium">{t(requirementLabel(id))}</span>
+          {attach.isPending ? (
+            <span className="truncate text-xs text-muted-foreground">
+              {t('procedure.requirement.uploading')}
+            </span>
+          ) : dragging ? (
+            <span className="truncate text-xs text-primary">{t('procedure.requirement.dropHere')}</span>
+          ) : requirement.upload ? (
+            <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <Paperclip className="size-3" />
+              {requirement.upload.filename}
+            </span>
+          ) : requirement.note ? (
+            <span className="truncate text-xs text-muted-foreground">{requirement.note}</span>
+          ) : (
+            <span className="line-clamp-1 text-xs text-muted-foreground">{t(requirementHint(id))}</span>
+          )}
+        </span>
+        <RequirementStatusBadge status={requirement.status} />
+        <ChevronRight className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover/node:opacity-100 rtl:rotate-180" />
+      </button>
+    </li>
   )
 }

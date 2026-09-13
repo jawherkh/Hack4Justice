@@ -468,5 +468,8 @@
   "notifications.type.SUBMISSION_UPDATED": "« {project} » : statut passé à {status}.",
   "notifications.type.UPLOAD_EXTRACTED": "Texte extrait de « {filename} ».",
   "notifications.type.UPLOAD_FAILED": "Échec de l’extraction pour « {filename} ».",
-  "nav.notifications": "Notifications"
+  "nav.notifications": "Notifications",
+  "procedure.requirement.dropHere": "Déposez un PDF pour le joindre",
+  "procedure.requirement.uploading": "Import en cours…",
+  "procedure.explorer.dropHere": "Déposez un PDF pour l’ajouter au projet"
 }

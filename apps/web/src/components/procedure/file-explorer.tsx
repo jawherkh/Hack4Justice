@@ -42,12 +42,13 @@ import { Skeleton } from '@hack4justice/ui/components/skeleton'
 import { toast } from '@hack4justice/ui/components/toast'
 import { cn } from '@hack4justice/ui/lib/utils'
 import { UploadDropzone } from '#/components/uploads/upload-dropzone'
+import { useFileDrop } from '#/components/uploads/use-file-drop'
 import { UploadStatusBadge } from '#/components/uploads/upload-status-badge'
 import { toLocaleParam, useI18n } from '#/i18n'
 import { ApiError } from '#/lib/api-error'
 import { formatBytes, formatRelative } from '#/lib/format'
 import { listProjectUploads, projectKeys, updateRequirement, type ProjectDetail } from '#/lib/projects'
-import { pollingInterval } from '#/lib/uploads'
+import { pollingInterval, uploadPdf } from '#/lib/uploads'
 import { requirementLabel } from './labels'
 
 const ALL = '__all__'
@@ -79,6 +80,29 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
         title: t('procedure.requirement.error'),
         description: err instanceof ApiError ? err.message : t('auth.error.generic'),
       }),
+  })
+
+  const dropUpload = useMutation({
+    mutationFn: (file: File) => uploadPdf({ file, languages: 'fra+eng', projectId: project.id }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.uploads(project.id) })
+      toast.add({ type: 'success', title: t('procedure.explorer.uploaded') })
+    },
+    onError: (err) =>
+      toast.add({
+        type: 'error',
+        title: t('uploads.toast.error'),
+        description: err instanceof ApiError ? err.message : t('auth.error.generic'),
+      }),
+  })
+  const drop = useFileDrop({
+    onFile: (file) => dropUpload.mutate(file),
+    onError: (error) =>
+      toast.add({
+        type: 'error',
+        title: t(error === 'notPdf' ? 'uploads.drop.notPdf' : 'uploads.drop.tooLarge'),
+      }),
+    disabled: dropUpload.isPending,
   })
 
   const documentRequirements = project.requirements.filter(
@@ -130,7 +154,19 @@ export function FileExplorer({ project }: { project: ProjectDetail }) {
         />
       </nav>
 
-      <section className="flex min-w-0 flex-col gap-3">
+      <section
+        {...drop.handlers}
+        className={cn(
+          'relative flex min-w-0 flex-col gap-3 rounded-xl transition-colors',
+          drop.dragging && 'ring-2 ring-primary ring-offset-4 ring-offset-background',
+        )}
+      >
+        {drop.dragging ? (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/80 text-sm font-medium text-primary backdrop-blur-sm">
+            <Upload className="me-2 size-4" />
+            {t('procedure.explorer.dropHere')}
+          </div>
+        ) : null}
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
             {t('procedure.explorer.files', { count: visible.length })}

@@ -468,5 +468,8 @@
   "notifications.type.SUBMISSION_UPDATED": "“{project}”: status set to {status}.",
   "notifications.type.UPLOAD_EXTRACTED": "Text extracted from “{filename}”.",
   "notifications.type.UPLOAD_FAILED": "Extraction failed for “{filename}”.",
-  "nav.notifications": "Notifications"
+  "nav.notifications": "Notifications",
+  "procedure.requirement.dropHere": "Drop a PDF to attach it",
+  "procedure.requirement.uploading": "Uploading…",
+  "procedure.explorer.dropHere": "Drop a PDF to add it to the project"
 }

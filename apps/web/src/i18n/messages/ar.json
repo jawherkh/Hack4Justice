@@ -468,5 +468,8 @@
   "notifications.type.SUBMISSION_UPDATED": "«{project}»: تم تغيير الحالة إلى {status}.",
   "notifications.type.UPLOAD_EXTRACTED": "تم استخراج النص من «{filename}».",
   "notifications.type.UPLOAD_FAILED": "فشل الاستخراج للملف «{filename}».",
-  "nav.notifications": "الإشعارات"
+  "nav.notifications": "الإشعارات",
+  "procedure.requirement.dropHere": "أفلت ملف PDF لإرفاقه",
+  "procedure.requirement.uploading": "جارٍ الاستيراد…",
+  "procedure.explorer.dropHere": "أفلت ملف PDF لإضافته إلى المشروع"
 }
