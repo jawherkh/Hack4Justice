@@ -101,6 +101,12 @@ export function SubmissionPanel({ project }: { project: ProjectDetail }) {
   const ready = missing.length === 0
   const current = project.submissionStatus
   const pending = update.isPending
+  // The newest submission first; the list is ordered by submission date.
+  const latest = project.submissions[0]
+  // A reviewer has ruled on this one. The outcome is theirs to state, not the applicant's,
+  // so the buttons that would contradict it are not offered. Going back to preparation
+  // stays available, because that is how a refusal gets corrected and submitted again.
+  const reviewed = Boolean(latest?.reviewedAt)
 
   return (
     <div className="flex flex-col gap-4">
@@ -166,7 +172,7 @@ export function SubmissionPanel({ project }: { project: ProjectDetail }) {
             </div>
           ) : null}
 
-          {current === 'SUBMITTED' || current === 'UNDER_REVIEW' ? (
+          {(current === 'SUBMITTED' || current === 'UNDER_REVIEW') && !reviewed ? (
             <div className="flex flex-wrap gap-2">
               {current === 'SUBMITTED' ? (
                 <Button
@@ -188,6 +194,23 @@ export function SubmissionPanel({ project }: { project: ProjectDetail }) {
                 {t('procedure.submission.mark.REJECTED')}
               </Button>
               <Button variant="ghost" disabled={pending} onClick={() => update.mutate(null)}>
+                {t('procedure.submission.reset')}
+              </Button>
+            </div>
+          ) : null}
+
+          {(current === 'SUBMITTED' || current === 'UNDER_REVIEW') && reviewed ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-muted-foreground">{t('procedure.submission.reviewed')}</p>
+              {latest?.reviewNote ? (
+                <p className="rounded-lg bg-muted p-3 text-sm">{latest.reviewNote}</p>
+              ) : null}
+              <Button
+                variant="ghost"
+                className="self-start"
+                disabled={pending}
+                onClick={() => update.mutate(null)}
+              >
                 {t('procedure.submission.reset')}
               </Button>
             </div>

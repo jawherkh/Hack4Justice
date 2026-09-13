@@ -380,6 +380,7 @@
   "procedure.submission.mark.UNDER_REVIEW": "Il est en cours d’examen",
   "procedure.submission.mark.ACCEPTED": "Il a été accepté",
   "procedure.submission.mark.REJECTED": "Il a été rejeté",
+  "procedure.submission.reviewed": "Ce depot a ete examine sur la plateforme. Le resultat est enregistre par l'examinateur.",
   "procedure.submission.reset": "Retour à la préparation",
   "procedure.submission.outputs": "Documents obtenus",
   "procedure.submission.effects": "En cas de rejet",
