@@ -1,14 +1,11 @@
 <div align="center">
-  <img src="apps/web/public/favicon.svg" width="88" height="88" alt="Dalil logo" />
+  <img src="apps/web/public/brand/dalil-mark.svg" width="104" height="104" alt="Dalil logo" />
   <h1>Dalil · دليل</h1>
   <p>
-    <strong>From paperwork to a submission-ready Tunisian administrative dossier.</strong><br />
-    <span dir="rtl"><strong>من الوثائق المتفرقة إلى ملف إداري تونسي جاهز للإيداع.</strong></span>
+    <strong>From paperwork to a submission-ready Tunisian administrative dossier.</strong>
   </p>
 
   <p>
-    <a href="#quick-start"><img alt="Get started" src="https://img.shields.io/badge/Get_started-2563EB?style=for-the-badge&logo=rocket&logoColor=white" /></a>
-    <a href="#how-it-works"><img alt="How it works" src="https://img.shields.io/badge/How_it_works-0F766E?style=for-the-badge&logo=mermaid&logoColor=white" /></a>
     <a href="#arabic"><img alt="Read in Arabic" src="https://img.shields.io/badge/%D8%A7%D9%84%D8%B9%D8%B1%D8%A8%D9%8A%D8%A9-C2410C?style=for-the-badge&logo=googletranslate&logoColor=white" /></a>
   </p>
 
@@ -48,57 +45,190 @@ The current experience covers services from the **Registre National des Entrepri
 | Deregistration and closure  | Annual return and tax package         |
 | Electronic safe             | Tax status and certificates           |
 
-<a id="how-it-works"></a>
+## Architecture
 
-## How it works
+Dashed arrows are user-controlled steps outside Dalil. Dalil never submits to RNE or DGI: the user submits on the official channel and records the reference or outcome in Dalil.
+
+### User journey
 
 ```mermaid
 flowchart LR
-    A["Choose an agency and service<br/>اختر الإدارة والإجراء"] --> B["Follow the tailored checklist<br/>اتبع قائمة المتطلبات"]
-    B --> C["Upload and review evidence<br/>حمّل الوثائق وراجعها"]
-    C --> D["Resolve missing items<br/>استكمل العناصر الناقصة"]
-    D --> E["File through the official channel<br/>أودع عبر القناة الرسمية"]
-    E --> F["Record and track the result<br/>سجّل النتيجة وتابعها"]
+    USER(["Citizen or business<br/>مواطن أو مؤسسة"])
 
-    classDef active fill:#eff6ff,stroke:#2563eb,color:#172554,stroke-width:2px;
-    classDef official fill:#fff7ed,stroke:#c2410c,color:#7c2d12,stroke-width:2px;
-    class A,B,C,D,F active;
-    class E official;
+    subgraph DALIL["Dalil workspace · مساحة عمل دليل"]
+        direction LR
+
+        subgraph S1["1 · Discover · اكتشف"]
+            direction TB
+            AGENCY["Choose agency<br/>RNE or DGI"] --> SERVICE["Choose procedure"] --> PROJECT["Create a project"]
+        end
+
+        subgraph S2["2 · Prepare · حضّر"]
+            direction TB
+            CHECKLIST["Tailored requirements<br/>قائمة متطلبات مخصصة"] --> UPLOAD["Upload evidence"]
+            UPLOAD --> PARSE{"Native text<br/>or scanned?"}
+            PARSE -- "native" --> POPPLER["Poppler<br/>pdftotext · pdftoppm"]
+            PARSE -- "scanned" --> OCR["DeepSeek OCR"]
+            POPPLER --> TEXT["Extracted text<br/>AR · FR · EN"]
+            OCR --> TEXT
+            TEXT --> REVIEW["Review and attach<br/>راجع واربط الأدلة"]
+            UPLOAD -.-> STORAGE[("Private storage<br/>MinIO / S3")]
+        end
+
+        subgraph S3["3 · Validate · تحقّق"]
+            direction TB
+            READY{"Ready for<br/>submission?"}
+            READY -- "no" --> GAPS["Missing or invalid items"]
+            READY -- "yes" --> SNAPSHOT["Freeze checklist snapshot"]
+            SNAPSHOT --> CONFIRM(["Human confirmation<br/>تأكيد المستخدم"])
+        end
+
+        subgraph ASSIST["Assistant · المساعدة"]
+            direction TB
+            AGENT["Dossier-aware assistant"] --> SEARCH["Agency-scoped legal search"] --> ANSWER["Grounded answer<br/>with sources"] --> EXPORT["Export Markdown / PDF"]
+        end
+
+        subgraph S5["5 · Follow up · تابع"]
+            direction TB
+            RECORD["Record submission<br/>and outcome"] --> STATUS["Track review status"]
+            STATUS --> CHANGES{"Changes<br/>requested?"}
+            CHANGES -- "no" --> HISTORY["Versions and history"]
+            STATUS --> NOTIFY["Notifications<br/>in-app · SMS · WhatsApp"]
+        end
+    end
+
+    subgraph OFFICIAL["4 · Official channel · القناة الرسمية"]
+        direction TB
+        PORTAL["RNE or DGI channel"] --> RECEIPT["Receipt or reference"]
+        PORTAL --> OUTCOME["Official outcome"]
+    end
+
+    USER --> AGENCY
+    PROJECT --> CHECKLIST
+    REVIEW --> READY
+    GAPS --> CHECKLIST
+    CHANGES -- "yes" --> GAPS
+    CHECKLIST -. "dossier context" .-> AGENT
+    ANSWER -. "next action" .-> GAPS
+    CONFIRM -. "user submits" .-> PORTAL
+    RECEIPT -. "user records" .-> RECORD
+    OUTCOME -. "user records" .-> RECORD
+    NOTIFY --> USER
+
+    classDef person fill:#FFF7ED,stroke:#F0A860,color:#16213E,stroke-width:2px
+    classDef dalil fill:#EFF6FF,stroke:#2563EB,color:#16213E
+    classDef intel fill:#F0FDFA,stroke:#0F766E,color:#134E4A
+    classDef data fill:#FAF5FF,stroke:#7C3AED,color:#4C1D95
+    classDef official fill:#FFF7ED,stroke:#C2410C,color:#7C2D12
+    classDef decision fill:#FFFFFF,stroke:#F0A860,color:#16213E,stroke-width:3px
+
+    class USER,CONFIRM person
+    class AGENCY,SERVICE,PROJECT,CHECKLIST,UPLOAD,REVIEW,GAPS,SNAPSHOT,RECORD,STATUS,HISTORY,NOTIFY dalil
+    class POPPLER,OCR,TEXT,AGENT,SEARCH,ANSWER,EXPORT intel
+    class STORAGE data
+    class PORTAL,RECEIPT,OUTCOME official
+    class PARSE,READY,CHANGES decision
 ```
 
-The orange step happens outside Dalil on the relevant official channel. Dalil validates readiness before that handoff and preserves what was submitted for later tracking.
-
-## Architecture
+### System architecture
 
 ```mermaid
 flowchart TB
-    USER["Citizen or business<br/>المواطن أو المؤسسة"] --> WEB["Web application<br/>React · TanStack · RTL/i18n"]
-    WEB --> API["Business API<br/>Elysia · OpenAPI · SSE"]
+    subgraph ACTORS["Actors"]
+        direction LR
+        USER["Citizen or business"]
+        OFFICER["Agency officer"]
+    end
 
-    API --> AUTH["Identity and access<br/>Better Auth"]
-    API --> DB[("PostgreSQL<br/>projects · dossiers · events")]
-    API --> FILES[("MinIO / S3<br/>original documents")]
-    API --> FLOW["Temporal<br/>durable lifecycle and agent turns"]
+    subgraph EXPERIENCE["Experience layer"]
+        direction LR
+        WEB["React 19 + TanStack<br/>Arabic RTL · French · English"] --> CLIENT["Typed API client<br/>OpenAPI · SSE"]
+    end
 
-    API --> DOCS["Document pipeline<br/>Poppler · OCR"]
-    DOCS --> OCR["OpenAI-compatible<br/>DeepSeek OCR"]
+    subgraph TRUST["API trust boundary"]
+        direction LR
+        API["Elysia API<br/>OpenAPI · JSON · SSE"] --> AUTHZ["Authentication and<br/>access policy"]
+        AUTHZ --> MODULES["Modules<br/>Projects · Documents · Assistant<br/>Exports · Notifications · Commands"]
+    end
 
-    API --> AGENT["Dossier assistant<br/>OpenAI Agents SDK transport"]
-    AGENT --> MODEL["Gemini"]
-    AGENT --> BOX["Private Docker sandbox<br/>non-root · no network"]
-    AGENT --> KNOW["Agency-scoped knowledge search"]
-    KNOW --> GRAPH["Graphiti service"]
-    GRAPH --> NEO[("Neo4j legal graph")]
+    subgraph RUNTIME["Runtime services"]
+        direction LR
+        subgraph DOCS["Document pipeline"]
+            direction TB
+            VALIDATE["Type and size validation"] --> KIND{"Native or<br/>scanned?"}
+            KIND -- "native" --> POPPLER["Poppler"]
+            KIND -- "scanned" --> DEEPSEEK["DeepSeek OCR"]
+            POPPLER --> TEXT["Extracted text<br/>AR · FR · EN"]
+            DEEPSEEK --> TEXT
+        end
+        subgraph WORKFLOWS["Durable execution"]
+            direction TB
+            EVENTS["Commands · events<br/>idempotent retries"] --> TEMPORAL["Temporal"] --> WORKER["Lifecycle and<br/>agent worker"]
+        end
+        subgraph AGENT["Assistant runtime"]
+            direction TB
+            SDK["OpenAI Agents SDK"] --> GEMINI["Gemini<br/>OpenAI-compatible"]
+            SDK --> TOOLS["Server-authorized<br/>dossier tools"] --> SANDBOX["Docker sandbox<br/>non-root · no network"]
+            SANDBOX --> ARTIFACTS["Drafts and artifacts"]
+        end
+        subgraph DELIVERY["Notification delivery"]
+            direction TB
+            OUTBOX["Notification outbox"] --> TWILIO["Twilio<br/>SMS · WhatsApp"]
+            OUTBOX --> SIM["Simulated delivery<br/>local"]
+        end
+    end
 
-    classDef edge fill:#eff6ff,stroke:#2563eb,color:#172554;
-    classDef service fill:#f0fdfa,stroke:#0f766e,color:#134e4a;
-    classDef data fill:#faf5ff,stroke:#7c3aed,color:#4c1d95;
-    class USER,WEB edge;
-    class API,AUTH,FLOW,DOCS,AGENT,BOX,KNOW,GRAPH service;
-    class DB,FILES,NEO,OCR,MODEL data;
+    subgraph DATA["Data"]
+        direction LR
+        PG[("PostgreSQL<br/>Drizzle ORM")]
+        S3[("MinIO / S3<br/>originals · artifacts")]
+        WS[("Agent workspaces<br/>per dossier")]
+    end
+
+    subgraph KNOWLEDGE["Legal knowledge boundary"]
+        direction LR
+        SEARCH["Agency-scoped<br/>search adapter"] --> GRAPHITI["Graphiti<br/>ingest · hybrid search · rerank"]
+        GRAPHITI <--> NEO4J[("Neo4j<br/>agency-partitioned graph")]
+        SOURCES[("Approved legal sources<br/>provenance · offsets")] --> GRAPHITI
+        GRAPHITI --> KMODEL["Gemini extraction<br/>and embeddings"] --> NEO4J
+    end
+
+    EXT["Official RNE / DGI channels"]
+
+    USER --> WEB
+    OFFICER --> WEB
+    CLIENT -- "session cookie · HTTPS" --> API
+    MODULES --> VALIDATE
+    MODULES --> EVENTS
+    MODULES --> SDK
+    MODULES --> OUTBOX
+    MODULES <--> PG
+    TEXT --> PG
+    WORKER <--> PG
+    WORKER --> SDK
+    VALIDATE --> S3
+    ARTIFACTS --> S3
+    SANDBOX --> WS
+    TOOLS --> SEARCH
+    USER -. "submits directly" .-> EXT
+    EXT -. "reference / outcome<br/>entered by user" .-> WEB
+
+    classDef actor fill:#FFF7ED,stroke:#F0A860,color:#16213E,stroke-width:2px
+    classDef exp fill:#EFF6FF,stroke:#2563EB,color:#16213E
+    classDef sec fill:#FFFFFF,stroke:#16213E,color:#16213E,stroke-width:3px
+    classDef svc fill:#F0FDFA,stroke:#0F766E,color:#134E4A
+    classDef data fill:#FAF5FF,stroke:#7C3AED,color:#4C1D95
+    classDef ext fill:#FFF7ED,stroke:#C2410C,color:#7C2D12
+    classDef decision fill:#FFFFFF,stroke:#F0A860,color:#16213E,stroke-width:3px
+
+    class USER,OFFICER actor
+    class WEB,CLIENT exp
+    class API,AUTHZ,MODULES sec
+    class VALIDATE,POPPLER,DEEPSEEK,TEXT,EVENTS,TEMPORAL,WORKER,SDK,GEMINI,TOOLS,SANDBOX,ARTIFACTS,OUTBOX,TWILIO,SIM,SEARCH,GRAPHITI,KMODEL svc
+    class PG,S3,WS,NEO4J,SOURCES data
+    class EXT ext
+    class KIND decision
 ```
-
-The API is the authorization boundary. Dossier data, raw documents, knowledge searches, assistant sessions, and exports remain scoped to the authenticated user and the responsible agency. Agent work runs in an isolated, resource-limited filesystem with networking disabled.
 
 ## Response exports
 
