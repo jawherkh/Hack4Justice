@@ -5,7 +5,7 @@ import {
   LEGAL_FORMS,
   SUPPORTED_LOCALES,
 } from "@hack4justice/shared";
-import { pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
 import { timestamps } from "./columns";
@@ -30,6 +30,12 @@ export const userProfile = pgTable("user_profile", {
   preferredLocale: preferredLocale().notNull(),
   governorate: governorate(),
   phone: text(),
+  /**
+   * Whether the user asked to be told on their phone when a procedure is blocked. Off
+   * until they turn it on: a phone number given for a dossier is not consent to be
+   * messaged on it.
+   */
+  urgentAlerts: boolean().notNull().default(false),
   /** Company block. Optional for professionals, who may act for many clients. */
   companyName: text(),
   legalForm: legalForm(),

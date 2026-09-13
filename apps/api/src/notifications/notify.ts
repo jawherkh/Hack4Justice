@@ -267,7 +267,7 @@ export interface TemplateInput {
   nextAction: string;
 }
 
-type TemplateKind = "decision" | "obligation";
+type TemplateKind = "decision" | "obligation" | "blocked";
 
 const templates: Record<
   Language,
@@ -282,6 +282,10 @@ const templates: Record<
       title: `Obligation ${subject}`,
       body: `Une obligation concernant votre dossier ${dossierReference} a change : ${subject}. Prochaine etape : ${nextAction}.`,
     }),
+    blocked: ({ dossierReference, subject, nextAction }) => ({
+      title: `Action requise : ${dossierReference}`,
+      body: `Votre dossier ${dossierReference} est bloque : ${subject}. Prochaine etape : ${nextAction}.`,
+    }),
   },
   "ar-TN": {
     decision: ({ dossierReference, subject, nextAction }) => ({
@@ -291,6 +295,10 @@ const templates: Record<
     obligation: ({ dossierReference, subject, nextAction }) => ({
       title: `التزام ${subject}`,
       body: `تغير التزام يخص ملفكم ${dossierReference}: ${subject}. الخطوة الموالية: ${nextAction}.`,
+    }),
+    blocked: ({ dossierReference, subject, nextAction }) => ({
+      title: `إجراء مطلوب: ${dossierReference}`,
+      body: `ملفكم ${dossierReference} متوقف: ${subject}. الخطوة الموالية: ${nextAction}.`,
     }),
   },
 };

@@ -36,3 +36,23 @@ export const NOTIFICATION_DOMAIN_BY_TYPE: Record<NotificationType, NotificationD
 
 /** How many notifications the bell popover shows; the page lists everything. */
 export const NOTIFICATION_PREVIEW_LIMIT = 8;
+
+/**
+ * Notifications that also reach the user outside the app.
+ *
+ * Everything lands in the inbox. Only what stops the user progressing is worth a message
+ * on their phone: a submission the administration refused, and a document the platform
+ * could not read. Both leave the procedure unable to move until the user acts. Good news
+ * and progress stay in the inbox, because a channel that carries everything is muted, and
+ * a muted channel does not deliver the one message that mattered.
+ */
+export function isUrgentNotification(
+  type: NotificationType,
+  payload: Record<string, string> = {},
+): boolean {
+  // A submission can be accepted, put under review or refused. Only a refusal asks
+  // something of the user.
+  if (type === NotificationType.SUBMISSION_UPDATED) return payload.status === "REJECTED";
+  if (type === NotificationType.UPLOAD_FAILED) return true;
+  return false;
+}

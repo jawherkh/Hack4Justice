@@ -3,6 +3,7 @@ import { NOTIFICATION_DOMAIN_BY_TYPE, type NotificationType } from "@hack4justic
 
 import { db } from "../db";
 import { logger } from "../logger";
+import { alertIfUrgent } from "./urgent";
 
 export interface NotifyInput {
   userId: string;
@@ -41,6 +42,11 @@ export async function notify({
       .values(values)
       .onConflictDoNothing({ target: [notification.userId, notification.idempotencyKey] })
       .returning({ id: notification.id });
+    if (rows.length > 0) {
+      // Only the first time this event is recorded. The alert has its own record and its
+      // own key as well, so a retry that reaches here again still sends one message.
+      await alertIfUrgent({ userId, type, payload, idempotencyKey, projectId });
+    }
     return rows.length > 0;
   } catch (err) {
     logger.error({ err, userId, type, idempotencyKey }, "could not store notification");
