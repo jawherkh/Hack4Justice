@@ -17,7 +17,30 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
-      { rel: 'icon', href: '/favicon.ico', sizes: '16x16', type: 'image/x-icon' },
+      { rel: 'icon', href: '/brand/favicon-admin/favicon-admin.ico', sizes: '16x16 32x32 48x48' },
+      {
+        rel: 'icon',
+        type: 'image/svg+xml',
+        href: '/brand/favicon-admin/favicon-admin.svg',
+        media: '(prefers-color-scheme: light)',
+      },
+      {
+        rel: 'icon',
+        type: 'image/svg+xml',
+        href: '/brand/favicon-admin/favicon-admin-dark.svg',
+        media: '(prefers-color-scheme: dark)',
+      },
+      {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: '32x32',
+        href: '/brand/favicon-admin/favicon-admin-32.png',
+      },
+      {
+        rel: 'apple-touch-icon',
+        sizes: '180x180',
+        href: '/brand/favicon-admin/app-icon-admin-180.png',
+      },
     ],
   }),
   shellComponent: RootDocument,
