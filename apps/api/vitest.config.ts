@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // Harnesses that need real credentials or a real service are kept out of the repo and
+    // out of this run, so having one locally never breaks the suite.
+    exclude: ["**/node_modules/**", "**/dist/**", "src/**/*.local.test.ts"],
     // env.ts validates on import; these values are never used to connect
     // (persistent.test.ts needs TEST_DATABASE_URL and skips without it).
     env: {

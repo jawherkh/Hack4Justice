@@ -86,6 +86,30 @@ export const profileModule = new Elysia({ prefix: "/me/profile", tags: ["profile
       body: bodySchema,
       detail: { summary: "Complete onboarding or update my profile" },
     },
+  )
+
+  .put(
+    "/urgent-alerts",
+    async ({ body, user: me }) => {
+      const [row] = await db.select().from(userProfile).where(eq(userProfile.userId, me.id)).limit(1);
+      if (!row) throw new AppError({ status: 404, code: "profile_not_found" });
+      // A number given for a dossier is not consent to be messaged on it, so there must be
+      // one on file before this can be turned on.
+      if (body.enabled && !row.phone) throw new AppError({ status: 422, code: "phone_required" });
+      const [saved] = await db
+        .update(userProfile)
+        .set({ urgentAlerts: body.enabled })
+        .where(eq(userProfile.userId, me.id))
+        .returning();
+      return toView(saved!);
+    },
+    {
+      auth: true,
+      body: t.Object({ enabled: t.Boolean() }),
+      detail: {
+        summary: "Turn messages to my phone on or off. Only a blocked procedure is ever sent",
+      },
+    },
   );
 
 function toValues(body: ProfileBody, userId: string): NewUserProfile {

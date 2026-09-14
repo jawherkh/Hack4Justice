@@ -3,6 +3,7 @@
 export * from "./auth";
 export * from "./uploads";
 export * from "./projects";
+export * from "./deliveries";
 export * from "./notifications";
 export * from "./submissions";
 export * from "./admin";

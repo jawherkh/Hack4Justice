@@ -380,6 +380,7 @@
   "procedure.submission.mark.UNDER_REVIEW": "قيد المراجعة",
   "procedure.submission.mark.ACCEPTED": "تم قبوله",
   "procedure.submission.mark.REJECTED": "تم رفضه",
+  "procedure.submission.reviewed": "تمت مراجعة هذا الإيداع على المنصة. النتيجة مسجلة من قبل المراجع.",
   "procedure.submission.reset": "العودة إلى الإعداد",
   "procedure.submission.outputs": "الوثائق التي تحصل عليها",
   "procedure.submission.effects": "في حال الرفض",

@@ -380,6 +380,7 @@
   "procedure.submission.mark.UNDER_REVIEW": "It is under review",
   "procedure.submission.mark.ACCEPTED": "It was accepted",
   "procedure.submission.mark.REJECTED": "It was rejected",
+  "procedure.submission.reviewed": "This submission has been reviewed on the platform. The outcome is recorded by the reviewer.",
   "procedure.submission.reset": "Back to preparation",
   "procedure.submission.outputs": "Documents you receive",
   "procedure.submission.effects": "If rejected",
